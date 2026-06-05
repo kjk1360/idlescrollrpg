@@ -1,0 +1,12 @@
+[workspace]
+members = [
+    "crates/belt_core",
+    "crates/data_studio_core",
+    "crates/tools",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "UNLICENSED"
+version = "0.1.0"

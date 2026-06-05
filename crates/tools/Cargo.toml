@@ -1,0 +1,9 @@
+[package]
+name = "belt_tools"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+belt_core = { path = "../belt_core" }
+data_studio_core = { path = "../data_studio_core" }
