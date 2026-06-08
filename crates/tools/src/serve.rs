@@ -1198,6 +1198,12 @@ const INDEX_HTML: &str = r#"<!doctype html>
       background: #eef2f5;
       padding: 10px;
     }
+    .app.visual-mode {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .app.visual-mode aside {
+      display: none;
+    }
     .nav-title {
       margin: 10px 8px 6px;
       font-size: 11px;
@@ -1702,6 +1708,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
     }
 
     function renderNav() {
+      document.querySelector('.app').classList.toggle('visual-mode', state.mode === 'visual');
       $('tables').innerHTML = rootTables().map(table => renderTableNavItem(table, 0, '')).join('');
       $('views').style.display = state.mode === 'data' ? '' : 'none';
       $('viewsTitle').style.display = state.mode === 'data' ? '' : 'none';
@@ -1853,8 +1860,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
             ${tableDataByKey('texture_asset').rows.map(row => `<option value="${escapeAttr(cellStringByKey('texture_asset', row, 'path', ''))}"></option>`).join('')}
           </datalist>
           <button onclick="importAseprite()">Import Aseprite</button>
-        </div>
-        <button onclick="selectTable('unit_visual')">Open Table</button>`;
+        </div>`;
       $('grid').innerHTML = `
         <div class="visual-layout">
           <div class="visual-list">
@@ -1914,7 +1920,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
         <div class="slicer-panel">
           <div class="slicer-head">
             <span>Sprite Sheet Slicer</span>
-            <button onclick="selectTable('sprite_frame')">Open Sprite Frames</button>
+            <span>${tableDataByKey('sprite_frame').rows.length} frames</span>
           </div>
           <div class="slicer-body">
             <canvas id="sliceCanvas" class="slicer-canvas"></canvas>
@@ -2198,6 +2204,10 @@ const INDEX_HTML: &str = r#"<!doctype html>
     }
 
     function selectTable(key) {
+      if (state.mode === 'visual') {
+        renderVisualDashboard();
+        return;
+      }
       state.selected = { type: 'table', key };
       renderNav();
       const table = state.project.tables.find(table => table.key === key);
