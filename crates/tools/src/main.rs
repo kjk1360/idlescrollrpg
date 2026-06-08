@@ -186,7 +186,7 @@ fn codegen(args: &[String]) -> Result<(), String> {
     )?;
     write_file(
         &out.join("table_accessors.rs"),
-        "// Generated table accessors will be expanded in the next phase.\n",
+        &project.generate_table_accessors(),
     )?;
     write_file(
         &out.join("relation_cache.rs"),

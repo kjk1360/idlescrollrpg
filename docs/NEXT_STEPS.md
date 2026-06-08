@@ -23,6 +23,9 @@
 - Strengthened validation for unknown row cell field ids.
 - Strengthened validation for field/cell kind mismatch.
 - Strengthened validation for empty required relation lists.
+- Added generated typed table accessors.
+- Added generated `GeneratedDatabase::from_project`.
+- Added generated `GeneratedTable<T>::get_by_id` and `get_by_key`.
 
 ## Immediate Next Milestone: Data-Driven BattleConfig
 
@@ -55,9 +58,22 @@ unit_group_member:
 
 The current implementation uses an explicit top-level `unit_group_member` table. Later, the visual Data Studio can present this as an owned nested editor under `unit_group`.
 
-## Immediate Next Milestone: Generated Accessors Before UI
+## Completed Milestone: Generated Accessors Before UI
 
-## Step 1: Add Data Access Helpers
+Generated accessors now load typed rows from a `DataProject`.
+
+Example generated concepts:
+
+```text
+GeneratedDatabase
+GeneratedTable<T>
+get_by_id(RowId)
+get_by_key(&str)
+```
+
+## Immediate Next Milestone: Relation Cache And Adapter Cleanup
+
+## Step 1: Add Relation Cache Skeleton
 
 Current generated `table_accessors.rs` is a stub. Add either:
 
@@ -72,8 +88,6 @@ fn battle_config_from_project(project: &DataProject, map_key: &str) -> Result<Ba
 
 This currently lives in `belt_tools`. Move it later into a dedicated adapter crate or generated access layer.
 
-## Step 2: Add Relation Cache Skeleton
-
 Before building complex gameplay data, add a minimal relation index:
 
 ```text
@@ -84,7 +98,7 @@ row_key -> RowId
 
 This will reduce ad hoc row scanning and prepare for generated accessors.
 
-## Step 3: Extend Codegen
+## Step 2: Extend Codegen
 
 Current generated files:
 

@@ -49,6 +49,7 @@ Implemented:
 - validation for unknown row cell field ids
 - validation for field/cell kind mismatch
 - validation for empty required relation lists
+- generated typed table accessors with `get_by_id` and `get_by_key`
 - `belt_tools`: CLI for simulation, validation, status, view, codegen, data build
 - `projects/sample`: file-based sample data project
 - `crates/generated_data`: generated Rust crate from sample schema
@@ -148,10 +149,10 @@ Implement the first real Data Studio editing surface or continue backend hardeni
 
 Recommended order:
 
-1. Add generated table accessors for `get_by_id` and `get_by_key`.
-2. Add generated relation cache skeleton based on relation fields.
-3. Move the temporary `battle_config_from_project` adapter out of `belt_tools`.
-4. Start a minimal Data Studio UI only after accessors/validation are stable.
+1. Add generated relation cache skeleton based on relation fields.
+2. Move the temporary `battle_config_from_project` adapter out of `belt_tools` and make it use generated accessors.
+3. Add richer view validation for alias/field compatibility.
+4. Start a minimal Data Studio UI only after accessors/relation cache are stable.
 
 ## Caveats
 
