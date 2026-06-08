@@ -38,6 +38,11 @@
 - Added Schema tab support for table add/delete and field add/delete.
 - Added Data tab support for row add/delete.
 - Added relation selection view with Back navigation for relation-one, relation-many, reference-group, and owned-nested row references.
+- Added owned nested table creation from the owning field.
+- Excluded owned nested tables from ordinary relation/reference target selection.
+- Rendered nested tables as a recursive table tree under the owning field.
+- Changed field display names to derive from `field_key`.
+- Changed Data tab column headers to show field type instead of field key.
 
 ## Current Stable CLI Flow
 
@@ -104,15 +109,17 @@ The first focused local UI is available through `belt_tools serve`:
 - schema table add/delete
 - row add/delete
 - relation selection view with left/right panes and Back navigation
+- owned nested field creation creates a new child table instead of selecting an existing table
+- nested tables are shown under their owner field in the table tree
+- Data tab headers show display name plus field type
 
 ## Immediate Next Milestone: Relation/Nested Editing UX
 
-The UI can currently edit schema fields, raw cell values, rows, and relation references. Next, make nested data and relation UX richer:
+The UI can currently edit schema fields, raw cell values, rows, relation references, and owned nested child tables. Next, make large-data relation and view workflows richer:
 
-- owned nested table panel launched from the parent cell
 - relation picker pagination/search for large tables
 - richer row display labels beyond id/key/name fallback
-- nested child row create/delete from the parent cell
+- inline nested row editing from the parent cell without manually opening the child table
 - view validation for join/column mismatch cases
 
 ## Next Validation Work

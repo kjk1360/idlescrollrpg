@@ -188,9 +188,14 @@ Implemented UI/API surface:
 - table list
 - schema table add/delete
 - schema field add/delete
+- owned nested table creation from the owning field
+- nested table tree display under the owner field
+- ordinary relation/reference target pickers exclude owned nested tables
+- field display name derives from `field_key`
 - row add/delete
 - editable row grid
 - relation selection view with left/right panes and Back navigation
+- Data tab headers show field type under display name
 - materialized view grid
 - project freshness/status indicator
 - Validate button
@@ -217,16 +222,15 @@ Improve relation and nested editing UX.
 
 Recommended order:
 
-1. Add owned nested table panel launched from the parent table cell.
-2. Add nested child row create/delete from the parent cell.
-3. Add pagination/search to relation picker for large target tables.
-4. Add richer row display labels beyond id/key/name fallback.
-5. Add richer view validation for join/column mismatch cases.
-6. Package and verify the updated `belt_tools.exe` again.
+1. Add pagination/search to relation picker for large target tables.
+2. Add richer row display labels beyond id/key/name fallback.
+3. Add inline nested row editing from the parent cell without manually opening the child table.
+4. Add richer view validation for join/column mismatch cases.
+5. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats
 
 - Renderer is not implemented yet.
-- Visual Data Studio UI is implemented only as a first local web UI; nested table editing still reuses generic relation selection and does not yet provide a parent-scoped child row editor.
+- Visual Data Studio UI is implemented only as a first local web UI; owned nested tables are created and displayed with ownership, but inline editing still opens a selection/detail workflow rather than a polished embedded child editor.
 - Data Build currently writes a JSON snapshot only.
 - Generated relation cache validates and stores row ids, but does not yet expose typed target row helpers.

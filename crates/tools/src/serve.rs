@@ -348,17 +348,24 @@ fn api_delete_table(request: &Request, state: &ServerState) -> Result<Vec<u8>, (
     let payload = parse_body(&request.body)?;
     let table_id = TableId(number(&payload, "table_id")?);
     let mut project = load_project(&state.project_path)?;
-    let before = project.tables.len();
-    project.tables.retain(|table| table.id != table_id);
-    if project.tables.len() == before {
+    if !project.tables.iter().any(|table| table.id == table_id) {
         return Err(("unknown table".to_string(), 404));
     }
-    project.data.retain(|table| table.table_id != table_id);
-    project.views.retain(|view| view.source_table != table_id);
+    let mut removed_tables = collect_owned_descendants(&project, table_id);
+    removed_tables.insert(table_id);
+    project
+        .tables
+        .retain(|table| !removed_tables.contains(&table.id));
+    project
+        .data
+        .retain(|table| !removed_tables.contains(&table.table_id));
+    project
+        .views
+        .retain(|view| !removed_tables.contains(&view.source_table));
     for table in &mut project.tables {
         table
             .fields
-            .retain(|field| !field_targets_table(field, table_id));
+            .retain(|field| !field_targets_any(field, &removed_tables));
     }
     for table_data in &mut project.data {
         let Some(table) = project
@@ -387,11 +394,7 @@ fn api_add_field(request: &Request, state: &ServerState) -> Result<Vec<u8>, (Str
     let table_id = TableId(number(&payload, "table_id")?);
     let key = string_value(&payload, "key")?;
     validate_key(key)?;
-    let display_name = payload
-        .get("display_name")
-        .and_then(Value::as_str)
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or(key);
+    let display_name = display_name_from_key(key);
     let kind = string_value(&payload, "kind")?;
     let required = payload
         .get("required")
@@ -401,22 +404,64 @@ fn api_add_field(request: &Request, state: &ServerState) -> Result<Vec<u8>, (Str
 
     let mut project = load_project(&state.project_path)?;
     let field_id = next_field_id(&project);
-    let field_kind = parse_field_kind(kind, target_table)?;
-    let table = project
-        .tables
-        .iter_mut()
-        .find(|table| table.id == table_id)
-        .ok_or_else(|| ("unknown table".to_string(), 404))?;
-    if table.fields.iter().any(|field| field.key == key) {
-        return Err((format!("field key already exists: {key}"), 400));
+    let field_kind = if kind == "owned_nested_table" {
+        let nested_key = payload
+            .get("nested_key")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| {
+                format!(
+                    "{}_{}",
+                    table_key(&project, table_id).unwrap_or("nested"),
+                    key
+                )
+            });
+        validate_key(&nested_key)?;
+        if project.tables.iter().any(|table| table.key == nested_key) {
+            return Err((format!("table key already exists: {nested_key}"), 400));
+        }
+        let nested_table = next_table_id(&project);
+        project.tables.push(TableSchema {
+            id: nested_table,
+            key: nested_key.clone(),
+            display_name: display_name_from_key(&nested_key),
+            fields: Vec::new(),
+        });
+        project.data.push(TableData {
+            table_id: nested_table,
+            rows: Vec::new(),
+        });
+        FieldKind::OwnedNestedTable { nested_table }
+    } else {
+        if let Some(target_table) = target_table.map(TableId) {
+            if owned_nested_table_ids(&project).contains(&target_table) {
+                return Err((
+                    "nested tables cannot be selected as relation targets".to_string(),
+                    400,
+                ));
+            }
+        }
+        parse_field_kind(kind, target_table)?
+    };
+    {
+        let table = project
+            .tables
+            .iter_mut()
+            .find(|table| table.id == table_id)
+            .ok_or_else(|| ("unknown table".to_string(), 404))?;
+        if table.fields.iter().any(|field| field.key == key) {
+            return Err((format!("field key already exists: {key}"), 400));
+        }
+        table.fields.push(FieldSchema {
+            id: field_id,
+            key: key.to_string(),
+            display_name,
+            kind: field_kind,
+            required,
+        });
     }
-    table.fields.push(FieldSchema {
-        id: field_id,
-        key: key.to_string(),
-        display_name: display_name.to_string(),
-        kind: field_kind,
-        required,
-    });
     save_project(&project, state)?;
     Ok(json_response(
         200,
@@ -434,11 +479,13 @@ fn api_delete_field(request: &Request, state: &ServerState) -> Result<Vec<u8>, (
         .iter_mut()
         .find(|table| table.id == table_id)
         .ok_or_else(|| ("unknown table".to_string(), 404))?;
-    let before = table.fields.len();
+    let removed_field = table
+        .fields
+        .iter()
+        .find(|field| field.id == field_id)
+        .cloned()
+        .ok_or_else(|| ("unknown field".to_string(), 404))?;
     table.fields.retain(|field| field.id != field_id);
-    if table.fields.len() == before {
-        return Err(("unknown field".to_string(), 404));
-    }
     if let Some(table_data) = project
         .data
         .iter_mut()
@@ -453,6 +500,24 @@ fn api_delete_field(request: &Request, state: &ServerState) -> Result<Vec<u8>, (
             .retain(|column| !(column.alias == "source" && column.field == field_id));
         view.joins
             .retain(|join| !(join.from_alias == "source" && join.field == field_id));
+    }
+    if let FieldKind::OwnedNestedTable { nested_table } = removed_field.kind {
+        let mut removed_tables = collect_owned_descendants(&project, nested_table);
+        removed_tables.insert(nested_table);
+        project
+            .tables
+            .retain(|table| !removed_tables.contains(&table.id));
+        project
+            .data
+            .retain(|table| !removed_tables.contains(&table.table_id));
+        project
+            .views
+            .retain(|view| !removed_tables.contains(&view.source_table));
+        for table in &mut project.tables {
+            table
+                .fields
+                .retain(|field| !field_targets_any(field, &removed_tables));
+        }
     }
     save_project(&project, state)?;
     Ok(json_response(200, &json!({ "ok": true })))
@@ -655,6 +720,66 @@ fn parse_field_kind(kind: &str, target_table: Option<u64>) -> Result<FieldKind, 
     }
 }
 
+fn table_key(project: &DataProject, table_id: TableId) -> Option<&str> {
+    project
+        .tables
+        .iter()
+        .find(|table| table.id == table_id)
+        .map(|table| table.key.as_str())
+}
+
+fn display_name_from_key(key: &str) -> String {
+    key.split('_')
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            let mut chars = part.chars();
+            match chars.next() {
+                Some(first) => first.to_ascii_uppercase().to_string() + chars.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn owned_nested_table_ids(project: &DataProject) -> std::collections::BTreeSet<TableId> {
+    project
+        .tables
+        .iter()
+        .flat_map(|table| table.fields.iter())
+        .filter_map(|field| match field.kind {
+            FieldKind::OwnedNestedTable { nested_table } => Some(nested_table),
+            _ => None,
+        })
+        .collect()
+}
+
+fn collect_owned_descendants(
+    project: &DataProject,
+    table_id: TableId,
+) -> std::collections::BTreeSet<TableId> {
+    let mut descendants = std::collections::BTreeSet::new();
+    collect_owned_descendants_into(project, table_id, &mut descendants);
+    descendants
+}
+
+fn collect_owned_descendants_into(
+    project: &DataProject,
+    table_id: TableId,
+    descendants: &mut std::collections::BTreeSet<TableId>,
+) {
+    let Some(table) = project.tables.iter().find(|table| table.id == table_id) else {
+        return;
+    };
+    for field in &table.fields {
+        if let FieldKind::OwnedNestedTable { nested_table } = field.kind {
+            if descendants.insert(nested_table) {
+                collect_owned_descendants_into(project, nested_table, descendants);
+            }
+        }
+    }
+}
+
 fn next_table_id(project: &DataProject) -> TableId {
     TableId(
         project
@@ -708,12 +833,12 @@ fn default_cell_value(kind: &FieldKind) -> CellValue {
     }
 }
 
-fn field_targets_table(field: &FieldSchema, table_id: TableId) -> bool {
+fn field_targets_any(field: &FieldSchema, table_ids: &std::collections::BTreeSet<TableId>) -> bool {
     match field.kind {
         FieldKind::RelationOne { target_table }
         | FieldKind::RelationMany { target_table }
-        | FieldKind::ReferenceGroup { target_table } => target_table == table_id,
-        FieldKind::OwnedNestedTable { nested_table } => nested_table == table_id,
+        | FieldKind::ReferenceGroup { target_table } => table_ids.contains(&target_table),
+        FieldKind::OwnedNestedTable { nested_table } => table_ids.contains(&nested_table),
         _ => false,
     }
 }
@@ -941,7 +1066,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
     }
     .schema-form {
       display: grid;
-      grid-template-columns: minmax(110px, 1fr) minmax(130px, 1fr) 170px 170px 90px 110px;
+      grid-template-columns: minmax(130px, 1fr) 170px 190px 190px 90px 110px;
       gap: 8px;
       margin-bottom: 10px;
       align-items: center;
@@ -976,6 +1101,13 @@ const INDEX_HTML: &str = r#"<!doctype html>
       border-bottom: 1px solid var(--line);
       border-radius: 0;
       text-align: left;
+    }
+    .nav-item.nested {
+      padding-left: calc(10px + var(--depth, 0) * 18px);
+    }
+    .nav-item .owner {
+      color: var(--muted);
+      font-size: 11px;
     }
     .sheet-title {
       font-size: 18px;
@@ -1136,7 +1268,8 @@ const INDEX_HTML: &str = r#"<!doctype html>
     function kindLabel(kind) {
       const key = kindKey(kind);
       const target = kind.target_table ?? kind.nested_table;
-      return target ? `${key} -> #${target}` : key;
+      const table = target ? tableById(target) : null;
+      return table ? `${key} -> ${table.display_name}` : key;
     }
 
     function fieldCell(row, fieldId) {
@@ -1164,6 +1297,48 @@ const INDEX_HTML: &str = r#"<!doctype html>
       return kind.target_table ?? kind.nested_table;
     }
 
+    function displayNameFromKey(key) {
+      return key.split('_')
+        .filter(Boolean)
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+    }
+
+    function nestedTableIds() {
+      const ids = new Set();
+      for (const table of state.project.tables) {
+        for (const field of table.fields) {
+          if (kindKey(field.kind) === 'owned_nested_table') ids.add(field.kind.nested_table);
+        }
+      }
+      return ids;
+    }
+
+    function rootTables() {
+      const nested = nestedTableIds();
+      return state.project.tables.filter(table => !nested.has(table.id));
+    }
+
+    function childNestedFields(tableId) {
+      const table = tableById(tableId);
+      return table ? table.fields.filter(field => kindKey(field.kind) === 'owned_nested_table') : [];
+    }
+
+    function renderTableNavItem(table, depth, ownerLabel) {
+      if (!table) return '';
+      const active = state.selected?.type === 'table' && state.selected.key === table.key;
+      const owner = ownerLabel ? `<span class="owner">${ownerLabel}</span>` : `<span>${table.key}</span>`;
+      const self = `
+        <button class="nav-item ${depth ? 'nested' : ''} ${active ? 'active' : ''}"
+          style="--depth:${depth}" onclick="selectTable('${table.key}')">
+          <span>${table.display_name}</span>${owner}
+        </button>`;
+      const children = childNestedFields(table.id)
+        .map(field => renderTableNavItem(tableById(field.kind.nested_table), depth + 1, field.key))
+        .join('');
+      return self + children;
+    }
+
     function isRelationKind(kind) {
       return ['relation_one', 'relation_many', 'reference_group', 'owned_nested_table'].includes(kindKey(kind));
     }
@@ -1177,11 +1352,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
     }
 
     function renderNav() {
-      $('tables').innerHTML = state.project.tables.map(table => `
-        <button class="nav-item ${state.selected?.type === 'table' && state.selected.key === table.key ? 'active' : ''}"
-          onclick="selectTable('${table.key}')">
-          <span>${table.display_name}</span><span>${table.key}</span>
-        </button>`).join('');
+      $('tables').innerHTML = rootTables().map(table => renderTableNavItem(table, 0, '')).join('');
       $('views').style.display = state.mode === 'data' ? '' : 'none';
       $('viewsTitle').style.display = state.mode === 'data' ? '' : 'none';
       $('schemaActions').style.display = state.mode === 'schema' ? 'grid' : 'none';
@@ -1206,7 +1377,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
       $('sheetTitle').textContent = table.display_name;
       $('sheetMeta').textContent = `${table.key} / ${data.rows.length} rows`;
       $('sheetTools').innerHTML = `<button onclick="addRow(${table.id})">Add Row</button>`;
-      const headers = [`<th class="key">key</th>`, ...table.fields.map(field => `<th>${field.display_name}<br><small>${field.key}</small></th>`), `<th>Action</th>`].join('');
+      const headers = [`<th class="key">key</th>`, ...table.fields.map(field => `<th>${field.display_name}<br><small>${kindLabel(field.kind)}</small></th>`), `<th>Action</th>`].join('');
       const rows = data.rows.map(row => {
         const cells = table.fields.map(field => {
           const value = cellText(fieldCell(row, field.id));
@@ -1226,13 +1397,12 @@ const INDEX_HTML: &str = r#"<!doctype html>
       $('sheetMeta').textContent = `${table.key} / ${table.fields.length} fields`;
       $('sheetTools').innerHTML = `
         <button class="danger" onclick="deleteTable(${table.id})">Delete Table</button>`;
-      const targetOptions = state.project.tables
+      const targetOptions = rootTables()
         .map(target => `<option value="${target.id}">${target.display_name} (${target.key})</option>`)
         .join('');
       const form = `
         <div class="schema-form">
-          <input id="fieldKey" placeholder="field_key">
-          <input id="fieldName" placeholder="Field Name">
+          <input id="fieldKey" placeholder="field_key" oninput="syncFieldTarget()">
           <select id="fieldKind" onchange="syncFieldTarget()">
             <option value="string">string</option>
             <option value="text">text</option>
@@ -1246,6 +1416,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
             <option value="owned_nested_table">owned nested table</option>
           </select>
           <select id="fieldTarget">${targetOptions}</select>
+          <input id="nestedKey" placeholder="nested_table_key">
           <label><input id="fieldRequired" type="checkbox"> required</label>
           <button onclick="addFieldFromForm(${table.id})">Add Field</button>
         </div>`;
@@ -1290,10 +1461,13 @@ const INDEX_HTML: &str = r#"<!doctype html>
       const selectedSet = new Set(selectedIds);
       const availableRows = tableData(targetTableId).rows.filter(row => !selectedSet.has(row.id));
       const selectedRows = selectedIds.map(id => rowById(targetTableId, id)).filter(Boolean);
+      const nested = kindKey(field.kind) === 'owned_nested_table';
 
       $('sheetTitle').textContent = `${sourceRow.key}.${field.key}`;
       $('sheetMeta').textContent = `${sourceTable.display_name} -> ${targetTable.display_name}`;
-      $('sheetTools').innerHTML = `<button onclick="goBack()">Back</button>`;
+      $('sheetTools').innerHTML = `
+        ${nested ? `<button onclick="addNestedRow(${selection.tableId}, ${selection.rowId}, ${selection.fieldId})">Add Nested Row</button>` : ''}
+        <button onclick="goBack()">Back</button>`;
       $('grid').innerHTML = `
         <div class="relation-layout">
           <div class="relation-pane">
@@ -1399,6 +1573,25 @@ const INDEX_HTML: &str = r#"<!doctype html>
       await loadProject(false);
     }
 
+    async function addNestedRow(tableId, rowId, fieldId) {
+      const sourceTable = tableById(tableId);
+      const field = sourceTable.fields.find(field => field.id === fieldId);
+      const targetTableId = relationTarget(field.kind);
+      const key = prompt('nested row key');
+      if (!key) return;
+      try {
+        const created = await api('/api/row', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table_id: targetTableId, key })
+        });
+        await setRelationValue(tableId, rowId, fieldId, created.row_id, true);
+        log(`added nested row ${key}`);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
     function goBack() {
       const previous = state.backStack.pop();
       if (!previous) return;
@@ -1415,9 +1608,23 @@ const INDEX_HTML: &str = r#"<!doctype html>
     function syncFieldTarget() {
       const kind = $('fieldKind');
       const target = $('fieldTarget');
+      const nestedKey = $('nestedKey');
+      const fieldKey = $('fieldKey');
       if (!kind || !target) return;
-      const needsTarget = ['relation_one', 'relation_many', 'reference_group', 'owned_nested_table'].includes(kind.value);
+      const needsTarget = ['relation_one', 'relation_many', 'reference_group'].includes(kind.value);
+      const needsNested = kind.value === 'owned_nested_table';
       target.disabled = !needsTarget;
+      target.style.display = needsTarget ? '' : 'none';
+      if (nestedKey) {
+        nestedKey.disabled = !needsNested;
+        nestedKey.style.display = needsNested ? '' : 'none';
+        if (needsNested && fieldKey && !nestedKey.value.trim()) {
+          const table = state.selected?.type === 'table'
+            ? state.project.tables.find(table => table.key === state.selected.key)
+            : null;
+          nestedKey.value = `${table?.key || 'nested'}_${fieldKey.value.trim() || 'items'}`;
+        }
+      }
     }
 
     async function addTable() {
@@ -1457,17 +1664,16 @@ const INDEX_HTML: &str = r#"<!doctype html>
 
     async function addFieldFromForm(tableId) {
       const key = $('fieldKey').value.trim();
-      const displayName = $('fieldName').value.trim() || key;
       const kind = $('fieldKind').value;
-      const targetKinds = ['relation_one', 'relation_many', 'reference_group', 'owned_nested_table'];
+      const targetKinds = ['relation_one', 'relation_many', 'reference_group'];
       const payload = {
         table_id: tableId,
         key,
-        display_name: displayName,
         kind,
         required: $('fieldRequired').checked
       };
       if (targetKinds.includes(kind)) payload.target_table = Number($('fieldTarget').value);
+      if (kind === 'owned_nested_table') payload.nested_key = $('nestedKey').value.trim();
       try {
         await api('/api/schema/field', {
           method: 'POST',
