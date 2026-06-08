@@ -32,6 +32,8 @@
 - Moved battle config conversion out of `belt_tools`.
 - Added `scripts/package_tools.ps1`.
 - Packaged and verified `dist\tools\belt_tools.exe` with the sample project.
+- Added `belt_tools serve`, a local web Data Studio UI.
+- Added UI/API support for table grids, view grids, cell edits, validate, codegen, data-build, and simulate.
 
 ## Current Stable CLI Flow
 
@@ -51,6 +53,7 @@ cargo run -p belt_tools -- view --project projects\sample --view map_wave_previe
 cargo run -p belt_tools -- codegen --project projects\sample --out crates\generated_data\src
 cargo run -p belt_tools -- data-build --project projects\sample --out build\sample_data
 cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road
+cargo run -p belt_tools -- serve --project projects\sample --addr 127.0.0.1:7878
 ```
 
 ## Completed Milestone: Tool Packaging Before UI
@@ -75,11 +78,12 @@ powershell -ExecutionPolicy Bypass -File scripts\package_tools.ps1
 dist\tools\belt_tools.exe data-status --project dist\projects\sample
 dist\tools\belt_tools.exe view --project dist\projects\sample --view map_wave_preview
 dist\tools\belt_tools.exe simulate --project dist\projects\sample --map endless_left_road
+dist\tools\belt_tools.exe serve --project dist\projects\sample --addr 127.0.0.1:7878
 ```
 
-## Immediate Next Milestone: Minimal Data Studio UI
+## Completed Milestone: Minimal Data Studio UI
 
-Do not build a broad editor yet. Start with a focused local UI:
+The first focused local UI is available through `belt_tools serve`:
 
 - table list
 - row grid
@@ -89,8 +93,17 @@ Do not build a broad editor yet. Start with a focused local UI:
 - data-build button
 - simulate button
 - command/status output panel
+- editable cells saved back to the file-based project
 
-The first UI should be read/edit-light. Relation/nested editing can follow after the view grid is stable.
+## Immediate Next Milestone: Relation/Nested Editing UX
+
+The UI can currently edit raw cell values. Next, make relation-oriented data work comfortable:
+
+- relation-one picker that shows target row key/display value
+- relation-many/reference-group multi-picker
+- owned nested table panel launched from the parent cell
+- view validation for join/column mismatch cases
+- row create/delete for ordinary tables and nested tables
 
 ## Next Validation Work
 

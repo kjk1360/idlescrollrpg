@@ -55,6 +55,7 @@ Implemented:
 - `game_data_adapter`: converts generated data into `belt_core::BattleConfig`
 - `belt_tools`: CLI for simulation, validation, status, view, codegen, data build
 - `scripts/package_tools.ps1`: release packaging for `belt_tools.exe` and `projects/sample`
+- `belt_tools serve`: local Data Studio web UI and JSON API
 - `projects/sample`: file-based sample data project
 - `crates/generated_data`: generated Rust crate from sample schema
 - explicit `unit_group_member` data with `unit`, `x`, and `lane`
@@ -78,6 +79,7 @@ cargo run -p belt_tools -- validate --project projects\sample
 cargo run -p belt_tools -- view --project projects\sample --view map_wave_preview
 cargo run -p belt_tools -- codegen --project projects\sample --out crates\generated_data\src
 cargo run -p belt_tools -- data-build --project projects\sample --out build\sample_data
+cargo run -p belt_tools -- serve --project projects\sample --addr 127.0.0.1:7878
 ```
 
 Packaged tool commands:
@@ -87,6 +89,7 @@ powershell -ExecutionPolicy Bypass -File scripts\package_tools.ps1
 dist\tools\belt_tools.exe data-status --project dist\projects\sample
 dist\tools\belt_tools.exe view --project dist\projects\sample --view map_wave_preview
 dist\tools\belt_tools.exe simulate --project dist\projects\sample --map endless_left_road
+dist\tools\belt_tools.exe serve --project dist\projects\sample --addr 127.0.0.1:7878
 ```
 
 Expected sample status:
@@ -168,23 +171,50 @@ Verified packaged commands:
 - `data-status`: returns `status: all_fresh` and `validation: ok`.
 - `view --view map_wave_preview`: prints the map/wave/enemy preview grid.
 - `simulate --map endless_left_road`: runs the generated-data-backed battle simulation.
+- `serve`: starts the local Data Studio at `http://127.0.0.1:7878`.
+
+## Current Data Studio UI
+
+Start it from the workspace root:
+
+```powershell
+cargo run -p belt_tools -- serve --project projects\sample --addr 127.0.0.1:7878
+```
+
+Implemented UI/API surface:
+
+- table list
+- editable row grid
+- materialized view grid
+- project freshness/status indicator
+- Validate button
+- Codegen button
+- Data Build button
+- Simulate button
+- command/status output panel
+
+Validated endpoints:
+
+- `GET /api/project`
+- `GET /api/view?view=map_wave_preview`
+- `POST /api/simulate`
 
 ## Recommended Next Task
 
-Start the first minimal visual Data Studio UI.
+Improve relation and nested editing UX.
 
 Recommended order:
 
-1. Add a local UI entrypoint, preferably through `belt_tools serve` or a small dedicated app crate.
-2. Show the table list and row grid for `projects/sample`.
-3. Show the `map_wave_preview` view grid.
-4. Add buttons for Validate, Code Generate, Data Build, and Simulate.
-5. Wire buttons to the packaged CLI behavior or shared backend API.
-6. After the grid is stable, add relation picker and nested/reference-group editing.
+1. Add relation-one picker UI that shows target row key/display values instead of raw row ids.
+2. Add relation-many/reference-group multi-picker UI.
+3. Add owned nested table panel launched from the parent table cell.
+4. Add row create/delete for ordinary and nested tables.
+5. Add richer view validation for join/column mismatch cases.
+6. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats
 
 - Renderer is not implemented yet.
-- Visual Data Studio UI is not implemented yet.
+- Visual Data Studio UI is implemented only as a first local web UI; relation/nested editing is still raw-id based.
 - Data Build currently writes a JSON snapshot only.
 - Generated relation cache validates and stores row ids, but does not yet expose typed target row helpers.

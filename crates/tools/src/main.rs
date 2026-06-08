@@ -4,6 +4,8 @@ use game_data_adapter::battle_config_from_project;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+mod serve;
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let command = args.first().map(String::as_str).unwrap_or("help");
@@ -16,6 +18,7 @@ fn main() {
         "codegen-preview" => codegen_preview(&args[1..]),
         "codegen" => codegen(&args[1..]),
         "data-build" => data_build(&args[1..]),
+        "serve" => serve::serve(&args[1..]),
         _ => {
             help();
             Ok(())
@@ -39,10 +42,12 @@ fn help() {
     println!("  codegen-preview  Print generated Rust struct preview");
     println!("  codegen          Write generated Rust files");
     println!("  data-build       Write a JSON data snapshot and data fingerprint");
+    println!("  serve            Start the local Data Studio web UI");
     println!();
     println!("Common options:");
     println!("  --project <dir>  Load a file-based data project");
     println!("  --out <dir>      Output directory for codegen or data-build");
+    println!("  --addr <addr>    Local server address for serve");
 }
 
 fn simulate(args: &[String]) -> Result<(), String> {
@@ -96,6 +101,61 @@ fn simulate(args: &[String]) -> Result<(), String> {
     println!();
     println!("summary: kills={kills}, wave_clears={wave_clears}, living_players={living_players}");
     Ok(())
+}
+
+fn simulate_to_string(project: &DataProject, map_key: &str) -> Result<String, String> {
+    let config = battle_config_from_project(project, map_key)?;
+    let mut world = BattleWorld::new(config);
+    let mut wave_clears = 0;
+    let mut kills = 0;
+    let mut lines = Vec::new();
+
+    for frame in 0..360 {
+        world.tick(0.1);
+        for event in world.drain_events() {
+            match event {
+                BattleEvent::WaveStarted { wave_id } => {
+                    lines.push(format!("[{frame:03}] wave started: {wave_id}"));
+                }
+                BattleEvent::UnitSpawned {
+                    unit_id,
+                    name,
+                    team,
+                } => {
+                    lines.push(format!(
+                        "[{frame:03}] spawned {:?} {name} ({team:?})",
+                        unit_id
+                    ));
+                }
+                BattleEvent::UnitKilled { unit_id } => {
+                    kills += 1;
+                    lines.push(format!("[{frame:03}] killed {:?}", unit_id));
+                }
+                BattleEvent::WaveCleared { wave_id } => {
+                    wave_clears += 1;
+                    lines.push(format!("[{frame:03}] wave cleared: {wave_id}"));
+                }
+                BattleEvent::MapLooped { map_id, loop_count } => {
+                    lines.push(format!(
+                        "[{frame:03}] map looped: {map_id} loop={loop_count}"
+                    ));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    let living_players = world
+        .units()
+        .iter()
+        .filter(|unit| unit.team == belt_core::Team::Player)
+        .count();
+
+    lines.push(String::new());
+    lines.push(format!(
+        "summary: kills={kills}, wave_clears={wave_clears}, living_players={living_players}"
+    ));
+    Ok(lines.join("\n"))
 }
 
 fn data_status(args: &[String]) -> Result<(), String> {
@@ -294,4 +354,24 @@ fn print_row(row: &[String], widths: &[usize]) {
         })
         .collect::<Vec<_>>();
     println!("{}", cells.join(" | "));
+}
+
+pub(crate) fn option_value_for_args<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
+    option_value(args, flag)
+}
+
+pub(crate) fn status_label_for_api(status: ProjectStatus) -> &'static str {
+    status_label(status)
+}
+
+pub(crate) fn run_codegen_for_api(args: &[String]) -> Result<(), String> {
+    codegen(args)
+}
+
+pub(crate) fn run_data_build_for_api(args: &[String]) -> Result<(), String> {
+    data_build(args)
+}
+
+pub(crate) fn simulate_for_api(project: &DataProject, map_key: &str) -> Result<String, String> {
+    simulate_to_string(project, map_key)
 }

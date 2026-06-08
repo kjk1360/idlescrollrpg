@@ -150,7 +150,7 @@ pub struct ViewColumn {
     pub label: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MaterializedView {
     pub headers: Vec<String>,
     pub rows: Vec<Vec<String>>,
