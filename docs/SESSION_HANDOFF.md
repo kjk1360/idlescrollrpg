@@ -56,9 +56,11 @@ Implemented:
 - `belt_tools`: CLI for simulation, validation, status, view, codegen, data build
 - `scripts/package_tools.ps1`: release packaging for `belt_tools.exe` and `projects/sample`
 - `belt_tools serve`: local Data Studio web UI and JSON API
+- `belt_tools play`: local playable canvas preview backed by Rust simulation frames
 - `projects/sample`: file-based sample data project
 - `crates/generated_data`: generated Rust crate from sample schema
 - explicit `unit_group_member` data with `unit`, `x`, and `lane`
+- visual data tables for texture assets, sprite animations, visual states, state machines, and unit visuals
 
 ## Important Commands
 
@@ -80,6 +82,7 @@ cargo run -p belt_tools -- view --project projects\sample --view map_wave_previe
 cargo run -p belt_tools -- codegen --project projects\sample --out crates\generated_data\src
 cargo run -p belt_tools -- data-build --project projects\sample --out build\sample_data
 cargo run -p belt_tools -- serve --project projects\sample --addr 127.0.0.1:7878
+cargo run -p belt_tools -- play --project projects\sample --map endless_left_road --addr 127.0.0.1:7879
 ```
 
 Packaged tool commands:
@@ -90,6 +93,7 @@ dist\tools\belt_tools.exe data-status --project dist\projects\sample
 dist\tools\belt_tools.exe view --project dist\projects\sample --view map_wave_preview
 dist\tools\belt_tools.exe simulate --project dist\projects\sample --map endless_left_road
 dist\tools\belt_tools.exe serve --project dist\projects\sample --addr 127.0.0.1:7878
+dist\tools\belt_tools.exe play --project dist\projects\sample --map endless_left_road --addr 127.0.0.1:7879
 ```
 
 Expected sample status:
@@ -124,6 +128,11 @@ projects/sample/
     unit_group_member.json
     wave_def.json
     map_def.json
+    texture_asset.json
+    sprite_animation.json
+    visual_state.json
+    visual_state_machine.json
+    unit_visual.json
   views/
     views.json
   build/
@@ -172,6 +181,7 @@ Verified packaged commands:
 - `view --view map_wave_preview`: prints the map/wave/enemy preview grid.
 - `simulate --map endless_left_road`: runs the generated-data-backed battle simulation.
 - `serve`: starts the local Data Studio at `http://127.0.0.1:7878`.
+- `play`: starts the playable canvas preview at `http://127.0.0.1:7879`.
 
 ## Current Data Studio UI
 
@@ -216,21 +226,45 @@ Validated endpoints:
 - `POST /api/row/delete`
 - `POST /api/simulate`
 
+## Current Playable Preview
+
+Start it from the workspace root:
+
+```powershell
+cargo run -p belt_tools -- play --project projects\sample --map endless_left_road --addr 127.0.0.1:7879
+```
+
+Implemented preview surface:
+
+- Rust `BattleWorld` produces playback frames.
+- Browser canvas renders endless-left belt-scroll movement.
+- `unit_def.visual` connects battle units to `unit_visual`.
+- `unit_visual` references a visual state machine and placeholder body color.
+- visual states reference sprite animations.
+- sprite animations reference texture assets and expose frame count/fps/looping data.
+
+Validated endpoints:
+
+- `GET /`
+- `GET /api/play`
+
 ## Recommended Next Task
 
-Improve relation and nested editing UX.
+Improve sprite asset editing and visual preview authoring.
 
 Recommended order:
 
-1. Add pagination/search to relation picker for large target tables.
-2. Add richer row display labels beyond id/key/name fallback.
-3. Add inline nested row editing from the parent cell without manually opening the child table.
-4. Add richer view validation for join/column mismatch cases.
-5. Package and verify the updated `belt_tools.exe` again.
+1. Add texture file browser/import path workflow.
+2. Add sprite sheet slicing data and preview.
+3. Add animation frame list editor with playback preview.
+4. Add visual state machine editor focused on states and animation references.
+5. Add unit visual preview panel inside Data Studio.
+6. Add pagination/search to relation picker for large target tables.
+7. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats
 
-- Renderer is not implemented yet.
+- Renderer is currently a browser canvas playable preview with placeholder sprite bodies; real texture loading/slicing is not implemented yet.
 - Visual Data Studio UI is implemented only as a first local web UI; owned nested tables are created and displayed with ownership, but inline editing still opens a selection/detail workflow rather than a polished embedded child editor.
 - Data Build currently writes a JSON snapshot only.
 - Generated relation cache validates and stores row ids, but does not yet expose typed target row helpers.

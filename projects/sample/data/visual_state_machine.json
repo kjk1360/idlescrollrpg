@@ -1,0 +1,46 @@
+[
+  {
+    "id": 8001,
+    "key": "humanoid_basic",
+    "cells": {
+      "60": {
+        "kind": "string",
+        "value": "Humanoid Basic"
+      },
+      "61": {
+        "kind": "row",
+        "value": 9001
+      },
+      "62": {
+        "kind": "rows",
+        "value": [
+          9001,
+          9002,
+          9003
+        ]
+      }
+    }
+  },
+  {
+    "id": 8002,
+    "key": "slime_basic",
+    "cells": {
+      "60": {
+        "kind": "string",
+        "value": "Slime Basic"
+      },
+      "61": {
+        "kind": "row",
+        "value": 9004
+      },
+      "62": {
+        "kind": "rows",
+        "value": [
+          9004,
+          9005,
+          9006
+        ]
+      }
+    }
+  }
+]

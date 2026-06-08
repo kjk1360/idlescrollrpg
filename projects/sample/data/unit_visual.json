@@ -1,0 +1,80 @@
+[
+  {
+    "id": 10001,
+    "key": "knight_visual",
+    "cells": {
+      "80": {
+        "kind": "string",
+        "value": "Knight Visual"
+      },
+      "81": {
+        "kind": "row",
+        "value": 8001
+      },
+      "82": {
+        "kind": "f32",
+        "value": 1.15
+      },
+      "83": {
+        "kind": "f32",
+        "value": 20.0
+      },
+      "84": {
+        "kind": "string",
+        "value": "#4f8cff"
+      }
+    }
+  },
+  {
+    "id": 10002,
+    "key": "archer_visual",
+    "cells": {
+      "80": {
+        "kind": "string",
+        "value": "Archer Visual"
+      },
+      "81": {
+        "kind": "row",
+        "value": 8001
+      },
+      "82": {
+        "kind": "f32",
+        "value": 1.0
+      },
+      "83": {
+        "kind": "f32",
+        "value": 18.0
+      },
+      "84": {
+        "kind": "string",
+        "value": "#58b368"
+      }
+    }
+  },
+  {
+    "id": 10003,
+    "key": "slime_visual",
+    "cells": {
+      "80": {
+        "kind": "string",
+        "value": "Slime Visual"
+      },
+      "81": {
+        "kind": "row",
+        "value": 8002
+      },
+      "82": {
+        "kind": "f32",
+        "value": 0.85
+      },
+      "83": {
+        "kind": "f32",
+        "value": 16.0
+      },
+      "84": {
+        "kind": "string",
+        "value": "#8bd44b"
+      }
+    }
+  }
+]

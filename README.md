@@ -13,6 +13,8 @@ The goal is not a generic game engine. The goal is a focused production platform
 - DataView join preview
 - Explicit Code Generate and Data Build flow
 - Generated Rust data crate
+- Visual data tables for texture, sprite animation, visual state machine, and unit visual
+- Local playable canvas preview
 
 ## Run
 
@@ -33,6 +35,7 @@ cargo run -p belt_tools -- view --project projects\sample --view map_wave_previe
 cargo run -p belt_tools -- codegen --project projects\sample --out crates\generated_data\src
 cargo run -p belt_tools -- data-build --project projects\sample --out build\sample_data
 cargo run -p belt_tools -- serve --project projects\sample --addr 127.0.0.1:7878
+cargo run -p belt_tools -- play --project projects\sample --map endless_left_road --addr 127.0.0.1:7879
 cargo test
 ```
 
@@ -44,6 +47,7 @@ dist\tools\belt_tools.exe data-status --project dist\projects\sample
 dist\tools\belt_tools.exe view --project dist\projects\sample --view map_wave_preview
 dist\tools\belt_tools.exe simulate --project dist\projects\sample --map endless_left_road
 dist\tools\belt_tools.exe serve --project dist\projects\sample --addr 127.0.0.1:7878
+dist\tools\belt_tools.exe play --project dist\projects\sample --map endless_left_road --addr 127.0.0.1:7879
 ```
 
 ## Documentation

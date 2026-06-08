@@ -12,6 +12,7 @@ pub struct UnitDef {
     pub attack_range: f32,
     pub attack_interval: f32,
     pub move_speed: f32,
+    pub visual: RowId,
 }
 
 #[derive(Debug, Clone)]
@@ -50,3 +51,54 @@ pub struct UnitGroupMember {
     pub x: f32,
     pub lane: f32,
 }
+
+#[derive(Debug, Clone)]
+pub struct TextureAsset {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub path: String,
+    pub width: i32,
+    pub height: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct SpriteAnimation {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub texture: RowId,
+    pub frame_count: i32,
+    pub fps: f32,
+    pub looping: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct VisualStateMachine {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub default_state: RowId,
+    pub states: Vec<RowId>,
+}
+
+#[derive(Debug, Clone)]
+pub struct VisualState {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub state_key: String,
+    pub animation: RowId,
+}
+
+#[derive(Debug, Clone)]
+pub struct UnitVisual {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub state_machine: RowId,
+    pub scale: f32,
+    pub shadow_radius: f32,
+    pub body_color: String,
+}
+

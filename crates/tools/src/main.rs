@@ -4,6 +4,7 @@ use game_data_adapter::battle_config_from_project;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+mod play;
 mod serve;
 
 fn main() {
@@ -19,6 +20,7 @@ fn main() {
         "codegen" => codegen(&args[1..]),
         "data-build" => data_build(&args[1..]),
         "serve" => serve::serve(&args[1..]),
+        "play" => play::play(&args[1..]),
         _ => {
             help();
             Ok(())
@@ -43,6 +45,7 @@ fn help() {
     println!("  codegen          Write generated Rust files");
     println!("  data-build       Write a JSON data snapshot and data fingerprint");
     println!("  serve            Start the local Data Studio web UI");
+    println!("  play             Start the playable belt-scroll preview");
     println!();
     println!("Common options:");
     println!("  --project <dir>  Load a file-based data project");

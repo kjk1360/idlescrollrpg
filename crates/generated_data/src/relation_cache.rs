@@ -8,23 +8,32 @@ use crate::table_accessors::GeneratedDatabase;
 
 #[derive(Debug, Clone, Default)]
 pub struct GeneratedRelationCache {
+    pub unit_def_visual: HashMap<RowId, RowId>,
     pub unit_group_members: HashMap<RowId, Vec<RowId>>,
     pub wave_def_enemy_groups: HashMap<RowId, Vec<RowId>>,
     pub map_def_party: HashMap<RowId, RowId>,
     pub map_def_waves: HashMap<RowId, Vec<RowId>>,
     pub unit_group_member_unit: HashMap<RowId, RowId>,
+    pub sprite_animation_texture: HashMap<RowId, RowId>,
+    pub visual_state_machine_default_state: HashMap<RowId, RowId>,
+    pub visual_state_machine_states: HashMap<RowId, Vec<RowId>>,
+    pub visual_state_animation: HashMap<RowId, RowId>,
+    pub unit_visual_state_machine: HashMap<RowId, RowId>,
 }
 
 impl GeneratedRelationCache {
     pub fn build(db: &GeneratedDatabase) -> Result<Self, String> {
         let mut cache = Self::default();
+        for row in &db.unit_def.rows {
+            if db.unit_visual.get_by_id(row.visual).is_none() {
+                return Err(format!("missing relation target for unit_def.visual from {:?} to {:?}", row.id, row.visual));
+            }
+            cache.unit_def_visual.insert(row.id, row.visual);
+        }
         for row in &db.unit_group.rows {
             for target_id in &row.members {
                 if db.unit_group_member.get_by_id(*target_id).is_none() {
-                    return Err(format!(
-                        "missing relation target for unit_group.members from {:?} to {:?}",
-                        row.id, target_id
-                    ));
+                    return Err(format!("missing relation target for unit_group.members from {:?} to {:?}", row.id, target_id));
                 }
             }
             cache.unit_group_members.insert(row.id, row.members.clone());
@@ -32,46 +41,68 @@ impl GeneratedRelationCache {
         for row in &db.wave_def.rows {
             for target_id in &row.enemy_groups {
                 if db.unit_group.get_by_id(*target_id).is_none() {
-                    return Err(format!(
-                        "missing relation target for wave_def.enemy_groups from {:?} to {:?}",
-                        row.id, target_id
-                    ));
+                    return Err(format!("missing relation target for wave_def.enemy_groups from {:?} to {:?}", row.id, target_id));
                 }
             }
-            cache
-                .wave_def_enemy_groups
-                .insert(row.id, row.enemy_groups.clone());
+            cache.wave_def_enemy_groups.insert(row.id, row.enemy_groups.clone());
         }
         for row in &db.map_def.rows {
             if db.unit_group.get_by_id(row.party).is_none() {
-                return Err(format!(
-                    "missing relation target for map_def.party from {:?} to {:?}",
-                    row.id, row.party
-                ));
+                return Err(format!("missing relation target for map_def.party from {:?} to {:?}", row.id, row.party));
             }
             cache.map_def_party.insert(row.id, row.party);
         }
         for row in &db.map_def.rows {
             for target_id in &row.waves {
                 if db.wave_def.get_by_id(*target_id).is_none() {
-                    return Err(format!(
-                        "missing relation target for map_def.waves from {:?} to {:?}",
-                        row.id, target_id
-                    ));
+                    return Err(format!("missing relation target for map_def.waves from {:?} to {:?}", row.id, target_id));
                 }
             }
             cache.map_def_waves.insert(row.id, row.waves.clone());
         }
         for row in &db.unit_group_member.rows {
             if db.unit_def.get_by_id(row.unit).is_none() {
-                return Err(format!(
-                    "missing relation target for unit_group_member.unit from {:?} to {:?}",
-                    row.id, row.unit
-                ));
+                return Err(format!("missing relation target for unit_group_member.unit from {:?} to {:?}", row.id, row.unit));
             }
             cache.unit_group_member_unit.insert(row.id, row.unit);
         }
+        for row in &db.sprite_animation.rows {
+            if db.texture_asset.get_by_id(row.texture).is_none() {
+                return Err(format!("missing relation target for sprite_animation.texture from {:?} to {:?}", row.id, row.texture));
+            }
+            cache.sprite_animation_texture.insert(row.id, row.texture);
+        }
+        for row in &db.visual_state_machine.rows {
+            if db.visual_state.get_by_id(row.default_state).is_none() {
+                return Err(format!("missing relation target for visual_state_machine.default_state from {:?} to {:?}", row.id, row.default_state));
+            }
+            cache.visual_state_machine_default_state.insert(row.id, row.default_state);
+        }
+        for row in &db.visual_state_machine.rows {
+            for target_id in &row.states {
+                if db.visual_state.get_by_id(*target_id).is_none() {
+                    return Err(format!("missing relation target for visual_state_machine.states from {:?} to {:?}", row.id, target_id));
+                }
+            }
+            cache.visual_state_machine_states.insert(row.id, row.states.clone());
+        }
+        for row in &db.visual_state.rows {
+            if db.sprite_animation.get_by_id(row.animation).is_none() {
+                return Err(format!("missing relation target for visual_state.animation from {:?} to {:?}", row.id, row.animation));
+            }
+            cache.visual_state_animation.insert(row.id, row.animation);
+        }
+        for row in &db.unit_visual.rows {
+            if db.visual_state_machine.get_by_id(row.state_machine).is_none() {
+                return Err(format!("missing relation target for unit_visual.state_machine from {:?} to {:?}", row.id, row.state_machine));
+            }
+            cache.unit_visual_state_machine.insert(row.id, row.state_machine);
+        }
         Ok(cache)
+    }
+
+    pub fn get_unit_def_visual(&self, source: RowId) -> Option<RowId> {
+        self.unit_def_visual.get(&source).copied()
     }
 
     pub fn get_unit_group_members(&self, source: RowId) -> Option<&[RowId]> {
@@ -92,5 +123,25 @@ impl GeneratedRelationCache {
 
     pub fn get_unit_group_member_unit(&self, source: RowId) -> Option<RowId> {
         self.unit_group_member_unit.get(&source).copied()
+    }
+
+    pub fn get_sprite_animation_texture(&self, source: RowId) -> Option<RowId> {
+        self.sprite_animation_texture.get(&source).copied()
+    }
+
+    pub fn get_visual_state_machine_default_state(&self, source: RowId) -> Option<RowId> {
+        self.visual_state_machine_default_state.get(&source).copied()
+    }
+
+    pub fn get_visual_state_machine_states(&self, source: RowId) -> Option<&[RowId]> {
+        self.visual_state_machine_states.get(&source).map(Vec::as_slice)
+    }
+
+    pub fn get_visual_state_animation(&self, source: RowId) -> Option<RowId> {
+        self.visual_state_animation.get(&source).copied()
+    }
+
+    pub fn get_unit_visual_state_machine(&self, source: RowId) -> Option<RowId> {
+        self.unit_visual_state_machine.get(&source).copied()
     }
 }

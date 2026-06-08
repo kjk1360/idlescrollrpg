@@ -1,0 +1,24 @@
+[
+  {
+    "id": 6001,
+    "key": "placeholder_units",
+    "cells": {
+      "44": {
+        "kind": "string",
+        "value": "Placeholder Units"
+      },
+      "45": {
+        "kind": "string",
+        "value": "assets/units/placeholder_units.png"
+      },
+      "46": {
+        "kind": "i32",
+        "value": 256
+      },
+      "47": {
+        "kind": "i32",
+        "value": 64
+      }
+    }
+  }
+]

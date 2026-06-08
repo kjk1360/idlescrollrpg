@@ -43,6 +43,9 @@
 - Rendered nested tables as a recursive table tree under the owning field.
 - Changed field display names to derive from `field_key`.
 - Changed Data tab column headers to show field type instead of field key.
+- Added visual data tables: `texture_asset`, `sprite_animation`, `visual_state`, `visual_state_machine`, and `unit_visual`.
+- Added `unit_def.visual`.
+- Added `belt_tools play`, a local playable canvas preview backed by Rust battle simulation frames.
 
 ## Current Stable CLI Flow
 
@@ -63,6 +66,7 @@ cargo run -p belt_tools -- codegen --project projects\sample --out crates\genera
 cargo run -p belt_tools -- data-build --project projects\sample --out build\sample_data
 cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road
 cargo run -p belt_tools -- serve --project projects\sample --addr 127.0.0.1:7878
+cargo run -p belt_tools -- play --project projects\sample --map endless_left_road --addr 127.0.0.1:7879
 ```
 
 ## Completed Milestone: Tool Packaging Before UI
@@ -88,6 +92,7 @@ dist\tools\belt_tools.exe data-status --project dist\projects\sample
 dist\tools\belt_tools.exe view --project dist\projects\sample --view map_wave_preview
 dist\tools\belt_tools.exe simulate --project dist\projects\sample --map endless_left_road
 dist\tools\belt_tools.exe serve --project dist\projects\sample --addr 127.0.0.1:7878
+dist\tools\belt_tools.exe play --project dist\projects\sample --map endless_left_road --addr 127.0.0.1:7879
 ```
 
 ## Completed Milestone: Minimal Data Studio UI
@@ -113,10 +118,25 @@ The first focused local UI is available through `belt_tools serve`:
 - nested tables are shown under their owner field in the table tree
 - Data tab headers show display name plus field type
 
-## Immediate Next Milestone: Relation/Nested Editing UX
+## Completed Milestone: Playable Preview v0
 
-The UI can currently edit schema fields, raw cell values, rows, relation references, and owned nested child tables. Next, make large-data relation and view workflows richer:
+The first playable preview is available through `belt_tools play`:
 
+- Rust `BattleWorld` produces simulation frames from project data.
+- Browser canvas renders endless-left belt-scroll movement.
+- Unit visuals are driven by `unit_def.visual`.
+- Visual data supports texture asset references, sprite animation settings, visual states, state machines, and unit visual settings.
+- Placeholder sprite rendering uses `unit_visual.body_color` until real texture loading/slicing is added.
+
+## Immediate Next Milestone: Sprite Asset Editing
+
+The UI can edit visual data as tables, and `play` consumes it. Next, make sprite authoring comfortable:
+
+- texture file browser/import path workflow
+- sprite sheet slicing data and preview
+- animation frame list editor with playback preview
+- visual state machine editor focused on states and animation references
+- unit visual preview panel inside Data Studio
 - relation picker pagination/search for large tables
 - richer row display labels beyond id/key/name fallback
 - inline nested row editing from the parent cell without manually opening the child table

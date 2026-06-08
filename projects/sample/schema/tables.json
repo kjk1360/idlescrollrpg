@@ -57,6 +57,16 @@
           "kind": "f32"
         },
         "required": true
+      },
+      {
+        "id": 7,
+        "key": "visual",
+        "display_name": "Visual",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 10
+        },
+        "required": true
       }
     ]
   },
@@ -205,6 +215,226 @@
         "display_name": "Lane",
         "kind": {
           "kind": "f32"
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 6,
+    "key": "texture_asset",
+    "display_name": "Texture Asset",
+    "fields": [
+      {
+        "id": 44,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 45,
+        "key": "path",
+        "display_name": "Path",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 46,
+        "key": "width",
+        "display_name": "Width",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 47,
+        "key": "height",
+        "display_name": "Height",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "key": "sprite_animation",
+    "display_name": "Sprite Animation",
+    "fields": [
+      {
+        "id": 50,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 51,
+        "key": "texture",
+        "display_name": "Texture",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 6
+        },
+        "required": true
+      },
+      {
+        "id": 52,
+        "key": "frame_count",
+        "display_name": "Frame Count",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 53,
+        "key": "fps",
+        "display_name": "Fps",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 54,
+        "key": "looping",
+        "display_name": "Looping",
+        "kind": {
+          "kind": "bool"
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "key": "visual_state_machine",
+    "display_name": "Visual State Machine",
+    "fields": [
+      {
+        "id": 60,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 61,
+        "key": "default_state",
+        "display_name": "Default State",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 9
+        },
+        "required": true
+      },
+      {
+        "id": 62,
+        "key": "states",
+        "display_name": "States",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 9
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 9,
+    "key": "visual_state",
+    "display_name": "Visual State",
+    "fields": [
+      {
+        "id": 70,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 71,
+        "key": "state_key",
+        "display_name": "State Key",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 72,
+        "key": "animation",
+        "display_name": "Animation",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 7
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "key": "unit_visual",
+    "display_name": "Unit Visual",
+    "fields": [
+      {
+        "id": 80,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 81,
+        "key": "state_machine",
+        "display_name": "State Machine",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 8
+        },
+        "required": true
+      },
+      {
+        "id": 82,
+        "key": "scale",
+        "display_name": "Scale",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 83,
+        "key": "shadow_radius",
+        "display_name": "Shadow Radius",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 84,
+        "key": "body_color",
+        "display_name": "Body Color",
+        "kind": {
+          "kind": "string"
         },
         "required": true
       }

@@ -15,6 +15,11 @@ pub struct GeneratedDatabase {
     pub wave_def: GeneratedTable<WaveDef>,
     pub map_def: GeneratedTable<MapDef>,
     pub unit_group_member: GeneratedTable<UnitGroupMember>,
+    pub texture_asset: GeneratedTable<TextureAsset>,
+    pub sprite_animation: GeneratedTable<SpriteAnimation>,
+    pub visual_state_machine: GeneratedTable<VisualStateMachine>,
+    pub visual_state: GeneratedTable<VisualState>,
+    pub unit_visual: GeneratedTable<UnitVisual>,
 }
 
 #[derive(Debug, Clone)]
@@ -26,21 +31,9 @@ pub struct GeneratedTable<T> {
 
 impl<T> GeneratedTable<T> {
     fn new(rows: Vec<T>, ids: Vec<RowId>, keys: Vec<String>) -> Self {
-        let by_id = ids
-            .into_iter()
-            .enumerate()
-            .map(|(index, id)| (id, index))
-            .collect();
-        let by_key = keys
-            .into_iter()
-            .enumerate()
-            .map(|(index, key)| (key, index))
-            .collect();
-        Self {
-            rows,
-            by_id,
-            by_key,
-        }
+        let by_id = ids.into_iter().enumerate().map(|(index, id)| (id, index)).collect();
+        let by_key = keys.into_iter().enumerate().map(|(index, key)| (key, index)).collect();
+        Self { rows, by_id, by_key }
     }
 
     pub fn get_by_id(&self, id: RowId) -> Option<&T> {
@@ -60,6 +53,11 @@ impl GeneratedDatabase {
             wave_def: load_wave_def(project)?,
             map_def: load_map_def(project)?,
             unit_group_member: load_unit_group_member(project)?,
+            texture_asset: load_texture_asset(project)?,
+            sprite_animation: load_sprite_animation(project)?,
+            visual_state_machine: load_visual_state_machine(project)?,
+            visual_state: load_visual_state(project)?,
+            unit_visual: load_unit_visual(project)?,
         })
     }
 }
@@ -79,6 +77,7 @@ fn load_unit_def(project: &DataProject) -> Result<GeneratedTable<UnitDef>, Strin
             attack_range: read_f32(row, FieldId(4), "unit_def.attack_range")?,
             attack_interval: read_f32(row, FieldId(5), "unit_def.attack_interval")?,
             move_speed: read_f32(row, FieldId(6), "unit_def.move_speed")?,
+            visual: read_row(row, FieldId(7), "unit_def.visual")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());
@@ -143,9 +142,7 @@ fn load_map_def(project: &DataProject) -> Result<GeneratedTable<MapDef>, String>
     Ok(GeneratedTable::new(typed_rows, ids, keys))
 }
 
-fn load_unit_group_member(
-    project: &DataProject,
-) -> Result<GeneratedTable<UnitGroupMember>, String> {
+fn load_unit_group_member(project: &DataProject) -> Result<GeneratedTable<UnitGroupMember>, String> {
     let rows = table_rows(project, TableId(5))?;
     let mut typed_rows = Vec::new();
     let mut ids = Vec::new();
@@ -165,66 +162,138 @@ fn load_unit_group_member(
     Ok(GeneratedTable::new(typed_rows, ids, keys))
 }
 
+fn load_texture_asset(project: &DataProject) -> Result<GeneratedTable<TextureAsset>, String> {
+    let rows = table_rows(project, TableId(6))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(TextureAsset {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(44), "texture_asset.name")?,
+            path: read_string(row, FieldId(45), "texture_asset.path")?,
+            width: read_i32(row, FieldId(46), "texture_asset.width")?,
+            height: read_i32(row, FieldId(47), "texture_asset.height")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_sprite_animation(project: &DataProject) -> Result<GeneratedTable<SpriteAnimation>, String> {
+    let rows = table_rows(project, TableId(7))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(SpriteAnimation {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(50), "sprite_animation.name")?,
+            texture: read_row(row, FieldId(51), "sprite_animation.texture")?,
+            frame_count: read_i32(row, FieldId(52), "sprite_animation.frame_count")?,
+            fps: read_f32(row, FieldId(53), "sprite_animation.fps")?,
+            looping: read_bool(row, FieldId(54), "sprite_animation.looping")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_visual_state_machine(project: &DataProject) -> Result<GeneratedTable<VisualStateMachine>, String> {
+    let rows = table_rows(project, TableId(8))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(VisualStateMachine {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(60), "visual_state_machine.name")?,
+            default_state: read_row(row, FieldId(61), "visual_state_machine.default_state")?,
+            states: read_rows(row, FieldId(62), "visual_state_machine.states")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_visual_state(project: &DataProject) -> Result<GeneratedTable<VisualState>, String> {
+    let rows = table_rows(project, TableId(9))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(VisualState {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(70), "visual_state.name")?,
+            state_key: read_string(row, FieldId(71), "visual_state.state_key")?,
+            animation: read_row(row, FieldId(72), "visual_state.animation")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_unit_visual(project: &DataProject) -> Result<GeneratedTable<UnitVisual>, String> {
+    let rows = table_rows(project, TableId(10))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(UnitVisual {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(80), "unit_visual.name")?,
+            state_machine: read_row(row, FieldId(81), "unit_visual.state_machine")?,
+            scale: read_f32(row, FieldId(82), "unit_visual.scale")?,
+            shadow_radius: read_f32(row, FieldId(83), "unit_visual.shadow_radius")?,
+            body_color: read_string(row, FieldId(84), "unit_visual.body_color")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
 fn table_rows(project: &DataProject, table_id: TableId) -> Result<&[RowData], String> {
-    project
-        .data
-        .iter()
-        .find(|table| table.table_id == table_id)
-        .map(|table| table.rows.as_slice())
-        .ok_or_else(|| format!("missing table data {:?}", table_id))
+    project.data.iter().find(|table| table.table_id == table_id).map(|table| table.rows.as_slice()).ok_or_else(|| format!("missing table data {:?}", table_id))
 }
 
 fn cell<'a>(row: &'a RowData, field_id: FieldId, label: &str) -> Result<&'a CellValue, String> {
-    row.cells
-        .get(&field_id)
-        .ok_or_else(|| format!("missing cell {label} in row {}", row.key))
+    row.cells.get(&field_id).ok_or_else(|| format!("missing cell {label} in row {}", row.key))
 }
 
 fn read_bool(row: &RowData, field_id: FieldId, label: &str) -> Result<bool, String> {
-    match cell(row, field_id, label)? {
-        CellValue::Bool(value) => Ok(*value),
-        value => Err(format!("expected bool for {label}, got {value:?}")),
-    }
+    match cell(row, field_id, label)? { CellValue::Bool(value) => Ok(*value), value => Err(format!("expected bool for {label}, got {value:?}")) }
 }
 
 fn read_i32(row: &RowData, field_id: FieldId, label: &str) -> Result<i32, String> {
-    match cell(row, field_id, label)? {
-        CellValue::I32(value) => Ok(*value),
-        value => Err(format!("expected i32 for {label}, got {value:?}")),
-    }
+    match cell(row, field_id, label)? { CellValue::I32(value) => Ok(*value), value => Err(format!("expected i32 for {label}, got {value:?}")) }
 }
 
 fn read_i64(row: &RowData, field_id: FieldId, label: &str) -> Result<i64, String> {
-    match cell(row, field_id, label)? {
-        CellValue::I64(value) => Ok(*value),
-        value => Err(format!("expected i64 for {label}, got {value:?}")),
-    }
+    match cell(row, field_id, label)? { CellValue::I64(value) => Ok(*value), value => Err(format!("expected i64 for {label}, got {value:?}")) }
 }
 
 fn read_f32(row: &RowData, field_id: FieldId, label: &str) -> Result<f32, String> {
-    match cell(row, field_id, label)? {
-        CellValue::F32(value) => Ok(*value),
-        value => Err(format!("expected f32 for {label}, got {value:?}")),
-    }
+    match cell(row, field_id, label)? { CellValue::F32(value) => Ok(*value), value => Err(format!("expected f32 for {label}, got {value:?}")) }
 }
 
 fn read_string(row: &RowData, field_id: FieldId, label: &str) -> Result<String, String> {
-    match cell(row, field_id, label)? {
-        CellValue::String(value) => Ok(value.clone()),
-        value => Err(format!("expected string for {label}, got {value:?}")),
-    }
+    match cell(row, field_id, label)? { CellValue::String(value) => Ok(value.clone()), value => Err(format!("expected string for {label}, got {value:?}")) }
 }
 
 fn read_row(row: &RowData, field_id: FieldId, label: &str) -> Result<RowId, String> {
-    match cell(row, field_id, label)? {
-        CellValue::Row(value) => Ok(*value),
-        value => Err(format!("expected row id for {label}, got {value:?}")),
-    }
+    match cell(row, field_id, label)? { CellValue::Row(value) => Ok(*value), value => Err(format!("expected row id for {label}, got {value:?}")) }
 }
 
 fn read_rows(row: &RowData, field_id: FieldId, label: &str) -> Result<Vec<RowId>, String> {
-    match cell(row, field_id, label)? {
-        CellValue::Rows(value) => Ok(value.clone()),
-        value => Err(format!("expected row id list for {label}, got {value:?}")),
-    }
+    match cell(row, field_id, label)? { CellValue::Rows(value) => Ok(value.clone()), value => Err(format!("expected row id list for {label}, got {value:?}")) }
 }

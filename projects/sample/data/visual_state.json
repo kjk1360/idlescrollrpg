@@ -1,0 +1,110 @@
+[
+  {
+    "id": 9001,
+    "key": "humanoid_idle",
+    "cells": {
+      "70": {
+        "kind": "string",
+        "value": "Humanoid Idle"
+      },
+      "71": {
+        "kind": "string",
+        "value": "idle"
+      },
+      "72": {
+        "kind": "row",
+        "value": 7001
+      }
+    }
+  },
+  {
+    "id": 9002,
+    "key": "humanoid_move",
+    "cells": {
+      "70": {
+        "kind": "string",
+        "value": "Humanoid Move"
+      },
+      "71": {
+        "kind": "string",
+        "value": "move"
+      },
+      "72": {
+        "kind": "row",
+        "value": 7002
+      }
+    }
+  },
+  {
+    "id": 9003,
+    "key": "humanoid_attack",
+    "cells": {
+      "70": {
+        "kind": "string",
+        "value": "Humanoid Attack"
+      },
+      "71": {
+        "kind": "string",
+        "value": "attack"
+      },
+      "72": {
+        "kind": "row",
+        "value": 7003
+      }
+    }
+  },
+  {
+    "id": 9004,
+    "key": "slime_idle",
+    "cells": {
+      "70": {
+        "kind": "string",
+        "value": "Slime Idle"
+      },
+      "71": {
+        "kind": "string",
+        "value": "idle"
+      },
+      "72": {
+        "kind": "row",
+        "value": 7004
+      }
+    }
+  },
+  {
+    "id": 9005,
+    "key": "slime_move",
+    "cells": {
+      "70": {
+        "kind": "string",
+        "value": "Slime Move"
+      },
+      "71": {
+        "kind": "string",
+        "value": "move"
+      },
+      "72": {
+        "kind": "row",
+        "value": 7004
+      }
+    }
+  },
+  {
+    "id": 9006,
+    "key": "slime_attack",
+    "cells": {
+      "70": {
+        "kind": "string",
+        "value": "Slime Attack"
+      },
+      "71": {
+        "kind": "string",
+        "value": "attack"
+      },
+      "72": {
+        "kind": "row",
+        "value": 7004
+      }
+    }
+  }
+]
