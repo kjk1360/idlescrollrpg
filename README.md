@@ -35,6 +35,15 @@ cargo run -p belt_tools -- data-build --project projects\sample --out build\samp
 cargo test
 ```
 
+Package the current tool executable and sample project:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\package_tools.ps1
+dist\tools\belt_tools.exe data-status --project dist\projects\sample
+dist\tools\belt_tools.exe view --project dist\projects\sample --view map_wave_preview
+dist\tools\belt_tools.exe simulate --project dist\projects\sample --map endless_left_road
+```
+
 ## Documentation
 
 Future sessions should read these first:

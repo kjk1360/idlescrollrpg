@@ -30,6 +30,8 @@
 - Updated `belt_tools simulate --project` to use generated accessors and relation cache.
 - Added `game_data_adapter`.
 - Moved battle config conversion out of `belt_tools`.
+- Added `scripts/package_tools.ps1`.
+- Packaged and verified `dist\tools\belt_tools.exe` with the sample project.
 
 ## Current Stable CLI Flow
 
@@ -51,38 +53,31 @@ cargo run -p belt_tools -- data-build --project projects\sample --out build\samp
 cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road
 ```
 
-## Immediate Next Milestone: Tool Packaging Before UI
+## Completed Milestone: Tool Packaging Before UI
 
-The backend is now split enough to package the CLI before starting a visual UI.
-
-### Step 1: Package CLI
-
-Add a repeatable release build flow for:
+The backend can now be packaged as:
 
 ```text
 belt_tools.exe
 ```
 
-Initial packaging target:
+Packaging output:
 
 ```text
 dist/tools/belt_tools.exe
 dist/projects/sample/
 ```
 
-The future visual Data Studio should call this executable or its API-equivalent backend.
+Verified commands:
 
-### Step 2: Add Richer View Validation
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\package_tools.ps1
+dist\tools\belt_tools.exe data-status --project dist\projects\sample
+dist\tools\belt_tools.exe view --project dist\projects\sample --view map_wave_preview
+dist\tools\belt_tools.exe simulate --project dist\projects\sample --map endless_left_road
+```
 
-Current views can materialize relation joins. Add validation for:
-
-- missing join source alias
-- join field not present on source alias table
-- join field target table mismatch
-- output column alias not found
-- output column field not present on alias table
-
-### Step 3: Minimal Data Studio UI
+## Immediate Next Milestone: Minimal Data Studio UI
 
 Do not build a broad editor yet. Start with a focused local UI:
 
@@ -93,5 +88,16 @@ Do not build a broad editor yet. Start with a focused local UI:
 - codegen button
 - data-build button
 - simulate button
+- command/status output panel
 
-The first UI can be read/edit-light. Relation/nested editing can follow after the view grid is stable.
+The first UI should be read/edit-light. Relation/nested editing can follow after the view grid is stable.
+
+## Next Validation Work
+
+Current views can materialize relation joins. Add validation for:
+
+- missing join source alias
+- join field not present on source alias table
+- join field target table mismatch
+- output column alias not found
+- output column field not present on alias table
