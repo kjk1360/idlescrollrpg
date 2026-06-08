@@ -28,6 +28,8 @@
 - Added generated `GeneratedTable<T>::get_by_id` and `get_by_key`.
 - Added generated `GeneratedRelationCache`.
 - Updated `belt_tools simulate --project` to use generated accessors and relation cache.
+- Added `game_data_adapter`.
+- Moved battle config conversion out of `belt_tools`.
 
 ## Current Stable CLI Flow
 
@@ -49,30 +51,11 @@ cargo run -p belt_tools -- data-build --project projects\sample --out build\samp
 cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road
 ```
 
-## Immediate Next Milestone: Adapter Extraction And Tool Packaging
+## Immediate Next Milestone: Tool Packaging Before UI
 
-The backend is now stable enough to split responsibilities before starting a visual UI.
+The backend is now split enough to package the CLI before starting a visual UI.
 
-### Step 1: Extract Game Data Adapter
-
-Move `battle_config_from_project` out of `crates/tools/src/main.rs`.
-
-Target:
-
-```text
-crates/game_data_adapter/
-  src/lib.rs
-```
-
-Responsibilities:
-
-- load `GeneratedDatabase`
-- build `GeneratedRelationCache`
-- convert generated data into `belt_core::BattleConfig`
-
-This lets both CLI and future playable client use the same conversion path.
-
-### Step 2: Package CLI
+### Step 1: Package CLI
 
 Add a repeatable release build flow for:
 
@@ -89,7 +72,7 @@ dist/projects/sample/
 
 The future visual Data Studio should call this executable or its API-equivalent backend.
 
-### Step 3: Add Richer View Validation
+### Step 2: Add Richer View Validation
 
 Current views can materialize relation joins. Add validation for:
 
@@ -99,7 +82,7 @@ Current views can materialize relation joins. Add validation for:
 - output column alias not found
 - output column field not present on alias table
 
-### Step 4: Minimal Data Studio UI
+### Step 3: Minimal Data Studio UI
 
 Do not build a broad editor yet. Start with a focused local UI:
 

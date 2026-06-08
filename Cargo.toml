@@ -2,6 +2,7 @@
 members = [
     "crates/belt_core",
     "crates/data_studio_core",
+    "crates/game_data_adapter",
     "crates/generated_data",
     "crates/tools",
 ]

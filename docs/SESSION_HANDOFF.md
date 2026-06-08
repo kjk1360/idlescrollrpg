@@ -52,6 +52,7 @@ Implemented:
 - generated typed table accessors with `get_by_id` and `get_by_key`
 - generated relation cache for relation fields
 - `belt_tools simulate --project` uses generated accessors and relation cache
+- `game_data_adapter`: converts generated data into `belt_core::BattleConfig`
 - `belt_tools`: CLI for simulation, validation, status, view, codegen, data build
 - `projects/sample`: file-based sample data project
 - `crates/generated_data`: generated Rust crate from sample schema
@@ -120,6 +121,15 @@ projects/sample/
 ## Current Generated Crate
 
 ```text
+crates/game_data_adapter/
+  Cargo.toml
+  src/
+    lib.rs
+```
+
+## Current Generated Crate
+
+```text
 crates/generated_data/
   Cargo.toml
   src/
@@ -133,14 +143,14 @@ crates/generated_data/
 
 ## Recommended Next Task
 
-Extract the game data adapter from `belt_tools` into a reusable crate, then package the CLI.
+Package the CLI.
 
 Recommended order:
 
-1. Create `crates/game_data_adapter`.
-2. Move `battle_config_from_project` there.
-3. Keep `belt_tools simulate --project` working through the adapter crate.
-4. Add a release packaging command or script for `belt_tools.exe`.
+1. Add a repeatable release build command or script for `belt_tools.exe`.
+2. Copy `belt_tools.exe` to `dist/tools/`.
+3. Copy `projects/sample` to `dist/projects/sample`.
+4. Verify the packaged exe can run `data-status`, `view`, and `simulate`.
 5. After that, start a minimal visual Data Studio UI.
 
 ## Caveats

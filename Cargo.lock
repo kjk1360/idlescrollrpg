@@ -12,6 +12,7 @@ version = "0.1.0"
 dependencies = [
  "belt_core",
  "data_studio_core",
+ "game_data_adapter",
  "generated_data",
  "serde_json",
 ]
@@ -22,6 +23,15 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "game_data_adapter"
+version = "0.1.0"
+dependencies = [
+ "belt_core",
+ "data_studio_core",
+ "generated_data",
 ]
 
 [[package]]

@@ -1,5 +1,5 @@
 [package]
-name = "belt_tools"
+name = "game_data_adapter"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -7,6 +7,4 @@ license.workspace = true
 [dependencies]
 belt_core = { path = "../belt_core" }
 data_studio_core = { path = "../data_studio_core" }
-game_data_adapter = { path = "../game_data_adapter" }
 generated_data = { path = "../generated_data" }
-serde_json = "1"
