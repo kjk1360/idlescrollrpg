@@ -99,6 +99,7 @@ fn read_request(stream: &mut TcpStream) -> Result<Request, String> {
 fn route_request(request: &Request, state: &PlayServerState) -> Vec<u8> {
     let result = match (request.method.as_str(), path_without_query(&request.path)) {
         ("GET", "/") => Ok(html(PLAY_HTML)),
+        ("GET", "/asset") => asset(request, state),
         ("GET", "/api/play") => api_play(state),
         _ => Err(("not found".to_string(), 404)),
     };
@@ -107,6 +108,22 @@ fn route_request(request: &Request, state: &PlayServerState) -> Vec<u8> {
         Ok(response) => response,
         Err((message, status)) => json_response(status, &json!({ "ok": false, "error": message })),
     }
+}
+
+fn asset(request: &Request, state: &PlayServerState) -> Result<Vec<u8>, (String, u16)> {
+    let raw_path =
+        query_value(&request.path, "path").ok_or_else(|| ("missing path".to_string(), 400))?;
+    if raw_path.contains("..") || raw_path.starts_with('/') || raw_path.starts_with('\\') {
+        return Err(("invalid asset path".to_string(), 400));
+    }
+    let path = state.project_path.join(raw_path.replace('/', "\\"));
+    let bytes = std::fs::read(&path).map_err(|error| {
+        (
+            format!("failed to read asset {}: {error}", path.display()),
+            404,
+        )
+    })?;
+    Ok(response(200, content_type_for_path(&path), &bytes))
 }
 
 fn api_play(state: &PlayServerState) -> Result<Vec<u8>, (String, u16)> {
@@ -226,12 +243,36 @@ impl<'a> VisualLookup<'a> {
         let row = self.row(TableId(9), state_id)?;
         let animation_id = row_cell(row, FieldId(72)).and_then(cell_row)?;
         let animation = self.row(TableId(7), animation_id);
+        let frames = animation
+            .and_then(|row| row_cell(row, FieldId(55)).and_then(cell_rows))
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|frame_id| self.sprite_frame(*frame_id))
+            .collect::<Vec<_>>();
         Some(json!({
             "key": row_cell(row, FieldId(71)).and_then(cell_string).unwrap_or("idle"),
             "animation": {
                 "frame_count": animation.and_then(|row| row_cell(row, FieldId(52)).and_then(cell_i32)).unwrap_or(4),
                 "fps": animation.and_then(|row| row_cell(row, FieldId(53)).and_then(cell_f32)).unwrap_or(6.0),
                 "loop": animation.and_then(|row| row_cell(row, FieldId(54)).and_then(cell_bool)).unwrap_or(true),
+                "frames": frames,
+            }
+        }))
+    }
+
+    fn sprite_frame(&self, frame_id: RowId) -> Option<Value> {
+        let row = self.row(TableId(11), frame_id)?;
+        let texture_id = row_cell(row, FieldId(91)).and_then(cell_row)?;
+        let texture = self.row(TableId(6), texture_id);
+        Some(json!({
+            "x": row_cell(row, FieldId(92)).and_then(cell_i32).unwrap_or(0),
+            "y": row_cell(row, FieldId(93)).and_then(cell_i32).unwrap_or(0),
+            "w": row_cell(row, FieldId(94)).and_then(cell_i32).unwrap_or(64),
+            "h": row_cell(row, FieldId(95)).and_then(cell_i32).unwrap_or(64),
+            "pivot_x": row_cell(row, FieldId(96)).and_then(cell_f32).unwrap_or(0.5),
+            "pivot_y": row_cell(row, FieldId(97)).and_then(cell_f32).unwrap_or(0.85),
+            "texture": {
+                "path": texture.and_then(|row| row_cell(row, FieldId(45)).and_then(cell_string)).unwrap_or(""),
             }
         }))
     }
@@ -307,6 +348,14 @@ fn path_without_query(path: &str) -> &str {
     path.split_once('?').map(|(path, _)| path).unwrap_or(path)
 }
 
+fn query_value<'a>(path: &'a str, key: &str) -> Option<&'a str> {
+    let query = path.split_once('?')?.1;
+    query.split('&').find_map(|part| {
+        let (name, value) = part.split_once('=')?;
+        (name == key).then_some(value)
+    })
+}
+
 fn html(content: &str) -> Vec<u8> {
     response(200, "text/html; charset=utf-8", content.as_bytes())
 }
@@ -317,6 +366,22 @@ fn json_response(status: u16, value: &Value) -> Vec<u8> {
         "application/json; charset=utf-8",
         value.to_string().as_bytes(),
     )
+}
+
+fn content_type_for_path(path: &std::path::Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "svg" => "image/svg+xml",
+        "webp" => "image/webp",
+        _ => "application/octet-stream",
+    }
 }
 
 fn response(status: u16, content_type: &str, body: &[u8]) -> Vec<u8> {
@@ -385,7 +450,8 @@ const PLAY_HTML: &str = r#"<!doctype html>
   <script>
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
-    let playback = null;
+  let playback = null;
+    const images = {};
     let start = performance.now();
 
     function resize() {
@@ -462,8 +528,10 @@ const PLAY_HTML: &str = r#"<!doctype html>
       const radius = Number(unit.visual.shadow_radius || 16) * scale;
       const state = visualState(unit.visual, unit.state);
       const anim = state?.animation || { frame_count: 4, fps: 6 };
-      const frameIndex = Math.floor(t * anim.fps) % Math.max(1, anim.frame_count);
-      const bob = Math.sin((frameIndex / Math.max(1, anim.frame_count)) * Math.PI * 2) * 3;
+      const frameCount = Math.max(1, (anim.frames || []).length || anim.frame_count);
+      const frameIndex = Math.floor(t * anim.fps) % frameCount;
+      const spriteFrame = (anim.frames || [])[frameIndex];
+      const bob = Math.sin((frameIndex / frameCount) * Math.PI * 2) * 3;
       const attackLean = unit.state === 'attack' ? (unit.team === 'player' ? -8 : 8) : 0;
       ctx.save();
       ctx.translate(x + attackLean, y + bob);
@@ -471,19 +539,41 @@ const PLAY_HTML: &str = r#"<!doctype html>
       ctx.beginPath();
       ctx.ellipse(0, 24 * scale, radius, radius * 0.36, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = unit.visual.body_color || '#999999';
-      ctx.strokeStyle = unit.team === 'player' ? '#d9efff' : '#ffe0d6';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(-16 * scale, -30 * scale, 32 * scale, 48 * scale, 8 * scale);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#111820';
+      if (!drawSpriteFrame(spriteFrame, scale)) {
+        ctx.fillStyle = unit.visual.body_color || '#999999';
+        ctx.strokeStyle = unit.team === 'player' ? '#d9efff' : '#ffe0d6';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(-16 * scale, -30 * scale, 32 * scale, 48 * scale, 8 * scale);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#dbe7ef';
       ctx.font = '11px Segoe UI';
       ctx.textAlign = 'center';
-      ctx.fillText(unit.name, 0, -38 * scale);
+      ctx.fillText(unit.name, 0, -42 * scale);
       drawHp(unit, scale);
       ctx.restore();
+    }
+
+    function drawSpriteFrame(frame, scale) {
+      if (!frame?.texture?.path) return false;
+      const image = textureImage(frame.texture.path);
+      if (!image.complete || image.naturalWidth === 0) return false;
+      const dw = frame.w * scale;
+      const dh = frame.h * scale;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(image, frame.x, frame.y, frame.w, frame.h, -dw * frame.pivot_x, -dh * frame.pivot_y, dw, dh);
+      return true;
+    }
+
+    function textureImage(path) {
+      if (!images[path]) {
+        const image = new Image();
+        image.src = `/asset?path=${encodeURIComponent(path)}`;
+        images[path] = image;
+      }
+      return images[path];
     }
 
     function drawHp(unit, scale) {

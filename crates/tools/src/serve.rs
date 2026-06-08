@@ -134,6 +134,7 @@ fn find_header_end(buffer: &[u8]) -> Option<usize> {
 fn route_request(request: &Request, state: &ServerState) -> Vec<u8> {
     let result = match (request.method.as_str(), path_without_query(&request.path)) {
         ("GET", "/") => Ok(html(INDEX_HTML)),
+        ("GET", "/asset") => asset(request, state),
         ("GET", "/api/project") => api_project(state),
         ("GET", "/api/status") => api_status(state),
         ("GET", "/api/view") => api_view(request, state),
@@ -161,6 +162,22 @@ fn route_request(request: &Request, state: &ServerState) -> Vec<u8> {
             }),
         ),
     }
+}
+
+fn asset(request: &Request, state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
+    let raw_path =
+        query_value(&request.path, "path").ok_or_else(|| ("missing path".to_string(), 400))?;
+    if raw_path.contains("..") || raw_path.starts_with('/') || raw_path.starts_with('\\') {
+        return Err(("invalid asset path".to_string(), 400));
+    }
+    let path = state.project_path.join(raw_path.replace('/', "\\"));
+    let bytes = fs::read(&path).map_err(|error| {
+        (
+            format!("failed to read asset {}: {error}", path.display()),
+            404,
+        )
+    })?;
+    Ok(response(200, content_type_for_path(&path), &bytes))
 }
 
 fn api_project(state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
@@ -888,6 +905,22 @@ fn json_response(status: u16, value: &Value) -> Vec<u8> {
     )
 }
 
+fn content_type_for_path(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "svg" => "image/svg+xml",
+        "webp" => "image/webp",
+        _ => "application/octet-stream",
+    }
+}
+
 fn response(status: u16, content_type: &str, body: &[u8]) -> Vec<u8> {
     let reason = match status {
         200 => "OK",
@@ -1276,7 +1309,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
     </main>
   </div>
   <script>
-    let state = { project: null, mode: 'schema', selected: null, backStack: [], visual: { key: null, state: 'idle', started: 0 } };
+    let state = { project: null, mode: 'schema', selected: null, backStack: [], visual: { key: null, state: 'idle', started: 0 }, images: {} };
     const $ = id => document.getElementById(id);
 
     async function api(path, options) {
@@ -1652,6 +1685,28 @@ const INDEX_HTML: &str = r#"<!doctype html>
       return animationId ? rowByKey('sprite_animation', animationId) : null;
     }
 
+    function animationFrames(animation) {
+      return cellRowsByKey('sprite_animation', animation, 'frames')
+        .map(id => rowByKey('sprite_frame', id))
+        .filter(Boolean);
+    }
+
+    function frameTexture(frame) {
+      const textureId = cellRowByKey('sprite_frame', frame, 'texture');
+      return textureId ? rowByKey('texture_asset', textureId) : null;
+    }
+
+    function textureImage(texture) {
+      const path = cellStringByKey('texture_asset', texture, 'path', '');
+      if (!path) return null;
+      if (!state.images[path]) {
+        const img = new Image();
+        img.src = `/asset?path=${encodeURIComponent(path)}`;
+        state.images[path] = img;
+      }
+      return state.images[path];
+    }
+
     function drawVisualPreview() {
       if (state.mode !== 'visual') return;
       const canvas = $('visualCanvas');
@@ -1664,13 +1719,14 @@ const INDEX_HTML: &str = r#"<!doctype html>
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const visual = selectedVisualRow();
       const animation = selectedVisualAnimation(visual);
+      const frames = animationFrames(animation);
       const fps = animation ? cellNumberByKey('sprite_animation', animation, 'fps', 6) : 6;
-      const frameCount = Math.max(1, animation ? cellNumberByKey('sprite_animation', animation, 'frame_count', 4) : 4);
+      const frameCount = Math.max(1, frames.length || (animation ? cellNumberByKey('sprite_animation', animation, 'frame_count', 4) : 4));
       const t = (performance.now() - state.visual.started) / 1000;
       const frame = Math.floor(t * fps) % frameCount;
       ctx.clearRect(0, 0, rect.width, rect.height);
       drawVisualBackground(ctx, rect.width, rect.height);
-      drawPreviewSprite(ctx, rect.width / 2, rect.height * 0.62, visual, frame, frameCount);
+      drawPreviewSprite(ctx, rect.width / 2, rect.height * 0.62, visual, frames[frame], frame, frameCount);
       ctx.fillStyle = '#dbe7ef';
       ctx.font = '13px Segoe UI';
       ctx.textAlign = 'left';
@@ -1694,7 +1750,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
       }
     }
 
-    function drawPreviewSprite(ctx, x, y, visual, frame, frameCount) {
+    function drawPreviewSprite(ctx, x, y, visual, spriteFrame, frame, frameCount) {
       const scale = cellNumberByKey('unit_visual', visual, 'scale', 1);
       const color = cellStringByKey('unit_visual', visual, 'body_color', '#999999');
       const shadow = cellNumberByKey('unit_visual', visual, 'shadow_radius', 18) * scale;
@@ -1705,6 +1761,32 @@ const INDEX_HTML: &str = r#"<!doctype html>
       ctx.beginPath();
       ctx.ellipse(0, 30 * scale, shadow, shadow * 0.36, 0, 0, Math.PI * 2);
       ctx.fill();
+      if (spriteFrame && drawSpriteFrame(ctx, spriteFrame, scale)) {
+        ctx.restore();
+        return;
+      }
+      drawPlaceholderSprite(ctx, color, scale);
+      ctx.restore();
+    }
+
+    function drawSpriteFrame(ctx, frame, scale) {
+      const texture = frameTexture(frame);
+      const image = textureImage(texture);
+      if (!image || !image.complete || image.naturalWidth === 0) return false;
+      const sx = cellNumberByKey('sprite_frame', frame, 'x', 0);
+      const sy = cellNumberByKey('sprite_frame', frame, 'y', 0);
+      const sw = cellNumberByKey('sprite_frame', frame, 'w', 64);
+      const sh = cellNumberByKey('sprite_frame', frame, 'h', 64);
+      const px = cellNumberByKey('sprite_frame', frame, 'pivot_x', 0.5);
+      const py = cellNumberByKey('sprite_frame', frame, 'pivot_y', 0.85);
+      const dw = sw * scale;
+      const dh = sh * scale;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(image, sx, sy, sw, sh, -dw * px, -dh * py, dw, dh);
+      return true;
+    }
+
+    function drawPlaceholderSprite(ctx, color, scale) {
       ctx.fillStyle = color;
       ctx.strokeStyle = '#eef6ff';
       ctx.lineWidth = 2;
@@ -1717,7 +1799,6 @@ const INDEX_HTML: &str = r#"<!doctype html>
       ctx.arc(-9 * scale, -28 * scale, 3 * scale, 0, Math.PI * 2);
       ctx.arc(9 * scale, -28 * scale, 3 * scale, 0, Math.PI * 2);
       ctx.fill();
-      ctx.restore();
     }
 
     function relationRowButton(tableId, row, action, handler) {

@@ -129,6 +129,7 @@ projects/sample/
     wave_def.json
     map_def.json
     texture_asset.json
+    sprite_frame.json
     sprite_animation.json
     visual_state.json
     visual_state_machine.json
@@ -214,6 +215,8 @@ Implemented UI/API surface:
 - Simulate button
 - command/status output panel
 - Visual tab for `unit_visual` and sprite animation preview
+- project asset serving through `/asset?path=...`
+- sprite frame data with texture rect, pivot, and duration fields
 
 Validated endpoints:
 
@@ -242,7 +245,8 @@ Implemented preview surface:
 - `unit_def.visual` connects battle units to `unit_visual`.
 - `unit_visual` references a visual state machine and placeholder body color.
 - visual states reference sprite animations.
-- sprite animations reference texture assets and expose frame count/fps/looping data.
+- sprite animations reference texture assets, sprite frame rows, and expose frame count/fps/looping data.
+- Data Studio and Play Preview load project texture assets and draw frame rects.
 - Data Studio Visual tab previews unit visual states with placeholder sprite playback.
 
 Validated endpoints:
@@ -257,7 +261,7 @@ Improve sprite asset editing and visual preview authoring.
 Recommended order:
 
 1. Add texture file browser/import path workflow.
-2. Add sprite sheet slicing data and preview.
+2. Add sprite sheet slicing UI for generating `sprite_frame` rows.
 3. Add animation frame list editor with playback preview.
 4. Add visual state machine editor focused on states and animation references.
 5. Add pagination/search to relation picker for large target tables.

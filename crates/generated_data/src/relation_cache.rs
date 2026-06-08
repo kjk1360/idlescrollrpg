@@ -15,10 +15,12 @@ pub struct GeneratedRelationCache {
     pub map_def_waves: HashMap<RowId, Vec<RowId>>,
     pub unit_group_member_unit: HashMap<RowId, RowId>,
     pub sprite_animation_texture: HashMap<RowId, RowId>,
+    pub sprite_animation_frames: HashMap<RowId, Vec<RowId>>,
     pub visual_state_machine_default_state: HashMap<RowId, RowId>,
     pub visual_state_machine_states: HashMap<RowId, Vec<RowId>>,
     pub visual_state_animation: HashMap<RowId, RowId>,
     pub unit_visual_state_machine: HashMap<RowId, RowId>,
+    pub sprite_frame_texture: HashMap<RowId, RowId>,
 }
 
 impl GeneratedRelationCache {
@@ -95,6 +97,19 @@ impl GeneratedRelationCache {
             }
             cache.sprite_animation_texture.insert(row.id, row.texture);
         }
+        for row in &db.sprite_animation.rows {
+            for target_id in &row.frames {
+                if db.sprite_frame.get_by_id(*target_id).is_none() {
+                    return Err(format!(
+                        "missing relation target for sprite_animation.frames from {:?} to {:?}",
+                        row.id, target_id
+                    ));
+                }
+            }
+            cache
+                .sprite_animation_frames
+                .insert(row.id, row.frames.clone());
+        }
         for row in &db.visual_state_machine.rows {
             if db.visual_state.get_by_id(row.default_state).is_none() {
                 return Err(format!("missing relation target for visual_state_machine.default_state from {:?} to {:?}", row.id, row.default_state));
@@ -140,6 +155,15 @@ impl GeneratedRelationCache {
                 .unit_visual_state_machine
                 .insert(row.id, row.state_machine);
         }
+        for row in &db.sprite_frame.rows {
+            if db.texture_asset.get_by_id(row.texture).is_none() {
+                return Err(format!(
+                    "missing relation target for sprite_frame.texture from {:?} to {:?}",
+                    row.id, row.texture
+                ));
+            }
+            cache.sprite_frame_texture.insert(row.id, row.texture);
+        }
         Ok(cache)
     }
 
@@ -171,6 +195,10 @@ impl GeneratedRelationCache {
         self.sprite_animation_texture.get(&source).copied()
     }
 
+    pub fn get_sprite_animation_frames(&self, source: RowId) -> Option<&[RowId]> {
+        self.sprite_animation_frames.get(&source).map(Vec::as_slice)
+    }
+
     pub fn get_visual_state_machine_default_state(&self, source: RowId) -> Option<RowId> {
         self.visual_state_machine_default_state
             .get(&source)
@@ -189,5 +217,9 @@ impl GeneratedRelationCache {
 
     pub fn get_unit_visual_state_machine(&self, source: RowId) -> Option<RowId> {
         self.unit_visual_state_machine.get(&source).copied()
+    }
+
+    pub fn get_sprite_frame_texture(&self, source: RowId) -> Option<RowId> {
+        self.sprite_frame_texture.get(&source).copied()
     }
 }

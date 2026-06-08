@@ -24,6 +24,10 @@ try {
     Copy-Item -Force -Recurse -Path (Join-Path $sampleProjectSrc "data") -Destination $sampleProjectDst
     Copy-Item -Force -Recurse -Path (Join-Path $sampleProjectSrc "views") -Destination $sampleProjectDst
     Copy-Item -Force -Recurse -Path (Join-Path $sampleProjectSrc "build") -Destination $sampleProjectDst
+    $assetsSrc = Join-Path $sampleProjectSrc "assets"
+    if (Test-Path $assetsSrc) {
+        Copy-Item -Force -Recurse -Path $assetsSrc -Destination $sampleProjectDst
+    }
 
     Write-Host "Packaged tools:"
     Write-Host "  $(Join-Path $toolsDir "belt_tools.exe")"

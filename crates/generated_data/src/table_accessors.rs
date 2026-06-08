@@ -20,6 +20,7 @@ pub struct GeneratedDatabase {
     pub visual_state_machine: GeneratedTable<VisualStateMachine>,
     pub visual_state: GeneratedTable<VisualState>,
     pub unit_visual: GeneratedTable<UnitVisual>,
+    pub sprite_frame: GeneratedTable<SpriteFrame>,
 }
 
 #[derive(Debug, Clone)]
@@ -70,6 +71,7 @@ impl GeneratedDatabase {
             visual_state_machine: load_visual_state_machine(project)?,
             visual_state: load_visual_state(project)?,
             unit_visual: load_unit_visual(project)?,
+            sprite_frame: load_sprite_frame(project)?,
         })
     }
 }
@@ -210,6 +212,7 @@ fn load_sprite_animation(project: &DataProject) -> Result<GeneratedTable<SpriteA
             frame_count: read_i32(row, FieldId(52), "sprite_animation.frame_count")?,
             fps: read_f32(row, FieldId(53), "sprite_animation.fps")?,
             looping: read_bool(row, FieldId(54), "sprite_animation.looping")?,
+            frames: read_rows(row, FieldId(55), "sprite_animation.frames")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());
@@ -271,6 +274,31 @@ fn load_unit_visual(project: &DataProject) -> Result<GeneratedTable<UnitVisual>,
             scale: read_f32(row, FieldId(82), "unit_visual.scale")?,
             shadow_radius: read_f32(row, FieldId(83), "unit_visual.shadow_radius")?,
             body_color: read_string(row, FieldId(84), "unit_visual.body_color")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_sprite_frame(project: &DataProject) -> Result<GeneratedTable<SpriteFrame>, String> {
+    let rows = table_rows(project, TableId(11))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(SpriteFrame {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(90), "sprite_frame.name")?,
+            texture: read_row(row, FieldId(91), "sprite_frame.texture")?,
+            x: read_i32(row, FieldId(92), "sprite_frame.x")?,
+            y: read_i32(row, FieldId(93), "sprite_frame.y")?,
+            w: read_i32(row, FieldId(94), "sprite_frame.w")?,
+            h: read_i32(row, FieldId(95), "sprite_frame.h")?,
+            pivot_x: read_f32(row, FieldId(96), "sprite_frame.pivot_x")?,
+            pivot_y: read_f32(row, FieldId(97), "sprite_frame.pivot_y")?,
+            duration: read_f32(row, FieldId(98), "sprite_frame.duration")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());

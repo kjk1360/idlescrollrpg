@@ -47,6 +47,10 @@
 - Added `unit_def.visual`.
 - Added `belt_tools play`, a local playable canvas preview backed by Rust battle simulation frames.
 - Added a Data Studio Visual tab for unit visual and sprite animation preview.
+- Added `sprite_frame` data with texture rect, pivot, and duration fields.
+- Added project asset serving through `/asset?path=...`.
+- Added sample sprite sheet asset at `projects/sample/assets/units/placeholder_units.svg`.
+- Updated Data Studio Visual tab and Play Preview to draw texture frame rects when available.
 
 ## Current Stable CLI Flow
 
@@ -129,13 +133,15 @@ The first playable preview is available through `belt_tools play`:
 - Visual data supports texture asset references, sprite animation settings, visual states, state machines, and unit visual settings.
 - Placeholder sprite rendering uses `unit_visual.body_color` until real texture loading/slicing is added.
 - Data Studio Visual tab previews `unit_visual` state animations with placeholder sprite playback.
+- Sprite animations can reference explicit `sprite_frame` rows.
+- Data Studio and Play Preview load project texture assets and draw frame rects.
 
 ## Immediate Next Milestone: Sprite Asset Editing
 
-The UI can edit visual data as tables, and `play` consumes it. Next, make sprite authoring comfortable:
+The UI can edit visual data as tables, preview sprite frames, and `play` consumes it. Next, make sprite authoring comfortable:
 
 - texture file browser/import path workflow
-- sprite sheet slicing data and preview
+- sprite sheet slicing UI for generating `sprite_frame` rows
 - animation frame list editor with playback preview
 - visual state machine editor focused on states and animation references
 - relation picker pagination/search for large tables

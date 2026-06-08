@@ -1,0 +1,122 @@
+[
+  {
+    "id": 11001,
+    "key": "humanoid_0",
+    "cells": {
+      "90": { "kind": "string", "value": "Humanoid 0" },
+      "91": { "kind": "row", "value": 6001 },
+      "92": { "kind": "i32", "value": 0 },
+      "93": { "kind": "i32", "value": 0 },
+      "94": { "kind": "i32", "value": 64 },
+      "95": { "kind": "i32", "value": 64 },
+      "96": { "kind": "f32", "value": 0.5 },
+      "97": { "kind": "f32", "value": 0.85 },
+      "98": { "kind": "f32", "value": 0.1 }
+    }
+  },
+  {
+    "id": 11002,
+    "key": "humanoid_1",
+    "cells": {
+      "90": { "kind": "string", "value": "Humanoid 1" },
+      "91": { "kind": "row", "value": 6001 },
+      "92": { "kind": "i32", "value": 64 },
+      "93": { "kind": "i32", "value": 0 },
+      "94": { "kind": "i32", "value": 64 },
+      "95": { "kind": "i32", "value": 64 },
+      "96": { "kind": "f32", "value": 0.5 },
+      "97": { "kind": "f32", "value": 0.85 },
+      "98": { "kind": "f32", "value": 0.1 }
+    }
+  },
+  {
+    "id": 11003,
+    "key": "humanoid_2",
+    "cells": {
+      "90": { "kind": "string", "value": "Humanoid 2" },
+      "91": { "kind": "row", "value": 6001 },
+      "92": { "kind": "i32", "value": 128 },
+      "93": { "kind": "i32", "value": 0 },
+      "94": { "kind": "i32", "value": 64 },
+      "95": { "kind": "i32", "value": 64 },
+      "96": { "kind": "f32", "value": 0.5 },
+      "97": { "kind": "f32", "value": 0.85 },
+      "98": { "kind": "f32", "value": 0.1 }
+    }
+  },
+  {
+    "id": 11004,
+    "key": "humanoid_3",
+    "cells": {
+      "90": { "kind": "string", "value": "Humanoid 3" },
+      "91": { "kind": "row", "value": 6001 },
+      "92": { "kind": "i32", "value": 192 },
+      "93": { "kind": "i32", "value": 0 },
+      "94": { "kind": "i32", "value": 64 },
+      "95": { "kind": "i32", "value": 64 },
+      "96": { "kind": "f32", "value": 0.5 },
+      "97": { "kind": "f32", "value": 0.85 },
+      "98": { "kind": "f32", "value": 0.1 }
+    }
+  },
+  {
+    "id": 11005,
+    "key": "slime_0",
+    "cells": {
+      "90": { "kind": "string", "value": "Slime 0" },
+      "91": { "kind": "row", "value": 6001 },
+      "92": { "kind": "i32", "value": 0 },
+      "93": { "kind": "i32", "value": 64 },
+      "94": { "kind": "i32", "value": 64 },
+      "95": { "kind": "i32", "value": 64 },
+      "96": { "kind": "f32", "value": 0.5 },
+      "97": { "kind": "f32", "value": 0.88 },
+      "98": { "kind": "f32", "value": 0.12 }
+    }
+  },
+  {
+    "id": 11006,
+    "key": "slime_1",
+    "cells": {
+      "90": { "kind": "string", "value": "Slime 1" },
+      "91": { "kind": "row", "value": 6001 },
+      "92": { "kind": "i32", "value": 64 },
+      "93": { "kind": "i32", "value": 64 },
+      "94": { "kind": "i32", "value": 64 },
+      "95": { "kind": "i32", "value": 64 },
+      "96": { "kind": "f32", "value": 0.5 },
+      "97": { "kind": "f32", "value": 0.88 },
+      "98": { "kind": "f32", "value": 0.12 }
+    }
+  },
+  {
+    "id": 11007,
+    "key": "slime_2",
+    "cells": {
+      "90": { "kind": "string", "value": "Slime 2" },
+      "91": { "kind": "row", "value": 6001 },
+      "92": { "kind": "i32", "value": 128 },
+      "93": { "kind": "i32", "value": 64 },
+      "94": { "kind": "i32", "value": 64 },
+      "95": { "kind": "i32", "value": 64 },
+      "96": { "kind": "f32", "value": 0.5 },
+      "97": { "kind": "f32", "value": 0.88 },
+      "98": { "kind": "f32", "value": 0.12 }
+    }
+  },
+  {
+    "id": 11008,
+    "key": "slime_3",
+    "cells": {
+      "90": { "kind": "string", "value": "Slime 3" },
+      "91": { "kind": "row", "value": 6001 },
+      "92": { "kind": "i32", "value": 192 },
+      "93": { "kind": "i32", "value": 64 },
+      "94": { "kind": "i32", "value": 64 },
+      "95": { "kind": "i32", "value": 64 },
+      "96": { "kind": "f32", "value": 0.5 },
+      "97": { "kind": "f32", "value": 0.88 },
+      "98": { "kind": "f32", "value": 0.12 }
+    }
+  }
+]

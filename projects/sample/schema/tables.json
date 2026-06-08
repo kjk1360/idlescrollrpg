@@ -313,6 +313,16 @@
           "kind": "bool"
         },
         "required": true
+      },
+      {
+        "id": 55,
+        "key": "frames",
+        "display_name": "Frames",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 11
+        },
+        "required": true
       }
     ]
   },
@@ -437,6 +447,95 @@
           "kind": "string"
         },
         "required": true
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "key": "sprite_frame",
+    "display_name": "Sprite Frame",
+    "fields": [
+      {
+        "id": 90,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 91,
+        "key": "texture",
+        "display_name": "Texture",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 6
+        },
+        "required": true
+      },
+      {
+        "id": 92,
+        "key": "x",
+        "display_name": "X",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 93,
+        "key": "y",
+        "display_name": "Y",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 94,
+        "key": "w",
+        "display_name": "W",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 95,
+        "key": "h",
+        "display_name": "H",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 96,
+        "key": "pivot_x",
+        "display_name": "Pivot X",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 97,
+        "key": "pivot_y",
+        "display_name": "Pivot Y",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 98,
+        "key": "duration",
+        "display_name": "Duration",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": false
       }
     ]
   }

@@ -71,6 +71,7 @@ pub struct SpriteAnimation {
     pub frame_count: i32,
     pub fps: f32,
     pub looping: bool,
+    pub frames: Vec<RowId>,
 }
 
 #[derive(Debug, Clone)]
@@ -100,4 +101,19 @@ pub struct UnitVisual {
     pub scale: f32,
     pub shadow_radius: f32,
     pub body_color: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SpriteFrame {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub texture: RowId,
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+    pub pivot_x: f32,
+    pub pivot_y: f32,
+    pub duration: f32,
 }
