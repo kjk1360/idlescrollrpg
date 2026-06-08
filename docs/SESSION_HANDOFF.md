@@ -61,6 +61,7 @@ Implemented:
 - `crates/generated_data`: generated Rust crate from sample schema
 - explicit `unit_group_member` data with `unit`, `x`, and `lane`
 - visual data tables for texture assets, sprite animations, visual states, state machines, and unit visuals
+- Aseprite import through CLI/API into texture, sprite frame, and sprite animation data
 
 ## Important Commands
 
@@ -81,6 +82,7 @@ cargo run -p belt_tools -- validate --project projects\sample
 cargo run -p belt_tools -- view --project projects\sample --view map_wave_preview
 cargo run -p belt_tools -- codegen --project projects\sample --out crates\generated_data\src
 cargo run -p belt_tools -- data-build --project projects\sample --out build\sample_data
+cargo run -p belt_tools -- import-aseprite --project projects\sample --file C:\path\unit.aseprite
 cargo run -p belt_tools -- serve --project projects\sample --addr 127.0.0.1:7878
 cargo run -p belt_tools -- play --project projects\sample --map endless_left_road --addr 127.0.0.1:7879
 ```
@@ -215,6 +217,7 @@ Implemented UI/API surface:
 - Simulate button
 - command/status output panel
 - Visual tab for `unit_visual` and sprite animation preview
+- Visual tab Aseprite import path input with dropdown hints from known texture paths
 - project asset serving through `/asset?path=...`
 - sprite frame data with texture rect, pivot, and duration fields
 
@@ -229,6 +232,7 @@ Validated endpoints:
 - `POST /api/row`
 - `POST /api/row/delete`
 - `POST /api/simulate`
+- `POST /api/import/aseprite`
 
 ## Current Playable Preview
 
@@ -248,6 +252,7 @@ Implemented preview surface:
 - sprite animations reference texture assets, sprite frame rows, and expose frame count/fps/looping data.
 - Data Studio and Play Preview load project texture assets and draw frame rects.
 - Data Studio Visual tab previews unit visual states with placeholder sprite playback.
+- Aseprite JSON/frame tags can be imported into visual asset tables from the Visual tab or `belt_tools import-aseprite`.
 
 Validated endpoints:
 
@@ -260,8 +265,8 @@ Improve sprite asset editing and visual preview authoring.
 
 Recommended order:
 
-1. Add texture file browser/import path workflow.
-2. Add sprite sheet slicing UI for generating `sprite_frame` rows.
+1. Add a real file picker/recent file workflow around the current Aseprite path import.
+2. Add sprite sheet slicing UI for generating `sprite_frame` rows when assets do not come from Aseprite.
 3. Add animation frame list editor with playback preview.
 4. Add visual state machine editor focused on states and animation references.
 5. Add pagination/search to relation picker for large target tables.

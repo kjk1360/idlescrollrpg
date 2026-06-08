@@ -4,6 +4,7 @@ use game_data_adapter::battle_config_from_project;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+mod aseprite;
 mod play;
 mod serve;
 
@@ -19,6 +20,7 @@ fn main() {
         "codegen-preview" => codegen_preview(&args[1..]),
         "codegen" => codegen(&args[1..]),
         "data-build" => data_build(&args[1..]),
+        "import-aseprite" => import_aseprite(&args[1..]),
         "serve" => serve::serve(&args[1..]),
         "play" => play::play(&args[1..]),
         _ => {
@@ -44,6 +46,7 @@ fn help() {
     println!("  codegen-preview  Print generated Rust struct preview");
     println!("  codegen          Write generated Rust files");
     println!("  data-build       Write a JSON data snapshot and data fingerprint");
+    println!("  import-aseprite  Import an Aseprite file or exported JSON into visual data");
     println!("  serve            Start the local Data Studio web UI");
     println!("  play             Start the playable belt-scroll preview");
     println!();
@@ -51,6 +54,7 @@ fn help() {
     println!("  --project <dir>  Load a file-based data project");
     println!("  --out <dir>      Output directory for codegen or data-build");
     println!("  --addr <addr>    Local server address for serve");
+    println!("  --file <path>    Aseprite .aseprite/.ase or exported JSON file");
 }
 
 fn simulate(args: &[String]) -> Result<(), String> {
@@ -286,6 +290,21 @@ fn data_build(args: &[String]) -> Result<(), String> {
     println!(
         "built data snapshot: {}",
         out.join("data_snapshot.json").display()
+    );
+    Ok(())
+}
+
+fn import_aseprite(args: &[String]) -> Result<(), String> {
+    let project_path = option_value(args, "--project")
+        .map(PathBuf::from)
+        .ok_or_else(|| "missing required --project <dir>".to_string())?;
+    let file = option_value(args, "--file")
+        .map(PathBuf::from)
+        .ok_or_else(|| "missing required --file <path>".to_string())?;
+    let summary = aseprite::import_aseprite(&project_path, &file)?;
+    println!(
+        "imported aseprite: texture={}, frames={}, animations={}",
+        summary.texture_key, summary.frame_count, summary.animation_count
     );
     Ok(())
 }

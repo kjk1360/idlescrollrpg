@@ -51,6 +51,8 @@
 - Added project asset serving through `/asset?path=...`.
 - Added sample sprite sheet asset at `projects/sample/assets/units/placeholder_units.svg`.
 - Updated Data Studio Visual tab and Play Preview to draw texture frame rects when available.
+- Added `belt_tools import-aseprite` for `.aseprite`/`.ase` files through the Aseprite CLI and direct Aseprite JSON exports.
+- Added `POST /api/import/aseprite` and a Visual tab import control for Aseprite assets.
 
 ## Current Stable CLI Flow
 
@@ -69,6 +71,7 @@ cargo run -p belt_tools -- validate --project projects\sample
 cargo run -p belt_tools -- view --project projects\sample --view map_wave_preview
 cargo run -p belt_tools -- codegen --project projects\sample --out crates\generated_data\src
 cargo run -p belt_tools -- data-build --project projects\sample --out build\sample_data
+cargo run -p belt_tools -- import-aseprite --project projects\sample --file C:\path\unit.aseprite
 cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road
 cargo run -p belt_tools -- serve --project projects\sample --addr 127.0.0.1:7878
 cargo run -p belt_tools -- play --project projects\sample --map endless_left_road --addr 127.0.0.1:7879
@@ -135,12 +138,13 @@ The first playable preview is available through `belt_tools play`:
 - Data Studio Visual tab previews `unit_visual` state animations with placeholder sprite playback.
 - Sprite animations can reference explicit `sprite_frame` rows.
 - Data Studio and Play Preview load project texture assets and draw frame rects.
+- Aseprite imports create `texture_asset`, `sprite_frame`, and `sprite_animation` rows from spritesheet JSON and frame tags.
 
 ## Immediate Next Milestone: Sprite Asset Editing
 
 The UI can edit visual data as tables, preview sprite frames, and `play` consumes it. Next, make sprite authoring comfortable:
 
-- texture file browser/import path workflow
+- texture file browser/import path workflow beyond the current Aseprite path input
 - sprite sheet slicing UI for generating `sprite_frame` rows
 - animation frame list editor with playback preview
 - visual state machine editor focused on states and animation references

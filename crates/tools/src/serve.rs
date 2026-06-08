@@ -149,6 +149,7 @@ fn route_request(request: &Request, state: &ServerState) -> Vec<u8> {
         ("POST", "/api/codegen") => api_codegen(state),
         ("POST", "/api/data-build") => api_data_build(state),
         ("POST", "/api/simulate") => api_simulate(request, state),
+        ("POST", "/api/import/aseprite") => api_import_aseprite(request, state),
         _ => Err(("not found".to_string(), 404)),
     };
 
@@ -590,6 +591,22 @@ fn api_simulate(request: &Request, state: &ServerState) -> Result<Vec<u8>, (Stri
     let project = load_project(&state.project_path)?;
     let output = crate::simulate_for_api(&project, map_key).map_err(|error| (error, 500))?;
     Ok(json_response(200, &json!({ "ok": true, "output": output })))
+}
+
+fn api_import_aseprite(request: &Request, state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
+    let payload = parse_body(&request.body)?;
+    let file = string_value(&payload, "file")?;
+    let summary = crate::aseprite::import_aseprite(&state.project_path, Path::new(file))
+        .map_err(|error| (error, 500))?;
+    Ok(json_response(
+        200,
+        &json!({
+            "ok": true,
+            "texture_key": summary.texture_key,
+            "frame_count": summary.frame_count,
+            "animation_count": summary.animation_count,
+        }),
+    ))
 }
 
 fn load_project(path: &Path) -> Result<DataProject, (String, u16)> {
@@ -1178,6 +1195,21 @@ const INDEX_HTML: &str = r#"<!doctype html>
       gap: 8px;
       flex-wrap: wrap;
     }
+    .import-form {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      min-width: 360px;
+    }
+    .import-form input {
+      height: 32px;
+      min-width: 280px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 8px;
+      font: inherit;
+      font-size: 13px;
+    }
     .nav-item.nested {
       padding-left: calc(10px + var(--depth, 0) * 18px);
     }
@@ -1622,7 +1654,15 @@ const INDEX_HTML: &str = r#"<!doctype html>
       const visualName = cellStringByKey('unit_visual', selected, 'name', selected.key);
       $('sheetTitle').textContent = visualName;
       $('sheetMeta').textContent = `${selected.key} / unit visual preview`;
-      $('sheetTools').innerHTML = `<button onclick="selectTable('unit_visual')">Open Table</button>`;
+      $('sheetTools').innerHTML = `
+        <div class="import-form">
+          <input id="asepriteFile" list="asepriteHints" placeholder="C:\\path\\unit.aseprite or exported.json">
+          <datalist id="asepriteHints">
+            ${tableDataByKey('texture_asset').rows.map(row => `<option value="${escapeAttr(cellStringByKey('texture_asset', row, 'path', ''))}"></option>`).join('')}
+          </datalist>
+          <button onclick="importAseprite()">Import Aseprite</button>
+        </div>
+        <button onclick="selectTable('unit_visual')">Open Table</button>`;
       $('grid').innerHTML = `
         <div class="visual-layout">
           <div class="visual-list">
@@ -1651,6 +1691,23 @@ const INDEX_HTML: &str = r#"<!doctype html>
       state.visual.state = key;
       state.visual.started = performance.now();
       renderVisualDashboard();
+    }
+
+    async function importAseprite() {
+      const file = $('asepriteFile')?.value.trim();
+      if (!file) return;
+      try {
+        const result = await api('/api/import/aseprite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file })
+        });
+        log(`imported ${result.texture_key}: ${result.frame_count} frames, ${result.animation_count} animations`);
+        state.images = {};
+        await loadProject(false);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
     }
 
     function visualStateRows(visualRow) {

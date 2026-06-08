@@ -34,10 +34,13 @@ cargo run -p belt_tools -- validate --project projects\sample
 cargo run -p belt_tools -- view --project projects\sample --view map_wave_preview
 cargo run -p belt_tools -- codegen --project projects\sample --out crates\generated_data\src
 cargo run -p belt_tools -- data-build --project projects\sample --out build\sample_data
+cargo run -p belt_tools -- import-aseprite --project projects\sample --file C:\path\unit.aseprite
 cargo run -p belt_tools -- serve --project projects\sample --addr 127.0.0.1:7878
 cargo run -p belt_tools -- play --project projects\sample --map endless_left_road --addr 127.0.0.1:7879
 cargo test
 ```
+
+`import-aseprite` accepts `.aseprite`/`.ase` files when the Aseprite CLI is installed. It also accepts an already exported Aseprite JSON file and imports its sheet image, frame rectangles, and frame tags into `texture_asset`, `sprite_frame`, and `sprite_animation`.
 
 Package the current tool executable and sample project:
 
