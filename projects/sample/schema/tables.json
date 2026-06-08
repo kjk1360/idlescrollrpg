@@ -1,0 +1,169 @@
+[
+  {
+    "id": 1,
+    "key": "unit_def",
+    "display_name": "Unit Def",
+    "fields": [
+      {
+        "id": 1,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 2,
+        "key": "max_hp",
+        "display_name": "Max HP",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 3,
+        "key": "attack",
+        "display_name": "Attack",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 4,
+        "key": "attack_range",
+        "display_name": "Attack Range",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 5,
+        "key": "attack_interval",
+        "display_name": "Attack Interval",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 6,
+        "key": "move_speed",
+        "display_name": "Move Speed",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "key": "unit_group",
+    "display_name": "Unit Group",
+    "fields": [
+      {
+        "id": 10,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 11,
+        "key": "members",
+        "display_name": "Members",
+        "kind": {
+          "kind": "reference_group",
+          "target_table": 1
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "key": "wave_def",
+    "display_name": "Wave Def",
+    "fields": [
+      {
+        "id": 20,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 21,
+        "key": "enemy_groups",
+        "display_name": "Enemy Groups",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 2
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "key": "map_def",
+    "display_name": "Map Def",
+    "fields": [
+      {
+        "id": 30,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 31,
+        "key": "party",
+        "display_name": "Party",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 2
+        },
+        "required": true
+      },
+      {
+        "id": 32,
+        "key": "waves",
+        "display_name": "Waves",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 3
+        },
+        "required": true
+      },
+      {
+        "id": 33,
+        "key": "left_scroll_speed",
+        "display_name": "Left Scroll Speed",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 34,
+        "key": "wave_spawn_x",
+        "display_name": "Wave Spawn X",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      }
+    ]
+  }
+]

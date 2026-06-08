@@ -1,16 +1,22 @@
 use std::collections::{hash_map::DefaultHasher, BTreeMap};
+use std::fmt;
+use std::fs;
 use std::hash::{Hash, Hasher};
+use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct TableId(pub u64);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct FieldId(pub u64);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct RowId(pub u64);
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum FieldKind {
     Bool,
     I32,
@@ -26,7 +32,7 @@ pub enum FieldKind {
     OwnedNestedTable { nested_table: TableId },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FieldSchema {
     pub id: FieldId,
     pub key: String,
@@ -35,7 +41,7 @@ pub struct FieldSchema {
     pub required: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TableSchema {
     pub id: TableId,
     pub key: String,
@@ -43,7 +49,8 @@ pub struct TableSchema {
     pub fields: Vec<FieldSchema>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum CellValue {
     Empty,
     Bool(bool),
@@ -55,32 +62,32 @@ pub enum CellValue {
     Rows(Vec<RowId>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RowData {
     pub id: RowId,
     pub key: String,
     pub cells: BTreeMap<FieldId, CellValue>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TableData {
     pub table_id: TableId,
     pub rows: Vec<RowData>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ValidationSeverity {
     Error,
     Warning,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ValidationIssue {
     pub severity: ValidationSeverity,
     pub message: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProjectStatus {
     AllFresh,
     CodegenRequired,
@@ -88,7 +95,7 @@ pub enum ProjectStatus {
     CodegenAndDataBuildRequired,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectFingerprints {
     pub schema_hash: u64,
     pub generated_schema_hash: u64,
@@ -110,13 +117,141 @@ impl ProjectFingerprints {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DataProject {
     pub tables: Vec<TableSchema>,
     pub data: Vec<TableData>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectFile {
+    pub format_version: u32,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FingerprintFile {
+    pub hash: u64,
+}
+
+#[derive(Debug)]
+pub enum DataProjectError {
+    Io {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+    Json {
+        path: PathBuf,
+        source: serde_json::Error,
+    },
+}
+
+impl fmt::Display for DataProjectError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Io { path, source } => {
+                write!(formatter, "failed to access {}: {source}", path.display())
+            }
+            Self::Json { path, source } => {
+                write!(formatter, "failed to parse {}: {source}", path.display())
+            }
+        }
+    }
+}
+
+impl std::error::Error for DataProjectError {}
+
 impl DataProject {
+    pub fn load_from_dir(path: impl AsRef<Path>) -> Result<Self, DataProjectError> {
+        let root = path.as_ref();
+        let tables_path = root.join("schema").join("tables.json");
+        let tables: Vec<TableSchema> = read_json(&tables_path)?;
+        let mut data = Vec::new();
+
+        for table in &tables {
+            let data_path = root.join("data").join(format!("{}.json", table.key));
+            let rows = if data_path.exists() {
+                read_json(&data_path)?
+            } else {
+                Vec::new()
+            };
+            data.push(TableData {
+                table_id: table.id,
+                rows,
+            });
+        }
+
+        Ok(Self { tables, data })
+    }
+
+    pub fn save_to_dir(&self, path: impl AsRef<Path>, name: &str) -> Result<(), DataProjectError> {
+        let root = path.as_ref();
+        let schema_dir = root.join("schema");
+        let data_dir = root.join("data");
+        let build_dir = root.join("build");
+
+        create_dir_all(&schema_dir)?;
+        create_dir_all(&data_dir)?;
+        create_dir_all(&build_dir)?;
+
+        write_json(
+            &root.join("project.json"),
+            &ProjectFile {
+                format_version: 1,
+                name: name.to_string(),
+            },
+        )?;
+        write_json(&schema_dir.join("tables.json"), &self.tables)?;
+
+        for table in &self.tables {
+            let rows = self
+                .data
+                .iter()
+                .find(|table_data| table_data.table_id == table.id)
+                .map(|table_data| table_data.rows.as_slice())
+                .unwrap_or(&[]);
+            write_json(&data_dir.join(format!("{}.json", table.key)), rows)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn fingerprints_from_dir(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<ProjectFingerprints, DataProjectError> {
+        let root = path.as_ref();
+        Ok(ProjectFingerprints {
+            schema_hash: self.schema_hash(),
+            generated_schema_hash: read_fingerprint(root, "generated_schema_fingerprint.json")?
+                .unwrap_or(0),
+            data_hash: self.data_hash(),
+            built_data_hash: read_fingerprint(root, "built_data_fingerprint.json")?.unwrap_or(0),
+        })
+    }
+
+    pub fn write_generated_schema_fingerprint(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<(), DataProjectError> {
+        write_fingerprint(
+            path.as_ref(),
+            "generated_schema_fingerprint.json",
+            self.schema_hash(),
+        )
+    }
+
+    pub fn write_built_data_fingerprint(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<(), DataProjectError> {
+        write_fingerprint(
+            path.as_ref(),
+            "built_data_fingerprint.json",
+            self.data_hash(),
+        )
+    }
+
     pub fn schema_hash(&self) -> u64 {
         stable_hash(&self.tables)
     }
@@ -213,6 +348,7 @@ impl DataProject {
     pub fn generate_rust_structs(&self) -> String {
         let mut output = String::new();
         output.push_str("// Generated by belt data studio. Do not edit manually.\n\n");
+        output.push_str("use data_studio_core::RowId;\n\n");
 
         for table in &self.tables {
             output.push_str("#[derive(Debug, Clone)]\n");
@@ -277,6 +413,50 @@ impl DataProject {
             _ => {}
         }
     }
+}
+
+fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, DataProjectError> {
+    let text = fs::read_to_string(path).map_err(|source| DataProjectError::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    serde_json::from_str(&text).map_err(|source| DataProjectError::Json {
+        path: path.to_path_buf(),
+        source,
+    })
+}
+
+fn write_json<T: Serialize + ?Sized>(path: &Path, value: &T) -> Result<(), DataProjectError> {
+    let text = serde_json::to_string_pretty(value).map_err(|source| DataProjectError::Json {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    fs::write(path, text).map_err(|source| DataProjectError::Io {
+        path: path.to_path_buf(),
+        source,
+    })
+}
+
+fn create_dir_all(path: &Path) -> Result<(), DataProjectError> {
+    fs::create_dir_all(path).map_err(|source| DataProjectError::Io {
+        path: path.to_path_buf(),
+        source,
+    })
+}
+
+fn read_fingerprint(root: &Path, filename: &str) -> Result<Option<u64>, DataProjectError> {
+    let path = root.join("build").join(filename);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let file: FingerprintFile = read_json(&path)?;
+    Ok(Some(file.hash))
+}
+
+fn write_fingerprint(root: &Path, filename: &str, hash: u64) -> Result<(), DataProjectError> {
+    let build_dir = root.join("build");
+    create_dir_all(&build_dir)?;
+    write_json(&build_dir.join(filename), &FingerprintFile { hash })
 }
 
 pub fn sample_project() -> DataProject {
@@ -482,5 +662,23 @@ mod tests {
         let generated = sample_project().generate_rust_structs();
         assert!(generated.contains("pub struct UnitDef"));
         assert!(generated.contains("pub members: Vec<RowId>"));
+    }
+
+    #[test]
+    fn save_and_load_project_roundtrip() {
+        let root = std::env::temp_dir().join(format!(
+            "belt_data_project_roundtrip_{}",
+            std::process::id()
+        ));
+        let project = sample_project();
+
+        project
+            .save_to_dir(&root, "Roundtrip")
+            .expect("sample project should save");
+        let loaded = DataProject::load_from_dir(&root).expect("sample project should load");
+
+        assert_eq!(loaded.schema_hash(), project.schema_hash());
+        assert_eq!(loaded.data_hash(), project.data_hash());
+        assert!(loaded.validate().is_empty());
     }
 }

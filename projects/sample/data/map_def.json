@@ -1,0 +1,31 @@
+[
+  {
+    "id": 4001,
+    "key": "endless_left_road",
+    "cells": {
+      "30": {
+        "kind": "string",
+        "value": "Endless Left Road"
+      },
+      "31": {
+        "kind": "row",
+        "value": 2001
+      },
+      "32": {
+        "kind": "rows",
+        "value": [
+          3001,
+          3002
+        ]
+      },
+      "33": {
+        "kind": "f32",
+        "value": 1.8
+      },
+      "34": {
+        "kind": "f32",
+        "value": -8.0
+      }
+    }
+  }
+]

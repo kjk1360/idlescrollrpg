@@ -1,0 +1,54 @@
+[
+  {
+    "id": 2001,
+    "key": "party_start",
+    "cells": {
+      "10": {
+        "kind": "string",
+        "value": "Start Party"
+      },
+      "11": {
+        "kind": "rows",
+        "value": [
+          1001,
+          1002
+        ]
+      }
+    }
+  },
+  {
+    "id": 2101,
+    "key": "slime_pair",
+    "cells": {
+      "10": {
+        "kind": "string",
+        "value": "Slime Pair"
+      },
+      "11": {
+        "kind": "rows",
+        "value": [
+          1100,
+          1100
+        ]
+      }
+    }
+  },
+  {
+    "id": 2102,
+    "key": "slime_line",
+    "cells": {
+      "10": {
+        "kind": "string",
+        "value": "Slime Line"
+      },
+      "11": {
+        "kind": "rows",
+        "value": [
+          1100,
+          1100,
+          1100
+        ]
+      }
+    }
+  }
+]

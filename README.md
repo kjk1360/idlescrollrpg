@@ -16,7 +16,9 @@ Rust 기반 벨트스크롤 Idle RPG 런타임과, 해당 장르의 데이터를
 
 ```powershell
 cargo run -p belt_tools -- simulate
+cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road
 cargo run -p belt_tools -- data-status
+cargo run -p belt_tools -- data-status --project projects\sample
 cargo run -p belt_tools -- codegen-preview
 cargo test
 ```

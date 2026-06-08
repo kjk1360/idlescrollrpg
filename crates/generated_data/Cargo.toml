@@ -1,10 +1,8 @@
 [package]
-name = "belt_tools"
+name = "generated_data"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-belt_core = { path = "../belt_core" }
 data_studio_core = { path = "../data_studio_core" }
-serde_json = "1"

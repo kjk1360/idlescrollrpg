@@ -1,147 +1,120 @@
 # Next Steps
 
-## Immediate Task: File-Based Data Project
+## Completed Since Initial Foundation
 
-현재 `data_studio_core::sample_project()`는 메모리 샘플이다. 다음 단계는 실제 파일 기반 프로젝트를 만드는 것이다.
+- Added `serde`/`serde_json` support to `data_studio_core`.
+- Added file-based `DataProject::load_from_dir`.
+- Added file-based `DataProject::save_to_dir`.
+- Added project fingerprint loading/writing.
+- Added `projects/sample`.
+- Added CLI `--project` support for data commands.
+- Added `validate`.
+- Added `codegen`.
+- Added `data-build`.
+- Added `crates/generated_data`.
 
-권장 구조:
+## Immediate Next Milestone: Data-Driven BattleConfig
 
-```text
-projects/
-  sample/
-    project.json
-    schema/
-      tables.json
-    data/
-      unit_def.json
-      unit_group.json
-    build/
-      generated_schema_fingerprint.json
-      built_data_fingerprint.json
+Completed. This command now loads `projects/sample` and converts table rows into `belt_core::BattleConfig`:
+
+```powershell
+cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road
 ```
 
-## Step 1: Add Serialization
+The temporary adapter is implemented in `crates/tools/src/main.rs`.
 
-`data_studio_core`에 `serde`, `serde_json`을 추가한다.
+## Immediate Next Milestone: Explicit Formation Data
 
-대상 타입:
+Current limitation:
 
-- `TableId`
-- `FieldId`
-- `RowId`
-- `FieldKind`
-- `FieldSchema`
-- `TableSchema`
-- `CellValue`
-- `RowData`
-- `TableData`
-- `DataProject`
+```text
+unit_group.members: reference_group -> unit_def
+```
 
-주의:
+The adapter currently derives spawn `x` and `lane` from member order. That is acceptable for the first file-driven simulation, but not enough for real production authoring.
 
-- `CellValue::F32` hash는 `to_bits()` 기준을 유지한다.
-- ID 타입은 JSON에서 숫자 또는 string wrapper 중 하나로 일관되게 정한다.
+Next schema target:
 
-## Step 2: Project Loader
+```text
+unit_group
+  name: string
+  members: owned_nested_table -> unit_group_member
 
-추가할 API:
+unit_group_member
+  unit: relation_one -> unit_def
+  x: f32
+  lane: f32
+```
+
+Implementation choice:
+
+- Short term: use an explicit top-level `unit_group_member` table with a `group` relation.
+- Long term: represent this as `OwnedNestedTable` in Data Studio UI.
+
+## Step 1: Strengthen Validation
+
+Add validation for:
+
+- duplicate table keys
+- duplicate field keys per table
+- duplicate row keys per table
+- row cell field IDs missing from schema
+- required relation fields with empty row lists
+- relation field value kind mismatch
+
+## Step 2: Add Data Access Helpers
+
+Current generated `table_accessors.rs` is a stub. Add either:
+
+- generic typed row readers in `data_studio_core`, or
+- generated typed table accessors in `generated_data`.
+
+For the next milestone, a pragmatic manual adapter is acceptable:
 
 ```rust
-impl DataProject {
-    pub fn load_from_dir(path: impl AsRef<Path>) -> Result<Self, DataProjectError>;
-    pub fn save_to_dir(&self, path: impl AsRef<Path>) -> Result<(), DataProjectError>;
-}
+fn battle_config_from_project(project: &DataProject, map_key: &str) -> Result<BattleConfig, Error>
 ```
 
-초기에는 단순 JSON이면 충분하다.
+This currently lives in `belt_tools`. Move it later into a dedicated adapter crate or generated access layer.
 
-## Step 3: CLI Project Argument
+## Step 3: Add Relation Cache Skeleton
 
-현재:
-
-```powershell
-cargo run -p belt_tools -- data-status
-```
-
-목표:
-
-```powershell
-cargo run -p belt_tools -- data-status --project projects/sample
-cargo run -p belt_tools -- validate --project projects/sample
-```
-
-## Step 4: Real Codegen Output
-
-현재:
-
-```powershell
-cargo run -p belt_tools -- codegen-preview
-```
-
-목표:
-
-```powershell
-cargo run -p belt_tools -- codegen --project projects/sample --out crates/generated_data/src
-```
-
-생성 파일:
+Before building complex gameplay data, add a minimal relation index:
 
 ```text
-crates/generated_data/
-  Cargo.toml
-  src/
-    lib.rs
-    schema_types.rs
-    table_accessors.rs
-    relation_cache.rs
-    schema_fingerprint.json
+table_id -> row_id -> RowData
+table_key -> TableSchema
+row_key -> RowId
 ```
 
-## Step 5: Data Build
+This will reduce ad hoc row scanning and prepare for generated accessors.
 
-목표:
+## Step 4: Extend Codegen
 
-```powershell
-cargo run -p belt_tools -- data-build --project projects/sample --out build/data
-```
+Current generated files:
 
-초기 산출물은 JSON snapshot이어도 된다. 나중에 binary snapshot으로 바꿀 수 있다.
+- `schema_types.rs`: generated structs
+- `table_accessors.rs`: stub
+- `relation_cache.rs`: stub
 
-## Step 6: Relation Cache
+Next codegen targets:
 
-빌드 시점 또는 런타임 로드 시점에 다음을 수행한다.
+- typed table container structs
+- `get_by_id`
+- `get_by_key`
+- relation cache structs
+- schema fingerprint comments or constants
 
-- RelationOne target row 확인
-- RelationMany target rows 확인
-- ReferenceGroup target rows 확인
-- OwnedNestedTable owner 관계 확인
-- 빠른 lookup map 구성
+## Step 6: Visual UI Later
 
-## Step 7: Combat Data Integration
+Do not start the visual Data Studio UI until the file format and CLI/API workflow are stable.
 
-`belt_core::sample_battle_config()`를 파일 데이터 기반으로 대체한다.
+Initial UI should include:
 
-필요 테이블:
-
-- UnitDef
-- UnitGroup
-- WaveDef
-- MapDef
-
-목표:
-
-```powershell
-cargo run -p belt_tools -- simulate --project projects/sample --map endless_left_road
-```
-
-## Step 8: Visual Prototype Later
-
-렌더러는 위 데이터 파이프라인이 안정화된 뒤 붙인다.
-
-초기 렌더링 목표:
-
-- placeholder rectangle/sprite
-- lane depth sort
-- camera follows left progress
-- combat event text overlay
-
+- table list
+- schema editor
+- row grid
+- relation picker
+- nested table editor
+- status badges
+- Validate / Code Generate / Build Data buttons
