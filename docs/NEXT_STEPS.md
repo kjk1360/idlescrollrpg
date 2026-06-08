@@ -19,6 +19,10 @@
 - Added `map_wave_preview`, which expands map -> wave -> enemy group -> enemy unit.
 - Added `unit_group_member` with explicit `unit`, `x`, and `lane`.
 - Updated battle simulation to use explicit member slot positions.
+- Strengthened validation for duplicate table/field/row keys.
+- Strengthened validation for unknown row cell field ids.
+- Strengthened validation for field/cell kind mismatch.
+- Strengthened validation for empty required relation lists.
 
 ## Immediate Next Milestone: Data-Driven BattleConfig
 
@@ -51,20 +55,9 @@ unit_group_member:
 
 The current implementation uses an explicit top-level `unit_group_member` table. Later, the visual Data Studio can present this as an owned nested editor under `unit_group`.
 
-## Immediate Next Milestone: Backend Hardening Before UI
+## Immediate Next Milestone: Generated Accessors Before UI
 
-## Step 1: Strengthen Validation
-
-Add validation for:
-
-- duplicate table keys
-- duplicate field keys per table
-- duplicate row keys per table
-- row cell field IDs missing from schema
-- required relation fields with empty row lists
-- relation field value kind mismatch
-
-## Step 2: Add Data Access Helpers
+## Step 1: Add Data Access Helpers
 
 Current generated `table_accessors.rs` is a stub. Add either:
 
@@ -79,7 +72,7 @@ fn battle_config_from_project(project: &DataProject, map_key: &str) -> Result<Ba
 
 This currently lives in `belt_tools`. Move it later into a dedicated adapter crate or generated access layer.
 
-## Step 3: Add Relation Cache Skeleton
+## Step 2: Add Relation Cache Skeleton
 
 Before building complex gameplay data, add a minimal relation index:
 
@@ -91,7 +84,7 @@ row_key -> RowId
 
 This will reduce ad hoc row scanning and prepare for generated accessors.
 
-## Step 4: Extend Codegen
+## Step 3: Extend Codegen
 
 Current generated files:
 

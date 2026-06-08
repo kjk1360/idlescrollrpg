@@ -331,17 +331,46 @@ impl DataProject {
 
     pub fn validate(&self) -> Vec<ValidationIssue> {
         let mut issues = Vec::new();
+        let mut table_keys = HashMap::new();
+        let mut table_ids = HashMap::new();
 
         for table in &self.tables {
             if table.key.trim().is_empty() {
                 issues.push(error(format!("table {:?} has empty key", table.id)));
             }
+            if let Some(previous) = table_keys.insert(table.key.as_str(), table.id) {
+                issues.push(error(format!(
+                    "duplicate table key {} used by {:?} and {:?}",
+                    table.key, previous, table.id
+                )));
+            }
+            if let Some(previous) = table_ids.insert(table.id, table.key.as_str()) {
+                issues.push(error(format!(
+                    "duplicate table id {:?} used by {} and {}",
+                    table.id, previous, table.key
+                )));
+            }
+
+            let mut field_keys = HashMap::new();
+            let mut field_ids = HashMap::new();
 
             for field in &table.fields {
                 if field.key.trim().is_empty() {
                     issues.push(error(format!(
                         "table {} has field {:?} with empty key",
                         table.key, field.id
+                    )));
+                }
+                if let Some(previous) = field_keys.insert(field.key.as_str(), field.id) {
+                    issues.push(error(format!(
+                        "duplicate field key {}.{} used by {:?} and {:?}",
+                        table.key, field.key, previous, field.id
+                    )));
+                }
+                if let Some(previous) = field_ids.insert(field.id, field.key.as_str()) {
+                    issues.push(error(format!(
+                        "duplicate field id {:?} in table {} used by {} and {}",
+                        field.id, table.key, previous, field.key
                     )));
                 }
 
@@ -377,6 +406,8 @@ impl DataProject {
                 )));
                 continue;
             };
+            let mut row_keys = HashMap::new();
+            let mut row_ids = HashMap::new();
 
             for row in &table_data.rows {
                 if row.key.trim().is_empty() {
@@ -384,6 +415,31 @@ impl DataProject {
                         "row {:?} in {} has empty key",
                         row.id, table_schema.key
                     )));
+                }
+                if let Some(previous) = row_keys.insert(row.key.as_str(), row.id) {
+                    issues.push(error(format!(
+                        "duplicate row key {}.{} used by {:?} and {:?}",
+                        table_schema.key, row.key, previous, row.id
+                    )));
+                }
+                if let Some(previous) = row_ids.insert(row.id, row.key.as_str()) {
+                    issues.push(error(format!(
+                        "duplicate row id {:?} in table {} used by {} and {}",
+                        row.id, table_schema.key, previous, row.key
+                    )));
+                }
+
+                for field_id in row.cells.keys() {
+                    if !table_schema
+                        .fields
+                        .iter()
+                        .any(|field| field.id == *field_id)
+                    {
+                        issues.push(error(format!(
+                            "row {}.{} has cell for unknown field {:?}",
+                            table_schema.key, row.key, field_id
+                        )));
+                    }
                 }
 
                 for field in &table_schema.fields {
@@ -394,6 +450,7 @@ impl DataProject {
                             table_schema.key, field.key, row.key
                         )));
                     }
+                    self.validate_cell_kind(table_schema, field, row, value, &mut issues);
                     self.validate_cell_relation(table_schema, field, value, &mut issues);
                 }
             }
@@ -561,6 +618,65 @@ impl DataProject {
                         )));
                     }
                 }
+            }
+            _ => {}
+        }
+    }
+
+    fn validate_cell_kind(
+        &self,
+        table_schema: &TableSchema,
+        field: &FieldSchema,
+        row: &RowData,
+        value: &CellValue,
+        issues: &mut Vec<ValidationIssue>,
+    ) {
+        if matches!(value, CellValue::Empty) {
+            return;
+        }
+
+        let valid = matches!(
+            (&field.kind, value),
+            (FieldKind::Bool, CellValue::Bool(_))
+                | (FieldKind::I32, CellValue::I32(_))
+                | (FieldKind::I64, CellValue::I64(_))
+                | (FieldKind::F32, CellValue::F32(_))
+                | (FieldKind::String | FieldKind::Text, CellValue::String(_))
+                | (FieldKind::Enum { .. }, CellValue::String(_))
+                | (FieldKind::AssetRef { .. }, CellValue::String(_))
+                | (FieldKind::RelationOne { .. }, CellValue::Row(_))
+                | (FieldKind::RelationMany { .. }, CellValue::Rows(_))
+                | (FieldKind::ReferenceGroup { .. }, CellValue::Rows(_))
+                | (FieldKind::OwnedNestedTable { .. }, CellValue::Rows(_))
+        );
+
+        if !valid {
+            issues.push(error(format!(
+                "field {}.{} in row {} has invalid value kind {:?}",
+                table_schema.key, field.key, row.key, value
+            )));
+            return;
+        }
+
+        match (&field.kind, value) {
+            (FieldKind::Enum { values }, CellValue::String(value)) => {
+                if !values.iter().any(|allowed| allowed == value) {
+                    issues.push(error(format!(
+                        "field {}.{} in row {} has invalid enum value {}",
+                        table_schema.key, field.key, row.key, value
+                    )));
+                }
+            }
+            (
+                FieldKind::RelationMany { .. }
+                | FieldKind::ReferenceGroup { .. }
+                | FieldKind::OwnedNestedTable { .. },
+                CellValue::Rows(row_ids),
+            ) if field.required && row_ids.is_empty() => {
+                issues.push(error(format!(
+                    "required relation list {}.{} is empty in row {}",
+                    table_schema.key, field.key, row.key
+                )));
             }
             _ => {}
         }
@@ -971,5 +1087,55 @@ mod tests {
 
         assert_eq!(view.headers, vec!["Name"]);
         assert_eq!(view.rows, vec![vec!["Knight"], vec!["Archer"]]);
+    }
+
+    #[test]
+    fn validation_catches_duplicate_row_keys() {
+        let mut project = sample_project();
+        project.data[0].rows[1].key = project.data[0].rows[0].key.clone();
+
+        let issues = project.validate();
+
+        assert!(has_issue(&issues, "duplicate row key"));
+    }
+
+    #[test]
+    fn validation_catches_unknown_cell_fields() {
+        let mut project = sample_project();
+        project.data[0].rows[0]
+            .cells
+            .insert(FieldId(999), CellValue::I32(1));
+
+        let issues = project.validate();
+
+        assert!(has_issue(&issues, "unknown field"));
+    }
+
+    #[test]
+    fn validation_catches_cell_kind_mismatch() {
+        let mut project = sample_project();
+        project.data[0].rows[0]
+            .cells
+            .insert(FieldId(2), CellValue::String("bad".to_string()));
+
+        let issues = project.validate();
+
+        assert!(has_issue(&issues, "invalid value kind"));
+    }
+
+    #[test]
+    fn validation_catches_empty_required_relation_list() {
+        let mut project = sample_project();
+        project.data[1].rows[0]
+            .cells
+            .insert(FieldId(11), CellValue::Rows(Vec::new()));
+
+        let issues = project.validate();
+
+        assert!(has_issue(&issues, "required relation list"));
+    }
+
+    fn has_issue(issues: &[ValidationIssue], pattern: &str) -> bool {
+        issues.iter().any(|issue| issue.message.contains(pattern))
     }
 }
