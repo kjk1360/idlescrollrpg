@@ -188,7 +188,9 @@ Implemented UI/API surface:
 - table list
 - schema table add/delete
 - schema field add/delete
+- row add/delete
 - editable row grid
+- relation selection view with left/right panes and Back navigation
 - materialized view grid
 - project freshness/status indicator
 - Validate button
@@ -205,6 +207,8 @@ Validated endpoints:
 - `POST /api/schema/table/delete`
 - `POST /api/schema/field`
 - `POST /api/schema/field/delete`
+- `POST /api/row`
+- `POST /api/row/delete`
 - `POST /api/simulate`
 
 ## Recommended Next Task
@@ -213,17 +217,16 @@ Improve relation and nested editing UX.
 
 Recommended order:
 
-1. Add row create/delete for ordinary tables.
-2. Add relation-one picker UI that shows target row key/display values instead of raw row ids.
-3. Add relation-many/reference-group multi-picker UI.
-4. Add owned nested table panel launched from the parent table cell.
-5. Add row create/delete for nested tables.
-6. Add richer view validation for join/column mismatch cases.
-7. Package and verify the updated `belt_tools.exe` again.
+1. Add owned nested table panel launched from the parent table cell.
+2. Add nested child row create/delete from the parent cell.
+3. Add pagination/search to relation picker for large target tables.
+4. Add richer row display labels beyond id/key/name fallback.
+5. Add richer view validation for join/column mismatch cases.
+6. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats
 
 - Renderer is not implemented yet.
-- Visual Data Studio UI is implemented only as a first local web UI; relation/nested cell editing is still raw-id/manual.
+- Visual Data Studio UI is implemented only as a first local web UI; nested table editing still reuses generic relation selection and does not yet provide a parent-scoped child row editor.
 - Data Build currently writes a JSON snapshot only.
 - Generated relation cache validates and stores row ids, but does not yet expose typed target row helpers.

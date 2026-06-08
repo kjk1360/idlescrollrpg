@@ -1,8 +1,9 @@
 use data_studio_core::{
-    CellValue, DataProject, FieldId, FieldKind, FieldSchema, ProjectFingerprints, RowId, TableData,
-    TableId, TableSchema,
+    CellValue, DataProject, FieldId, FieldKind, FieldSchema, ProjectFingerprints, RowData, RowId,
+    TableData, TableId, TableSchema,
 };
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -137,6 +138,8 @@ fn route_request(request: &Request, state: &ServerState) -> Vec<u8> {
         ("GET", "/api/status") => api_status(state),
         ("GET", "/api/view") => api_view(request, state),
         ("POST", "/api/cell") => api_update_cell(request, state),
+        ("POST", "/api/row") => api_add_row(request, state),
+        ("POST", "/api/row/delete") => api_delete_row(request, state),
         ("POST", "/api/schema/table") => api_add_table(request, state),
         ("POST", "/api/schema/table/delete") => api_delete_table(request, state),
         ("POST", "/api/schema/field") => api_add_field(request, state),
@@ -229,6 +232,82 @@ fn api_update_cell(request: &Request, state: &ServerState) -> Result<Vec<u8>, (S
     project
         .save_to_dir(&state.project_path, &project_name(&state.project_path))
         .map_err(|error| (error.to_string(), 500))?;
+    Ok(json_response(200, &json!({ "ok": true })))
+}
+
+fn api_add_row(request: &Request, state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
+    let payload = parse_body(&request.body)?;
+    let table_id = TableId(number(&payload, "table_id")?);
+    let key = string_value(&payload, "key")?;
+    validate_key(key)?;
+
+    let mut project = load_project(&state.project_path)?;
+    let table = project
+        .tables
+        .iter()
+        .find(|table| table.id == table_id)
+        .ok_or_else(|| ("unknown table".to_string(), 404))?;
+    let row_id = next_row_id(&project);
+    let table_data = project
+        .data
+        .iter_mut()
+        .find(|table| table.table_id == table_id)
+        .ok_or_else(|| ("unknown table data".to_string(), 404))?;
+    if table_data.rows.iter().any(|row| row.key == key) {
+        return Err((format!("row key already exists: {key}"), 400));
+    }
+
+    let mut cells = BTreeMap::new();
+    for field in &table.fields {
+        cells.insert(field.id, default_cell_value(&field.kind));
+    }
+    table_data.rows.push(RowData {
+        id: row_id,
+        key: key.to_string(),
+        cells,
+    });
+    save_project(&project, state)?;
+    Ok(json_response(
+        200,
+        &json!({ "ok": true, "row_id": row_id.0 }),
+    ))
+}
+
+fn api_delete_row(request: &Request, state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
+    let payload = parse_body(&request.body)?;
+    let table_id = TableId(number(&payload, "table_id")?);
+    let row_id = RowId(number(&payload, "row_id")?);
+    let mut project = load_project(&state.project_path)?;
+    let table_data = project
+        .data
+        .iter_mut()
+        .find(|table| table.table_id == table_id)
+        .ok_or_else(|| ("unknown table data".to_string(), 404))?;
+    let before = table_data.rows.len();
+    table_data.rows.retain(|row| row.id != row_id);
+    if table_data.rows.len() == before {
+        return Err(("unknown row".to_string(), 404));
+    }
+
+    for table_data in &mut project.data {
+        for row in &mut table_data.rows {
+            for value in row.cells.values_mut() {
+                let clear_single = matches!(value, CellValue::Row(value) if *value == row_id);
+                if clear_single {
+                    *value = CellValue::Empty;
+                    continue;
+                }
+                match value {
+                    CellValue::Rows(values) => {
+                        values.retain(|value| *value != row_id);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    save_project(&project, state)?;
     Ok(json_response(200, &json!({ "ok": true })))
 }
 
@@ -466,7 +545,12 @@ fn project_status(project: &DataProject, path: &Path) -> Value {
 
 fn parse_cell_value(kind: &FieldKind, raw: &str) -> Result<CellValue, (String, u16)> {
     if raw.trim().is_empty() {
-        return Ok(CellValue::Empty);
+        return match kind {
+            FieldKind::RelationMany { .. }
+            | FieldKind::ReferenceGroup { .. }
+            | FieldKind::OwnedNestedTable { .. } => Ok(CellValue::Rows(Vec::new())),
+            _ => Ok(CellValue::Empty),
+        };
     }
 
     match kind {
@@ -490,11 +574,13 @@ fn parse_cell_value(kind: &FieldKind, raw: &str) -> Result<CellValue, (String, u
         | FieldKind::Text
         | FieldKind::Enum { .. }
         | FieldKind::AssetRef { .. } => Ok(CellValue::String(raw.to_string())),
-        FieldKind::RelationOne { .. } | FieldKind::OwnedNestedTable { .. } => raw
+        FieldKind::RelationOne { .. } => raw
             .parse::<u64>()
             .map(|id| CellValue::Row(RowId(id)))
             .map_err(|_| ("expected row id".to_string(), 400)),
-        FieldKind::RelationMany { .. } | FieldKind::ReferenceGroup { .. } => raw
+        FieldKind::RelationMany { .. }
+        | FieldKind::ReferenceGroup { .. }
+        | FieldKind::OwnedNestedTable { .. } => raw
             .split(',')
             .map(|part| {
                 part.trim()
@@ -591,6 +677,35 @@ fn next_field_id(project: &DataProject) -> FieldId {
             .unwrap_or(0)
             + 1,
     )
+}
+
+fn next_row_id(project: &DataProject) -> RowId {
+    RowId(
+        project
+            .data
+            .iter()
+            .flat_map(|table| table.rows.iter().map(|row| row.id.0))
+            .max()
+            .unwrap_or(1000)
+            + 1,
+    )
+}
+
+fn default_cell_value(kind: &FieldKind) -> CellValue {
+    match kind {
+        FieldKind::Bool => CellValue::Bool(false),
+        FieldKind::I32 => CellValue::I32(0),
+        FieldKind::I64 => CellValue::I64(0),
+        FieldKind::F32 => CellValue::F32(0.0),
+        FieldKind::String
+        | FieldKind::Text
+        | FieldKind::Enum { .. }
+        | FieldKind::AssetRef { .. } => CellValue::String(String::new()),
+        FieldKind::RelationOne { .. } => CellValue::Empty,
+        FieldKind::RelationMany { .. }
+        | FieldKind::ReferenceGroup { .. }
+        | FieldKind::OwnedNestedTable { .. } => CellValue::Rows(Vec::new()),
+    }
 }
 
 fn field_targets_table(field: &FieldSchema, table_id: TableId) -> bool {
@@ -832,6 +947,36 @@ const INDEX_HTML: &str = r#"<!doctype html>
       align-items: center;
       max-width: 980px;
     }
+    .relation-layout {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
+      gap: 12px;
+      min-height: 360px;
+    }
+    .relation-pane {
+      min-width: 0;
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+    .relation-pane h2 {
+      margin: 0;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+      background: #f0f3f6;
+    }
+    .relation-row {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 72px minmax(0, 1fr) 80px;
+      gap: 8px;
+      align-items: center;
+      height: 36px;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      border-radius: 0;
+      text-align: left;
+    }
     .sheet-title {
       font-size: 18px;
       font-weight: 650;
@@ -955,7 +1100,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
     </main>
   </div>
   <script>
-    let state = { project: null, mode: 'schema', selected: null };
+    let state = { project: null, mode: 'schema', selected: null, backStack: [] };
     const $ = id => document.getElementById(id);
 
     async function api(path, options) {
@@ -998,6 +1143,39 @@ const INDEX_HTML: &str = r#"<!doctype html>
       return row.cells[String(fieldId)] || row.cells[fieldId] || { kind: 'empty' };
     }
 
+    function tableById(tableId) {
+      return state.project.tables.find(table => table.id === tableId);
+    }
+
+    function rowById(tableId, rowId) {
+      return tableData(tableId).rows.find(row => row.id === rowId);
+    }
+
+    function rowTitle(tableId, rowId) {
+      const row = rowById(tableId, rowId);
+      if (!row) return `#${rowId}`;
+      const table = tableById(tableId);
+      const nameField = table?.fields.find(field => field.key === 'name') || table?.fields[0];
+      const label = nameField ? cellText(fieldCell(row, nameField.id)) : '';
+      return label ? `${label} (${row.key})` : row.key;
+    }
+
+    function relationTarget(kind) {
+      return kind.target_table ?? kind.nested_table;
+    }
+
+    function isRelationKind(kind) {
+      return ['relation_one', 'relation_many', 'reference_group', 'owned_nested_table'].includes(kindKey(kind));
+    }
+
+    function relationCellLabel(field, cell) {
+      const target = relationTarget(field.kind);
+      if (!cell || cell.kind === 'empty') return 'Select';
+      if (cell.kind === 'row') return rowTitle(target, cell.value);
+      if (cell.kind === 'rows') return `${cell.value.length} selected`;
+      return cellText(cell);
+    }
+
     function renderNav() {
       $('tables').innerHTML = state.project.tables.map(table => `
         <button class="nav-item ${state.selected?.type === 'table' && state.selected.key === table.key ? 'active' : ''}"
@@ -1027,15 +1205,18 @@ const INDEX_HTML: &str = r#"<!doctype html>
       const data = tableData(table.id);
       $('sheetTitle').textContent = table.display_name;
       $('sheetMeta').textContent = `${table.key} / ${data.rows.length} rows`;
-      $('sheetTools').innerHTML = '';
-      const headers = [`<th class="key">key</th>`, ...table.fields.map(field => `<th>${field.display_name}<br><small>${field.key}</small></th>`)].join('');
+      $('sheetTools').innerHTML = `<button onclick="addRow(${table.id})">Add Row</button>`;
+      const headers = [`<th class="key">key</th>`, ...table.fields.map(field => `<th>${field.display_name}<br><small>${field.key}</small></th>`), `<th>Action</th>`].join('');
       const rows = data.rows.map(row => {
         const cells = table.fields.map(field => {
           const value = cellText(fieldCell(row, field.id));
+          if (isRelationKind(field.kind)) {
+            return `<td><button onclick="openRelationPicker(${table.id}, ${row.id}, ${field.id})">${escapeHtml(relationCellLabel(field, fieldCell(row, field.id)))}</button></td>`;
+          }
           return `<td><input class="cell-input" value="${escapeAttr(value)}"
             onchange="updateCell(${table.id}, ${row.id}, ${field.id}, this.value)"></td>`;
         }).join('');
-        return `<tr><td class="key">${row.key}<br><small>#${row.id}</small></td>${cells}</tr>`;
+        return `<tr><td class="key">${row.key}<br><small>#${row.id}</small></td>${cells}<td><button class="danger" onclick="deleteRow(${table.id}, ${row.id})">Delete</button></td></tr>`;
       }).join('');
       $('grid').innerHTML = `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
     }
@@ -1094,6 +1275,46 @@ const INDEX_HTML: &str = r#"<!doctype html>
       $('grid').innerHTML = `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
     }
 
+    function renderRelationPicker(selection) {
+      const sourceTable = tableById(selection.tableId);
+      const sourceRow = rowById(selection.tableId, selection.rowId);
+      const field = sourceTable.fields.find(field => field.id === selection.fieldId);
+      const targetTableId = relationTarget(field.kind);
+      const targetTable = tableById(targetTableId);
+      const cell = fieldCell(sourceRow, field.id);
+      const selectedIds = cell?.kind === 'row'
+        ? [cell.value]
+        : cell?.kind === 'rows'
+          ? [...cell.value]
+          : [];
+      const selectedSet = new Set(selectedIds);
+      const availableRows = tableData(targetTableId).rows.filter(row => !selectedSet.has(row.id));
+      const selectedRows = selectedIds.map(id => rowById(targetTableId, id)).filter(Boolean);
+
+      $('sheetTitle').textContent = `${sourceRow.key}.${field.key}`;
+      $('sheetMeta').textContent = `${sourceTable.display_name} -> ${targetTable.display_name}`;
+      $('sheetTools').innerHTML = `<button onclick="goBack()">Back</button>`;
+      $('grid').innerHTML = `
+        <div class="relation-layout">
+          <div class="relation-pane">
+            <h2>${targetTable.display_name}</h2>
+            ${availableRows.map(row => relationRowButton(targetTableId, row, 'Add', `setRelationValue(${selection.tableId}, ${selection.rowId}, ${selection.fieldId}, ${row.id}, true)`)).join('')}
+          </div>
+          <div class="relation-pane">
+            <h2>Selected</h2>
+            ${selectedRows.map(row => relationRowButton(targetTableId, row, 'Remove', `setRelationValue(${selection.tableId}, ${selection.rowId}, ${selection.fieldId}, ${row.id}, false)`)).join('')}
+          </div>
+        </div>`;
+    }
+
+    function relationRowButton(tableId, row, action, handler) {
+      return `<button class="relation-row" onclick="${handler}">
+        <span>#${row.id}</span>
+        <span>${escapeHtml(rowTitle(tableId, row.id))}</span>
+        <span>${action}</span>
+      </button>`;
+    }
+
     function selectTable(key) {
       state.selected = { type: 'table', key };
       renderNav();
@@ -1116,6 +1337,79 @@ const INDEX_HTML: &str = r#"<!doctype html>
       });
       log(`saved cell table=${tableId} row=${rowId} field=${fieldId}`);
       await loadProject(false);
+    }
+
+    async function addRow(tableId) {
+      const key = prompt('row key');
+      if (!key) return;
+      try {
+        await api('/api/row', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table_id: tableId, key })
+        });
+        log(`added row ${key}`);
+        await loadProject(false);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
+    async function deleteRow(tableId, rowId) {
+      const row = rowById(tableId, rowId);
+      if (!row || !confirm(`Delete row ${row.key}?`)) return;
+      try {
+        await api('/api/row/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table_id: tableId, row_id: rowId })
+        });
+        log(`deleted row ${row.key}`);
+        await loadProject(false);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
+    function openRelationPicker(tableId, rowId, fieldId) {
+      state.backStack.push({ mode: state.mode, selected: state.selected });
+      state.selected = { type: 'relation', tableId, rowId, fieldId };
+      renderRelationPicker(state.selected);
+    }
+
+    async function setRelationValue(tableId, rowId, fieldId, targetRowId, selected) {
+      const table = tableById(tableId);
+      const row = rowById(tableId, rowId);
+      const field = table.fields.find(field => field.id === fieldId);
+      const cell = fieldCell(row, fieldId);
+      let value = '';
+      if (kindKey(field.kind) === 'relation_one') {
+        value = selected ? String(targetRowId) : '';
+      } else {
+        const values = new Set(cell?.kind === 'rows' ? cell.value : []);
+        if (selected) values.add(targetRowId);
+        else values.delete(targetRowId);
+        value = [...values].join(',');
+      }
+      await api('/api/cell', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table_id: tableId, row_id: rowId, field_id: fieldId, value })
+      });
+      await loadProject(false);
+    }
+
+    function goBack() {
+      const previous = state.backStack.pop();
+      if (!previous) return;
+      state.mode = previous.mode;
+      state.selected = previous.selected;
+      renderNav();
+      if (state.selected?.type === 'table') {
+        const table = state.project.tables.find(table => table.key === state.selected.key);
+        if (state.mode === 'schema') renderSchemaTable(table);
+        else renderTable(table);
+      }
     }
 
     function syncFieldTarget() {
@@ -1211,6 +1505,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
       renderStatus(data.status);
       renderNav();
       if (selectFirst && state.project.tables.length) selectTable(state.project.tables[0].key);
+      else if (state.selected?.type === 'relation') renderRelationPicker(state.selected);
       else if (state.selected?.type === 'table') {
         const table = state.project.tables.find(table => table.key === state.selected.key) || state.project.tables[0];
         if (table) {
@@ -1250,6 +1545,10 @@ const INDEX_HTML: &str = r#"<!doctype html>
 
     function escapeAttr(value) {
       return String(value).replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;');
+    }
+
+    function escapeHtml(value) {
+      return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
     }
 
     $('validateBtn').onclick = () => command('/api/validate', 'validate');

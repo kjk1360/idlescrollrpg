@@ -36,6 +36,8 @@
 - Added UI/API support for table grids, view grids, cell edits, validate, codegen, data-build, and simulate.
 - Split Data Studio into Schema and Data tabs.
 - Added Schema tab support for table add/delete and field add/delete.
+- Added Data tab support for row add/delete.
+- Added relation selection view with Back navigation for relation-one, relation-many, reference-group, and owned-nested row references.
 
 ## Current Stable CLI Flow
 
@@ -100,15 +102,17 @@ The first focused local UI is available through `belt_tools serve`:
 - editable cells saved back to the file-based project
 - schema field add/delete
 - schema table add/delete
+- row add/delete
+- relation selection view with left/right panes and Back navigation
 
 ## Immediate Next Milestone: Relation/Nested Editing UX
 
-The UI can currently edit schema fields and raw cell values. Next, make relation-oriented data work comfortable:
+The UI can currently edit schema fields, raw cell values, rows, and relation references. Next, make nested data and relation UX richer:
 
-- relation-one picker that shows target row key/display value
-- relation-many/reference-group multi-picker
 - owned nested table panel launched from the parent cell
-- row create/delete for ordinary tables and nested tables
+- relation picker pagination/search for large tables
+- richer row display labels beyond id/key/name fallback
+- nested child row create/delete from the parent cell
 - view validation for join/column mismatch cases
 
 ## Next Validation Work
