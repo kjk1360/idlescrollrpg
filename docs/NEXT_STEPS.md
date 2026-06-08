@@ -12,6 +12,11 @@
 - Added `codegen`.
 - Added `data-build`.
 - Added `crates/generated_data`.
+- Added `RelationIndex`.
+- Added `DataView`, `ViewJoin`, `ViewColumn`, and `MaterializedView`.
+- Added `belt_tools view`.
+- Added `projects/sample/views/views.json`.
+- Added `map_wave_preview`, which expands map -> wave -> enemy group -> enemy unit.
 
 ## Immediate Next Milestone: Data-Driven BattleConfig
 

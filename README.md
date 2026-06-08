@@ -1,31 +1,43 @@
 # Belt Scroll RPG
 
-Rust 기반 벨트스크롤 Idle RPG 런타임과, 해당 장르의 데이터를 빠르게 제작하기 위한 전용 Data Studio/Code Generate 툴체인입니다.
+Rust-first belt-scroll Idle RPG runtime plus a dedicated Data Studio / Code Generate toolchain.
 
-목표는 범용 게임 엔진이 아니라, 서비스형 벨트스크롤 Idle RPG를 만들기 위한 제한적이지만 강력한 제작 플랫폼입니다.
+The goal is not a generic game engine. The goal is a focused production platform for a serviceable belt-scroll Idle RPG.
 
 ## Current Scope
 
-- 왼쪽으로 무한 진행하는 2D 벨트스크롤 자동전투 코어
-- 플레이어/적 유닛의 자동전투, 진형, 웨이브, 맵 데이터화
-- 스키마 기반 시트형 데이터 모델
-- 명시적 Code Generate 상태 판단
-- 생성된 Rust 타입에 런타임 데이터를 로드하고 relation cache를 구성하는 방향
+- Endless-left belt-scroll auto-battle core
+- File-based data project
+- Table/field/row schema model
+- Relation fields and reference groups
+- DataView join preview
+- Explicit Code Generate and Data Build flow
+- Generated Rust data crate
 
 ## Run
+
+Run from the workspace root:
+
+```powershell
+cd C:\Users\Cookapps\belt-scroll-rpg
+```
+
+Useful commands:
 
 ```powershell
 cargo run -p belt_tools -- simulate
 cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road
-cargo run -p belt_tools -- data-status
 cargo run -p belt_tools -- data-status --project projects\sample
-cargo run -p belt_tools -- codegen-preview
+cargo run -p belt_tools -- validate --project projects\sample
+cargo run -p belt_tools -- view --project projects\sample --view map_wave_preview
+cargo run -p belt_tools -- codegen --project projects\sample --out crates\generated_data\src
+cargo run -p belt_tools -- data-build --project projects\sample --out build\sample_data
 cargo test
 ```
 
 ## Documentation
 
-다른 세션에서 이어서 작업할 때는 아래 문서를 먼저 읽습니다.
+Future sessions should read these first:
 
 - [Session Handoff](docs/SESSION_HANDOFF.md)
 - [Plan](docs/PLAN.md)

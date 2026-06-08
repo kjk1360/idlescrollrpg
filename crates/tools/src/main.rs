@@ -17,6 +17,7 @@ fn main() {
         "simulate" => simulate(&args[1..]),
         "data-status" => data_status(&args[1..]),
         "validate" => validate(&args[1..]),
+        "view" => view(&args[1..]),
         "codegen-preview" => codegen_preview(&args[1..]),
         "codegen" => codegen(&args[1..]),
         "data-build" => data_build(&args[1..]),
@@ -39,6 +40,7 @@ fn help() {
     println!("  simulate         Run the endless-left battle simulation");
     println!("  data-status      Print schema/data freshness state");
     println!("  validate         Validate a data project");
+    println!("  view             Print a materialized data view");
     println!("  codegen-preview  Print generated Rust struct preview");
     println!("  codegen          Write generated Rust files");
     println!("  data-build       Write a JSON data snapshot and data fingerprint");
@@ -156,6 +158,14 @@ fn validate(args: &[String]) -> Result<(), String> {
     }
 }
 
+fn view(args: &[String]) -> Result<(), String> {
+    let (project, _) = load_project(args)?;
+    let view_key = option_value(args, "--view").unwrap_or("map_wave_preview");
+    let materialized = project.materialize_view(view_key)?;
+    print_table(&materialized.headers, &materialized.rows);
+    Ok(())
+}
+
 fn codegen_preview(args: &[String]) -> Result<(), String> {
     let (project, _) = load_project(args)?;
     println!("{}", project.generate_rust_structs());
@@ -248,6 +258,47 @@ fn option_value<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
 
 fn write_file(path: &Path, content: &str) -> Result<(), String> {
     fs::write(path, content).map_err(|error| format!("failed to write {}: {error}", path.display()))
+}
+
+fn print_table(headers: &[String], rows: &[Vec<String>]) {
+    let widths = headers
+        .iter()
+        .enumerate()
+        .map(|(index, header)| {
+            rows.iter()
+                .filter_map(|row| row.get(index))
+                .map(|value| value.len())
+                .max()
+                .unwrap_or(0)
+                .max(header.len())
+        })
+        .collect::<Vec<_>>();
+
+    print_row(headers, &widths);
+    println!(
+        "{}",
+        widths
+            .iter()
+            .map(|width| "-".repeat(*width))
+            .collect::<Vec<_>>()
+            .join("-+-")
+    );
+
+    for row in rows {
+        print_row(row, &widths);
+    }
+}
+
+fn print_row(row: &[String], widths: &[usize]) {
+    let cells = widths
+        .iter()
+        .enumerate()
+        .map(|(index, width)| {
+            let value = row.get(index).map(String::as_str).unwrap_or("");
+            format!("{value:<width$}")
+        })
+        .collect::<Vec<_>>();
+    println!("{}", cells.join(" | "));
 }
 
 fn battle_config_from_project(

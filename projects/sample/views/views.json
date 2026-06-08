@@ -1,0 +1,60 @@
+[
+  {
+    "id": 1,
+    "key": "map_wave_preview",
+    "display_name": "Map Wave Preview",
+    "source_table": 4,
+    "joins": [
+      {
+        "from_alias": "source",
+        "field": 32,
+        "alias": "wave",
+        "target_table": 3
+      },
+      {
+        "from_alias": "wave",
+        "field": 21,
+        "alias": "enemy_group",
+        "target_table": 2
+      },
+      {
+        "from_alias": "enemy_group",
+        "field": 11,
+        "alias": "enemy_unit",
+        "target_table": 1
+      }
+    ],
+    "columns": [
+      {
+        "alias": "source",
+        "field": 30,
+        "label": "Map"
+      },
+      {
+        "alias": "wave",
+        "field": 20,
+        "label": "Wave"
+      },
+      {
+        "alias": "enemy_group",
+        "field": 10,
+        "label": "Enemy Group"
+      },
+      {
+        "alias": "enemy_unit",
+        "field": 1,
+        "label": "Enemy Unit"
+      },
+      {
+        "alias": "enemy_unit",
+        "field": 2,
+        "label": "HP"
+      },
+      {
+        "alias": "enemy_unit",
+        "field": 3,
+        "label": "Attack"
+      }
+    ]
+  }
+]

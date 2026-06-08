@@ -1,4 +1,4 @@
-use std::collections::{hash_map::DefaultHasher, BTreeMap};
+use std::collections::{hash_map::DefaultHasher, BTreeMap, HashMap};
 use std::fmt;
 use std::fs;
 use std::hash::{Hash, Hasher};
@@ -121,6 +121,50 @@ impl ProjectFingerprints {
 pub struct DataProject {
     pub tables: Vec<TableSchema>,
     pub data: Vec<TableData>,
+    #[serde(default)]
+    pub views: Vec<DataView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DataView {
+    pub id: u64,
+    pub key: String,
+    pub display_name: String,
+    pub source_table: TableId,
+    pub joins: Vec<ViewJoin>,
+    pub columns: Vec<ViewColumn>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ViewJoin {
+    pub from_alias: String,
+    pub field: FieldId,
+    pub alias: String,
+    pub target_table: TableId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ViewColumn {
+    pub alias: String,
+    pub field: FieldId,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MaterializedView {
+    pub headers: Vec<String>,
+    pub rows: Vec<Vec<String>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RelationIndex<'a> {
+    tables_by_id: HashMap<TableId, &'a TableSchema>,
+    tables_by_key: HashMap<&'a str, &'a TableSchema>,
+    data_by_table: HashMap<TableId, &'a TableData>,
+    rows_by_id: HashMap<(TableId, RowId), &'a RowData>,
+    rows_by_key: HashMap<(TableId, &'a str), &'a RowData>,
+    fields_by_id: HashMap<(TableId, FieldId), &'a FieldSchema>,
+    fields_by_key: HashMap<(TableId, &'a str), &'a FieldSchema>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -166,6 +210,12 @@ impl DataProject {
         let root = path.as_ref();
         let tables_path = root.join("schema").join("tables.json");
         let tables: Vec<TableSchema> = read_json(&tables_path)?;
+        let views_path = root.join("views").join("views.json");
+        let views = if views_path.exists() {
+            read_json(&views_path)?
+        } else {
+            Vec::new()
+        };
         let mut data = Vec::new();
 
         for table in &tables {
@@ -181,7 +231,11 @@ impl DataProject {
             });
         }
 
-        Ok(Self { tables, data })
+        Ok(Self {
+            tables,
+            data,
+            views,
+        })
     }
 
     pub fn save_to_dir(&self, path: impl AsRef<Path>, name: &str) -> Result<(), DataProjectError> {
@@ -189,10 +243,12 @@ impl DataProject {
         let schema_dir = root.join("schema");
         let data_dir = root.join("data");
         let build_dir = root.join("build");
+        let views_dir = root.join("views");
 
         create_dir_all(&schema_dir)?;
         create_dir_all(&data_dir)?;
         create_dir_all(&build_dir)?;
+        create_dir_all(&views_dir)?;
 
         write_json(
             &root.join("project.json"),
@@ -202,6 +258,7 @@ impl DataProject {
             },
         )?;
         write_json(&schema_dir.join("tables.json"), &self.tables)?;
+        write_json(&views_dir.join("views.json"), &self.views)?;
 
         for table in &self.tables {
             let rows = self
@@ -253,7 +310,7 @@ impl DataProject {
     }
 
     pub fn schema_hash(&self) -> u64 {
-        stable_hash(&self.tables)
+        stable_hash(&(self.tables.as_slice(), self.views.as_slice()))
     }
 
     pub fn data_hash(&self) -> u64 {
@@ -342,7 +399,102 @@ impl DataProject {
             }
         }
 
+        for view in &self.views {
+            if view.key.trim().is_empty() {
+                issues.push(error(format!("view {} has empty key", view.id)));
+            }
+            if self.table(view.source_table).is_none() {
+                issues.push(error(format!(
+                    "view {} references missing source table {:?}",
+                    view.key, view.source_table
+                )));
+            }
+            for join in &view.joins {
+                if self.table(join.target_table).is_none() {
+                    issues.push(error(format!(
+                        "view {} join {} references missing target table {:?}",
+                        view.key, join.alias, join.target_table
+                    )));
+                }
+            }
+        }
+
         issues
+    }
+
+    pub fn relation_index(&self) -> RelationIndex<'_> {
+        RelationIndex::new(self)
+    }
+
+    pub fn view(&self, key: &str) -> Option<&DataView> {
+        self.views.iter().find(|view| view.key == key)
+    }
+
+    pub fn materialize_view(&self, view_key: &str) -> Result<MaterializedView, String> {
+        let view = self
+            .view(view_key)
+            .ok_or_else(|| format!("missing view {view_key}"))?;
+        self.materialize_view_def(view)
+    }
+
+    pub fn materialize_view_def(&self, view: &DataView) -> Result<MaterializedView, String> {
+        let index = self.relation_index();
+        let source_data = index
+            .table_data(view.source_table)
+            .ok_or_else(|| format!("missing source data for view {}", view.key))?;
+        let source_alias = "source".to_string();
+        let mut records = source_data
+            .rows
+            .iter()
+            .map(|row| {
+                let mut record = BTreeMap::new();
+                record.insert(source_alias.clone(), row);
+                record
+            })
+            .collect::<Vec<_>>();
+
+        for join in &view.joins {
+            let mut expanded = Vec::new();
+            for record in &records {
+                let Some(from_row) = record.get(&join.from_alias) else {
+                    return Err(format!(
+                        "view {} join {} references missing alias {}",
+                        view.key, join.alias, join.from_alias
+                    ));
+                };
+                let target_rows =
+                    resolve_join_rows(&index, join.target_table, from_row, join.field)?;
+                for target_row in target_rows {
+                    let mut next = record.clone();
+                    next.insert(join.alias.clone(), target_row);
+                    expanded.push(next);
+                }
+            }
+            records = expanded;
+        }
+
+        let headers = view
+            .columns
+            .iter()
+            .map(|column| column.label.clone())
+            .collect::<Vec<_>>();
+        let rows = records
+            .iter()
+            .map(|record| {
+                view.columns
+                    .iter()
+                    .map(|column| {
+                        record
+                            .get(&column.alias)
+                            .and_then(|row| row.cells.get(&column.field))
+                            .map(cell_display)
+                            .unwrap_or_default()
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
+        Ok(MaterializedView { headers, rows })
     }
 
     pub fn generate_rust_structs(&self) -> String {
@@ -531,6 +683,7 @@ pub fn sample_project() -> DataProject {
     DataProject {
         tables: vec![unit_table, group_table],
         data,
+        views: Vec::new(),
     }
 }
 
@@ -630,6 +783,120 @@ fn rust_type_for_field(kind: &FieldKind) -> &'static str {
     }
 }
 
+impl<'a> RelationIndex<'a> {
+    pub fn new(project: &'a DataProject) -> Self {
+        let mut index = Self {
+            tables_by_id: HashMap::new(),
+            tables_by_key: HashMap::new(),
+            data_by_table: HashMap::new(),
+            rows_by_id: HashMap::new(),
+            rows_by_key: HashMap::new(),
+            fields_by_id: HashMap::new(),
+            fields_by_key: HashMap::new(),
+        };
+
+        for table in &project.tables {
+            index.tables_by_id.insert(table.id, table);
+            index.tables_by_key.insert(table.key.as_str(), table);
+            for field in &table.fields {
+                index.fields_by_id.insert((table.id, field.id), field);
+                index
+                    .fields_by_key
+                    .insert((table.id, field.key.as_str()), field);
+            }
+        }
+
+        for table_data in &project.data {
+            index.data_by_table.insert(table_data.table_id, table_data);
+            for row in &table_data.rows {
+                index.rows_by_id.insert((table_data.table_id, row.id), row);
+                index
+                    .rows_by_key
+                    .insert((table_data.table_id, row.key.as_str()), row);
+            }
+        }
+
+        index
+    }
+
+    pub fn table_by_id(&self, table_id: TableId) -> Option<&'a TableSchema> {
+        self.tables_by_id.get(&table_id).copied()
+    }
+
+    pub fn table_by_key(&self, key: &str) -> Option<&'a TableSchema> {
+        self.tables_by_key.get(key).copied()
+    }
+
+    pub fn table_data(&self, table_id: TableId) -> Option<&'a TableData> {
+        self.data_by_table.get(&table_id).copied()
+    }
+
+    pub fn row_by_id(&self, table_id: TableId, row_id: RowId) -> Option<&'a RowData> {
+        self.rows_by_id.get(&(table_id, row_id)).copied()
+    }
+
+    pub fn row_by_key(&self, table_id: TableId, key: &str) -> Option<&'a RowData> {
+        self.rows_by_key.get(&(table_id, key)).copied()
+    }
+
+    pub fn field_by_id(&self, table_id: TableId, field_id: FieldId) -> Option<&'a FieldSchema> {
+        self.fields_by_id.get(&(table_id, field_id)).copied()
+    }
+
+    pub fn field_by_key(&self, table_id: TableId, key: &str) -> Option<&'a FieldSchema> {
+        self.fields_by_key.get(&(table_id, key)).copied()
+    }
+}
+
+fn resolve_join_rows<'a>(
+    index: &RelationIndex<'a>,
+    target_table: TableId,
+    from_row: &'a RowData,
+    field: FieldId,
+) -> Result<Vec<&'a RowData>, String> {
+    match from_row.cells.get(&field).unwrap_or(&CellValue::Empty) {
+        CellValue::Row(row_id) => index
+            .row_by_id(target_table, *row_id)
+            .map(|row| vec![row])
+            .ok_or_else(|| {
+                format!(
+                    "missing joined row {:?} in table {:?}",
+                    row_id, target_table
+                )
+            }),
+        CellValue::Rows(row_ids) => row_ids
+            .iter()
+            .map(|row_id| {
+                index.row_by_id(target_table, *row_id).ok_or_else(|| {
+                    format!(
+                        "missing joined row {:?} in table {:?}",
+                        row_id, target_table
+                    )
+                })
+            })
+            .collect(),
+        CellValue::Empty => Ok(Vec::new()),
+        value => Err(format!("cannot join through non-relation value {value:?}")),
+    }
+}
+
+fn cell_display(value: &CellValue) -> String {
+    match value {
+        CellValue::Empty => String::new(),
+        CellValue::Bool(value) => value.to_string(),
+        CellValue::I32(value) => value.to_string(),
+        CellValue::I64(value) => value.to_string(),
+        CellValue::F32(value) => value.to_string(),
+        CellValue::String(value) => value.clone(),
+        CellValue::Row(value) => value.0.to_string(),
+        CellValue::Rows(values) => values
+            .iter()
+            .map(|row_id| row_id.0.to_string())
+            .collect::<Vec<_>>()
+            .join(","),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -680,5 +947,29 @@ mod tests {
         assert_eq!(loaded.schema_hash(), project.schema_hash());
         assert_eq!(loaded.data_hash(), project.data_hash());
         assert!(loaded.validate().is_empty());
+    }
+
+    #[test]
+    fn materializes_source_table_view() {
+        let mut project = sample_project();
+        project.views.push(DataView {
+            id: 1,
+            key: "unit_names".to_string(),
+            display_name: "Unit Names".to_string(),
+            source_table: TableId(1),
+            joins: Vec::new(),
+            columns: vec![ViewColumn {
+                alias: "source".to_string(),
+                field: FieldId(1),
+                label: "Name".to_string(),
+            }],
+        });
+
+        let view = project
+            .materialize_view("unit_names")
+            .expect("view should materialize");
+
+        assert_eq!(view.headers, vec!["Name"]);
+        assert_eq!(view.rows, vec![vec!["Knight"], vec!["Archer"]]);
     }
 }

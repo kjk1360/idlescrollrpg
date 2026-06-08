@@ -40,3 +40,4 @@ pub struct MapDef {
     pub left_scroll_speed: f32,
     pub wave_spawn_x: f32,
 }
+
