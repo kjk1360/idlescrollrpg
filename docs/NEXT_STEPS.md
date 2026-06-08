@@ -97,8 +97,10 @@ The first focused local UI is available through `belt_tools serve`:
 
 ## Immediate Next Milestone: Relation/Nested Editing UX
 
-The UI can currently edit raw cell values. Next, make relation-oriented data work comfortable:
+The UI can currently edit raw cell values. Next, make schema and relation-oriented data work comfortable:
 
+- schema field add/rename/type-change UI
+- field kind picker for primitive types, relation types, reference groups, and owned nested tables
 - relation-one picker that shows target row key/display value
 - relation-many/reference-group multi-picker
 - owned nested table panel launched from the parent cell

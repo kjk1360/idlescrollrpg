@@ -1302,7 +1302,7 @@ fn cell_display(value: &CellValue) -> String {
         CellValue::Bool(value) => value.to_string(),
         CellValue::I32(value) => value.to_string(),
         CellValue::I64(value) => value.to_string(),
-        CellValue::F32(value) => value.to_string(),
+        CellValue::F32(value) => display_f32(*value),
         CellValue::String(value) => value.clone(),
         CellValue::Row(value) => value.0.to_string(),
         CellValue::Rows(values) => values
@@ -1310,6 +1310,20 @@ fn cell_display(value: &CellValue) -> String {
             .map(|row_id| row_id.0.to_string())
             .collect::<Vec<_>>()
             .join(","),
+    }
+}
+
+fn display_f32(value: f32) -> String {
+    if value.is_nan() || value.is_infinite() {
+        return value.to_string();
+    }
+
+    let rounded = format!("{value:.6}");
+    let trimmed = rounded.trim_end_matches('0').trim_end_matches('.');
+    if trimmed == "-0" {
+        "0".to_string()
+    } else {
+        trimmed.to_string()
     }
 }
 
@@ -1338,6 +1352,16 @@ mod tests {
     fn sample_project_validates() {
         let issues = sample_project().validate();
         assert!(issues.is_empty(), "{issues:?}");
+    }
+
+    #[test]
+    fn f32_display_trims_binary_noise() {
+        assert_eq!(
+            cell_display(&CellValue::F32(-0.6000000238418579_f32)),
+            "-0.6"
+        );
+        assert_eq!(cell_display(&CellValue::F32(5.0)), "5");
+        assert_eq!(cell_display(&CellValue::F32(-0.0)), "0");
     }
 
     #[test]

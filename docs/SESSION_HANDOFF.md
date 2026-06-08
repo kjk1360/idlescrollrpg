@@ -205,16 +205,18 @@ Improve relation and nested editing UX.
 
 Recommended order:
 
-1. Add relation-one picker UI that shows target row key/display values instead of raw row ids.
-2. Add relation-many/reference-group multi-picker UI.
-3. Add owned nested table panel launched from the parent table cell.
-4. Add row create/delete for ordinary and nested tables.
-5. Add richer view validation for join/column mismatch cases.
-6. Package and verify the updated `belt_tools.exe` again.
+1. Add schema field add/rename/type-change UI.
+2. Add field kind picker for primitive types, relation types, reference groups, and owned nested tables.
+3. Add relation-one picker UI that shows target row key/display values instead of raw row ids.
+4. Add relation-many/reference-group multi-picker UI.
+5. Add owned nested table panel launched from the parent table cell.
+6. Add row create/delete for ordinary and nested tables.
+7. Add richer view validation for join/column mismatch cases.
+8. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats
 
 - Renderer is not implemented yet.
-- Visual Data Studio UI is implemented only as a first local web UI; relation/nested editing is still raw-id based.
+- Visual Data Studio UI is implemented only as a first local web UI; schema editing and relation/nested editing are still raw-id/manual workflows.
 - Data Build currently writes a JSON snapshot only.
 - Generated relation cache validates and stores row ids, but does not yet expose typed target row helpers.

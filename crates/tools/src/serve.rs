@@ -648,10 +648,18 @@ const INDEX_HTML: &str = r#"<!doctype html>
       return json;
     }
 
+    function formatFloat(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return String(value);
+      const rounded = number.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+      return rounded === '-0' ? '0' : rounded;
+    }
+
     function cellText(cell) {
       if (!cell || cell.kind === 'empty') return '';
       if (cell.kind === 'row') return String(cell.value);
       if (cell.kind === 'rows') return (cell.value || []).join(',');
+      if (cell.kind === 'f32') return formatFloat(cell.value);
       return String(cell.value);
     }
 
