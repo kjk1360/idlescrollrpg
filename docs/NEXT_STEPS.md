@@ -53,6 +53,7 @@
 - Updated Data Studio Visual tab and Play Preview to draw texture frame rects when available.
 - Added `belt_tools import-aseprite` for `.aseprite`/`.ase` files through the Aseprite CLI and direct Aseprite JSON exports.
 - Added `POST /api/import/aseprite` and a Visual tab import control for Aseprite assets.
+- Added Visual tab sprite sheet grid slicer preview and `POST /api/visual/slice-grid` for bulk `sprite_frame` creation.
 
 ## Current Stable CLI Flow
 
@@ -139,13 +140,13 @@ The first playable preview is available through `belt_tools play`:
 - Sprite animations can reference explicit `sprite_frame` rows.
 - Data Studio and Play Preview load project texture assets and draw frame rects.
 - Aseprite imports create `texture_asset`, `sprite_frame`, and `sprite_animation` rows from spritesheet JSON and frame tags.
+- Visual tab can now generate `sprite_frame` rows from a selected texture through a grid slicer.
 
 ## Immediate Next Milestone: Sprite Asset Editing
 
 The UI can edit visual data as tables, preview sprite frames, and `play` consumes it. Next, make sprite authoring comfortable:
 
 - texture file browser/import path workflow beyond the current Aseprite path input
-- sprite sheet slicing UI for generating `sprite_frame` rows
 - animation frame list editor with playback preview
 - visual state machine editor focused on states and animation references
 - relation picker pagination/search for large tables

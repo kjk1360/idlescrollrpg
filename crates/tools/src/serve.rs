@@ -150,6 +150,7 @@ fn route_request(request: &Request, state: &ServerState) -> Vec<u8> {
         ("POST", "/api/data-build") => api_data_build(state),
         ("POST", "/api/simulate") => api_simulate(request, state),
         ("POST", "/api/import/aseprite") => api_import_aseprite(request, state),
+        ("POST", "/api/visual/slice-grid") => api_slice_sprite_grid(request, state),
         _ => Err(("not found".to_string(), 404)),
     };
 
@@ -609,6 +610,93 @@ fn api_import_aseprite(request: &Request, state: &ServerState) -> Result<Vec<u8>
     ))
 }
 
+fn api_slice_sprite_grid(request: &Request, state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
+    const TEXTURE_ASSET_TABLE: TableId = TableId(6);
+    const SPRITE_FRAME_TABLE: TableId = TableId(11);
+    const FIELD_NAME: FieldId = FieldId(90);
+    const FIELD_TEXTURE: FieldId = FieldId(91);
+    const FIELD_X: FieldId = FieldId(92);
+    const FIELD_Y: FieldId = FieldId(93);
+    const FIELD_W: FieldId = FieldId(94);
+    const FIELD_H: FieldId = FieldId(95);
+    const FIELD_PIVOT_X: FieldId = FieldId(96);
+    const FIELD_PIVOT_Y: FieldId = FieldId(97);
+    const FIELD_DURATION: FieldId = FieldId(98);
+
+    let payload = parse_body(&request.body)?;
+    let texture_id = RowId(number(&payload, "texture_id")?);
+    let prefix = string_value(&payload, "prefix")?;
+    validate_key(prefix)?;
+    let start_x = i32_number(&payload, "start_x")?;
+    let start_y = i32_number(&payload, "start_y")?;
+    let frame_w = positive_i32(&payload, "frame_w")?;
+    let frame_h = positive_i32(&payload, "frame_h")?;
+    let columns = positive_u64(&payload, "columns")?;
+    let rows = positive_u64(&payload, "rows")?;
+    let gap_x = i32_number(&payload, "gap_x")?;
+    let gap_y = i32_number(&payload, "gap_y")?;
+    let pivot_x = f32_number(&payload, "pivot_x")?;
+    let pivot_y = f32_number(&payload, "pivot_y")?;
+    let duration = f32_number(&payload, "duration")?;
+
+    let mut project = load_project(&state.project_path)?;
+    let texture_exists = project
+        .data
+        .iter()
+        .find(|table| table.table_id == TEXTURE_ASSET_TABLE)
+        .is_some_and(|table| table.rows.iter().any(|row| row.id == texture_id));
+    if !texture_exists {
+        return Err(("unknown texture row".to_string(), 404));
+    }
+
+    let mut next_id = next_row_id(&project).0;
+    let frame_table = project
+        .data
+        .iter_mut()
+        .find(|table| table.table_id == SPRITE_FRAME_TABLE)
+        .ok_or_else(|| ("missing sprite_frame table data".to_string(), 404))?;
+    let mut existing_keys = frame_table
+        .rows
+        .iter()
+        .map(|row| row.key.clone())
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut created_ids = Vec::new();
+
+    for row in 0..rows {
+        for column in 0..columns {
+            let index = row * columns + column;
+            let base_key = format!("{prefix}_{index:03}");
+            let key = unique_row_key_from_set(&mut existing_keys, &base_key);
+            let row_id = RowId(next_id);
+            next_id += 1;
+            let x = start_x + column as i32 * (frame_w + gap_x);
+            let y = start_y + row as i32 * (frame_h + gap_y);
+            let mut cells = BTreeMap::new();
+            cells.insert(FIELD_NAME, CellValue::String(display_name_from_key(&key)));
+            cells.insert(FIELD_TEXTURE, CellValue::Row(texture_id));
+            cells.insert(FIELD_X, CellValue::I32(x));
+            cells.insert(FIELD_Y, CellValue::I32(y));
+            cells.insert(FIELD_W, CellValue::I32(frame_w));
+            cells.insert(FIELD_H, CellValue::I32(frame_h));
+            cells.insert(FIELD_PIVOT_X, CellValue::F32(pivot_x));
+            cells.insert(FIELD_PIVOT_Y, CellValue::F32(pivot_y));
+            cells.insert(FIELD_DURATION, CellValue::F32(duration));
+            frame_table.rows.push(RowData {
+                id: row_id,
+                key,
+                cells,
+            });
+            created_ids.push(row_id.0);
+        }
+    }
+
+    save_project(&project, state)?;
+    Ok(json_response(
+        200,
+        &json!({ "ok": true, "created": created_ids.len(), "row_ids": created_ids }),
+    ))
+}
+
 fn load_project(path: &Path) -> Result<DataProject, (String, u16)> {
     DataProject::load_from_dir(path).map_err(|error| (error.to_string(), 500))
 }
@@ -896,6 +984,56 @@ fn number(payload: &Value, key: &str) -> Result<u64, (String, u16)> {
         .get(key)
         .and_then(Value::as_u64)
         .ok_or_else(|| (format!("missing numeric {key}"), 400))
+}
+
+fn positive_u64(payload: &Value, key: &str) -> Result<u64, (String, u16)> {
+    let value = number(payload, key)?;
+    if value == 0 {
+        Err((format!("{key} must be greater than zero"), 400))
+    } else {
+        Ok(value)
+    }
+}
+
+fn i32_number(payload: &Value, key: &str) -> Result<i32, (String, u16)> {
+    let value = payload
+        .get(key)
+        .and_then(Value::as_i64)
+        .ok_or_else(|| (format!("missing numeric {key}"), 400))?;
+    i32::try_from(value).map_err(|_| (format!("{key} is out of i32 range"), 400))
+}
+
+fn positive_i32(payload: &Value, key: &str) -> Result<i32, (String, u16)> {
+    let value = i32_number(payload, key)?;
+    if value <= 0 {
+        Err((format!("{key} must be greater than zero"), 400))
+    } else {
+        Ok(value)
+    }
+}
+
+fn f32_number(payload: &Value, key: &str) -> Result<f32, (String, u16)> {
+    payload
+        .get(key)
+        .and_then(Value::as_f64)
+        .map(|value| value as f32)
+        .ok_or_else(|| (format!("missing numeric {key}"), 400))
+}
+
+fn unique_row_key_from_set(
+    existing: &mut std::collections::BTreeSet<String>,
+    base: &str,
+) -> String {
+    if existing.insert(base.to_string()) {
+        return base.to_string();
+    }
+    for index in 2.. {
+        let candidate = format!("{base}_{index}");
+        if existing.insert(candidate.clone()) {
+            return candidate;
+        }
+    }
+    unreachable!()
 }
 
 fn path_without_query(path: &str) -> &str {
@@ -1209,6 +1347,60 @@ const INDEX_HTML: &str = r#"<!doctype html>
       padding: 0 8px;
       font: inherit;
       font-size: 13px;
+    }
+    .slicer-panel {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+    .slicer-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      background: #f0f3f6;
+      font-weight: 650;
+    }
+    .slicer-body {
+      display: grid;
+      grid-template-columns: minmax(360px, 1fr) 320px;
+      gap: 12px;
+      padding: 10px;
+    }
+    .slicer-canvas {
+      width: 100%;
+      height: 300px;
+      border: 1px solid var(--line);
+      background: #202832;
+    }
+    .slicer-form {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      align-content: start;
+    }
+    .slicer-form label {
+      display: grid;
+      gap: 3px;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .slicer-form input,
+    .slicer-form select {
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 8px;
+      font: inherit;
+      font-size: 13px;
+      color: var(--text);
+      background: white;
+    }
+    .slicer-form .wide {
+      grid-column: 1 / -1;
     }
     .nav-item.nested {
       padding-left: calc(10px + var(--depth, 0) * 18px);
@@ -1675,8 +1867,10 @@ const INDEX_HTML: &str = r#"<!doctype html>
             <canvas id="visualCanvas" class="visual-canvas"></canvas>
             <div id="visualStates" class="visual-states"></div>
           </div>
-        </div>`;
+        </div>
+        ${renderSpriteSlicer()}`;
       renderVisualStateButtons(selected);
+      setTimeout(updateSlicePreview, 0);
       drawVisualPreview();
     }
 
@@ -1704,6 +1898,143 @@ const INDEX_HTML: &str = r#"<!doctype html>
         });
         log(`imported ${result.texture_key}: ${result.frame_count} frames, ${result.animation_count} animations`);
         state.images = {};
+        await loadProject(false);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
+    function renderSpriteSlicer() {
+      const textures = tableDataByKey('texture_asset').rows;
+      const options = textures.map(row => {
+        const label = `${cellStringByKey('texture_asset', row, 'name', row.key)} (${cellStringByKey('texture_asset', row, 'path', '')})`;
+        return `<option value="${row.id}">${escapeHtml(label)}</option>`;
+      }).join('');
+      return `
+        <div class="slicer-panel">
+          <div class="slicer-head">
+            <span>Sprite Sheet Slicer</span>
+            <button onclick="selectTable('sprite_frame')">Open Sprite Frames</button>
+          </div>
+          <div class="slicer-body">
+            <canvas id="sliceCanvas" class="slicer-canvas"></canvas>
+            <div class="slicer-form">
+              <label class="wide">Texture
+                <select id="sliceTexture" onchange="updateSlicePreview()">${options}</select>
+              </label>
+              <label class="wide">Frame Key Prefix
+                <input id="slicePrefix" value="slice" oninput="updateSlicePreview()">
+              </label>
+              <label>Start X<input id="sliceStartX" type="number" value="0" oninput="updateSlicePreview()"></label>
+              <label>Start Y<input id="sliceStartY" type="number" value="0" oninput="updateSlicePreview()"></label>
+              <label>Frame W<input id="sliceFrameW" type="number" min="1" value="32" oninput="updateSlicePreview()"></label>
+              <label>Frame H<input id="sliceFrameH" type="number" min="1" value="32" oninput="updateSlicePreview()"></label>
+              <label>Columns<input id="sliceColumns" type="number" min="1" value="4" oninput="updateSlicePreview()"></label>
+              <label>Rows<input id="sliceRows" type="number" min="1" value="1" oninput="updateSlicePreview()"></label>
+              <label>Gap X<input id="sliceGapX" type="number" value="0" oninput="updateSlicePreview()"></label>
+              <label>Gap Y<input id="sliceGapY" type="number" value="0" oninput="updateSlicePreview()"></label>
+              <label>Pivot X<input id="slicePivotX" type="number" step="0.05" value="0.5"></label>
+              <label>Pivot Y<input id="slicePivotY" type="number" step="0.05" value="0.85"></label>
+              <label class="wide">Duration
+                <input id="sliceDuration" type="number" step="0.01" value="0.1">
+              </label>
+              <button class="wide primary" onclick="createSpriteFramesFromSlice()">Create Frames</button>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function selectedSliceTexture() {
+      const id = Number($('sliceTexture')?.value || 0);
+      return id ? rowByKey('texture_asset', id) : null;
+    }
+
+    function sliceNumber(id, fallback) {
+      const value = Number($(id)?.value);
+      return Number.isFinite(value) ? value : fallback;
+    }
+
+    function updateSlicePreview() {
+      if (state.mode !== 'visual') return;
+      const canvas = $('sliceCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      ctx.fillStyle = '#202832';
+      ctx.fillRect(0, 0, rect.width, rect.height);
+
+      const texture = selectedSliceTexture();
+      const image = textureImage(texture);
+      if (!texture || !image || !image.complete || image.naturalWidth === 0) {
+        ctx.fillStyle = '#dbe7ef';
+        ctx.font = '13px Segoe UI';
+        ctx.fillText('select a loaded texture asset', 14, 24);
+        if (image) image.onload = updateSlicePreview;
+        return;
+      }
+
+      const fit = Math.min(rect.width / image.naturalWidth, rect.height / image.naturalHeight);
+      const dw = image.naturalWidth * fit;
+      const dh = image.naturalHeight * fit;
+      const ox = (rect.width - dw) / 2;
+      const oy = (rect.height - dh) / 2;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(image, ox, oy, dw, dh);
+
+      const startX = sliceNumber('sliceStartX', 0);
+      const startY = sliceNumber('sliceStartY', 0);
+      const frameW = Math.max(1, sliceNumber('sliceFrameW', 32));
+      const frameH = Math.max(1, sliceNumber('sliceFrameH', 32));
+      const columns = Math.max(1, sliceNumber('sliceColumns', 1));
+      const rows = Math.max(1, sliceNumber('sliceRows', 1));
+      const gapX = sliceNumber('sliceGapX', 0);
+      const gapY = sliceNumber('sliceGapY', 0);
+
+      ctx.strokeStyle = '#ffdd57';
+      ctx.lineWidth = 2;
+      ctx.fillStyle = 'rgba(255,221,87,0.14)';
+      for (let row = 0; row < rows; row++) {
+        for (let column = 0; column < columns; column++) {
+          const x = ox + (startX + column * (frameW + gapX)) * fit;
+          const y = oy + (startY + row * (frameH + gapY)) * fit;
+          const w = frameW * fit;
+          const h = frameH * fit;
+          ctx.fillRect(x, y, w, h);
+          ctx.strokeRect(x, y, w, h);
+        }
+      }
+    }
+
+    async function createSpriteFramesFromSlice() {
+      const texture = selectedSliceTexture();
+      if (!texture) return;
+      const payload = {
+        texture_id: texture.id,
+        prefix: $('slicePrefix').value.trim(),
+        start_x: Math.trunc(sliceNumber('sliceStartX', 0)),
+        start_y: Math.trunc(sliceNumber('sliceStartY', 0)),
+        frame_w: Math.trunc(sliceNumber('sliceFrameW', 32)),
+        frame_h: Math.trunc(sliceNumber('sliceFrameH', 32)),
+        columns: Math.trunc(sliceNumber('sliceColumns', 1)),
+        rows: Math.trunc(sliceNumber('sliceRows', 1)),
+        gap_x: Math.trunc(sliceNumber('sliceGapX', 0)),
+        gap_y: Math.trunc(sliceNumber('sliceGapY', 0)),
+        pivot_x: sliceNumber('slicePivotX', 0.5),
+        pivot_y: sliceNumber('slicePivotY', 0.85),
+        duration: sliceNumber('sliceDuration', 0.1)
+      };
+      try {
+        const result = await api('/api/visual/slice-grid', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        log(`created ${result.created} sprite frames`);
         await loadProject(false);
       } catch (error) {
         log(`error: ${error.message}`);

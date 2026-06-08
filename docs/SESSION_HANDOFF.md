@@ -62,6 +62,7 @@ Implemented:
 - explicit `unit_group_member` data with `unit`, `x`, and `lane`
 - visual data tables for texture assets, sprite animations, visual states, state machines, and unit visuals
 - Aseprite import through CLI/API into texture, sprite frame, and sprite animation data
+- Visual tab sprite sheet grid slicer for bulk `sprite_frame` creation from texture assets
 
 ## Important Commands
 
@@ -218,6 +219,7 @@ Implemented UI/API surface:
 - command/status output panel
 - Visual tab for `unit_visual` and sprite animation preview
 - Visual tab Aseprite import path input with dropdown hints from known texture paths
+- Visual tab sprite sheet grid slicer with canvas overlay preview
 - project asset serving through `/asset?path=...`
 - sprite frame data with texture rect, pivot, and duration fields
 
@@ -233,6 +235,7 @@ Validated endpoints:
 - `POST /api/row/delete`
 - `POST /api/simulate`
 - `POST /api/import/aseprite`
+- `POST /api/visual/slice-grid`
 
 ## Current Playable Preview
 
@@ -253,6 +256,7 @@ Implemented preview surface:
 - Data Studio and Play Preview load project texture assets and draw frame rects.
 - Data Studio Visual tab previews unit visual states with placeholder sprite playback.
 - Aseprite JSON/frame tags can be imported into visual asset tables from the Visual tab or `belt_tools import-aseprite`.
+- Sprite frame rows can be generated from texture assets through the Visual tab grid slicer.
 
 Validated endpoints:
 
@@ -265,12 +269,11 @@ Improve sprite asset editing and visual preview authoring.
 
 Recommended order:
 
-1. Add a real file picker/recent file workflow around the current Aseprite path import.
-2. Add sprite sheet slicing UI for generating `sprite_frame` rows when assets do not come from Aseprite.
-3. Add animation frame list editor with playback preview.
-4. Add visual state machine editor focused on states and animation references.
-5. Add pagination/search to relation picker for large target tables.
-6. Package and verify the updated `belt_tools.exe` again.
+1. Add animation frame list editor with playback preview.
+2. Add visual state machine editor focused on states and animation references.
+3. Add a real file picker/recent file workflow around the current asset path inputs.
+4. Add pagination/search to relation picker for large target tables.
+5. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats
 
