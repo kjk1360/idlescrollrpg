@@ -12,6 +12,7 @@ version = "0.1.0"
 dependencies = [
  "belt_core",
  "data_studio_core",
+ "generated_data",
  "serde_json",
 ]
 

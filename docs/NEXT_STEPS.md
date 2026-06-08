@@ -26,104 +26,89 @@
 - Added generated typed table accessors.
 - Added generated `GeneratedDatabase::from_project`.
 - Added generated `GeneratedTable<T>::get_by_id` and `get_by_key`.
+- Added generated `GeneratedRelationCache`.
+- Updated `belt_tools simulate --project` to use generated accessors and relation cache.
 
-## Immediate Next Milestone: Data-Driven BattleConfig
+## Current Stable CLI Flow
 
-Completed. This command now loads `projects/sample` and converts table rows into `belt_core::BattleConfig`:
+Run from workspace root:
 
 ```powershell
+cd C:\Users\Cookapps\belt-scroll-rpg
+```
+
+Useful commands:
+
+```powershell
+cargo test
+cargo run -p belt_tools -- data-status --project projects\sample
+cargo run -p belt_tools -- validate --project projects\sample
+cargo run -p belt_tools -- view --project projects\sample --view map_wave_preview
+cargo run -p belt_tools -- codegen --project projects\sample --out crates\generated_data\src
+cargo run -p belt_tools -- data-build --project projects\sample --out build\sample_data
 cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road
 ```
 
-The temporary adapter is implemented in `crates/tools/src/main.rs`.
+## Immediate Next Milestone: Adapter Extraction And Tool Packaging
 
-## Completed Milestone: Explicit Formation Data
+The backend is now stable enough to split responsibilities before starting a visual UI.
 
-Previous limitation:
+### Step 1: Extract Game Data Adapter
 
-```text
-unit_group.members: reference_group -> unit_def
-```
+Move `battle_config_from_project` out of `crates/tools/src/main.rs`.
 
-Current structure:
+Target:
 
 ```text
-unit_group.members: relation_many -> unit_group_member
-
-unit_group_member:
-  unit: relation_one -> unit_def
-  x: f32
-  lane: f32
+crates/game_data_adapter/
+  src/lib.rs
 ```
 
-The current implementation uses an explicit top-level `unit_group_member` table. Later, the visual Data Studio can present this as an owned nested editor under `unit_group`.
+Responsibilities:
 
-## Completed Milestone: Generated Accessors Before UI
+- load `GeneratedDatabase`
+- build `GeneratedRelationCache`
+- convert generated data into `belt_core::BattleConfig`
 
-Generated accessors now load typed rows from a `DataProject`.
+This lets both CLI and future playable client use the same conversion path.
 
-Example generated concepts:
+### Step 2: Package CLI
+
+Add a repeatable release build flow for:
 
 ```text
-GeneratedDatabase
-GeneratedTable<T>
-get_by_id(RowId)
-get_by_key(&str)
+belt_tools.exe
 ```
 
-## Immediate Next Milestone: Relation Cache And Adapter Cleanup
-
-## Step 1: Add Relation Cache Skeleton
-
-Current generated `table_accessors.rs` is a stub. Add either:
-
-- generic typed row readers in `data_studio_core`, or
-- generated typed table accessors in `generated_data`.
-
-For the next milestone, a pragmatic manual adapter is acceptable:
-
-```rust
-fn battle_config_from_project(project: &DataProject, map_key: &str) -> Result<BattleConfig, Error>
-```
-
-This currently lives in `belt_tools`. Move it later into a dedicated adapter crate or generated access layer.
-
-Before building complex gameplay data, add a minimal relation index:
+Initial packaging target:
 
 ```text
-table_id -> row_id -> RowData
-table_key -> TableSchema
-row_key -> RowId
+dist/tools/belt_tools.exe
+dist/projects/sample/
 ```
 
-This will reduce ad hoc row scanning and prepare for generated accessors.
+The future visual Data Studio should call this executable or its API-equivalent backend.
 
-## Step 2: Extend Codegen
+### Step 3: Add Richer View Validation
 
-Current generated files:
+Current views can materialize relation joins. Add validation for:
 
-- `schema_types.rs`: generated structs
-- `table_accessors.rs`: stub
-- `relation_cache.rs`: stub
+- missing join source alias
+- join field not present on source alias table
+- join field target table mismatch
+- output column alias not found
+- output column field not present on alias table
 
-Next codegen targets:
+### Step 4: Minimal Data Studio UI
 
-- typed table container structs
-- `get_by_id`
-- `get_by_key`
-- relation cache structs
-- schema fingerprint comments or constants
-
-## Step 6: Visual UI Later
-
-Do not start the visual Data Studio UI until the file format and CLI/API workflow are stable.
-
-Initial UI should include:
+Do not build a broad editor yet. Start with a focused local UI:
 
 - table list
-- schema editor
 - row grid
-- relation picker
-- nested table editor
-- status badges
-- Validate / Code Generate / Build Data buttons
+- view preview grid
+- validate button
+- codegen button
+- data-build button
+- simulate button
+
+The first UI can be read/edit-light. Relation/nested editing can follow after the view grid is stable.

@@ -1,6 +1,6 @@
 # Session Handoff
 
-This file is the first document a future Codex session should read before continuing work.
+Read this first in future sessions.
 
 ## User Goal
 
@@ -33,7 +33,7 @@ C:\Users\Cookapps\belt-scroll-rpg
 Remote:
 
 ```text
-https://github.com/kjk1360/idlescrollrpg.git
+https://kjk1360@github.com/kjk1360/idlescrollrpg.git
 ```
 
 ## Current State
@@ -50,11 +50,11 @@ Implemented:
 - validation for field/cell kind mismatch
 - validation for empty required relation lists
 - generated typed table accessors with `get_by_id` and `get_by_key`
+- generated relation cache for relation fields
+- `belt_tools simulate --project` uses generated accessors and relation cache
 - `belt_tools`: CLI for simulation, validation, status, view, codegen, data build
 - `projects/sample`: file-based sample data project
 - `crates/generated_data`: generated Rust crate from sample schema
-- `simulate --project projects\sample --map endless_left_road`
-- `view --project projects\sample --view map_wave_preview`
 - explicit `unit_group_member` data with `unit`, `x`, and `lane`
 
 ## Important Commands
@@ -88,13 +88,13 @@ validation: ok
 Expected `map_wave_preview` shape:
 
 ```text
-Map               | Wave     | Enemy Group | Enemy Unit | HP | Attack
-------------------+----------+-------------+------------+----+-------
-Endless Left Road | Wave 001 | Slime Pair  | Slime      | 45 | 8
-Endless Left Road | Wave 001 | Slime Pair  | Slime      | 45 | 8
-Endless Left Road | Wave 002 | Slime Line  | Slime      | 45 | 8
-Endless Left Road | Wave 002 | Slime Line  | Slime      | 45 | 8
-Endless Left Road | Wave 002 | Slime Line  | Slime      | 45 | 8
+Map               | Wave     | Enemy Group | Enemy Unit | X   | Lane | HP | Attack
+------------------+----------+-------------+------------+-----+------+----+-------
+Endless Left Road | Wave 001 | Slime Pair  | Slime      | 0   | -0.5 | 45 | 8
+Endless Left Road | Wave 001 | Slime Pair  | Slime      | 1.2 | 0.5  | 45 | 8
+Endless Left Road | Wave 002 | Slime Line  | Slime      | 0   | -0.8 | 45 | 8
+Endless Left Road | Wave 002 | Slime Line  | Slime      | 0.7 | 0    | 45 | 8
+Endless Left Road | Wave 002 | Slime Line  | Slime      | 1.4 | 0.8  | 45 | 8
 ```
 
 ## Current Data Project Layout
@@ -127,38 +127,25 @@ crates/generated_data/
     schema_types.rs
     table_accessors.rs
     relation_cache.rs
+  tests/
+    sample_project_accessors.rs
 ```
-
-## Completed Formation Slot Data
-
-`unit_group.members` now points to `unit_group_member` rows instead of `unit_def` rows directly.
-
-Each `unit_group_member` row contains:
-
-```text
-unit: relation_one -> unit_def
-x: f32
-lane: f32
-```
-
-The battle config loader now reads these explicit `x/lane` values instead of deriving placement from member order.
 
 ## Recommended Next Task
 
-Implement the first real Data Studio editing surface or continue backend hardening before UI.
+Extract the game data adapter from `belt_tools` into a reusable crate, then package the CLI.
 
 Recommended order:
 
-1. Add generated relation cache skeleton based on relation fields.
-2. Move the temporary `battle_config_from_project` adapter out of `belt_tools` and make it use generated accessors.
-3. Add richer view validation for alias/field compatibility.
-4. Start a minimal Data Studio UI only after accessors/relation cache are stable.
+1. Create `crates/game_data_adapter`.
+2. Move `battle_config_from_project` there.
+3. Keep `belt_tools simulate --project` working through the adapter crate.
+4. Add a release packaging command or script for `belt_tools.exe`.
+5. After that, start a minimal visual Data Studio UI.
 
 ## Caveats
 
 - Renderer is not implemented yet.
 - Visual Data Studio UI is not implemented yet.
-- Codegen currently generates type structs and stub files only.
-- Relation cache generation is still a stub.
 - Data Build currently writes a JSON snapshot only.
-- Unit group spawn positions are currently derived from member order, not authored as data.
+- Generated relation cache validates and stores row ids, but does not yet expose typed target row helpers.

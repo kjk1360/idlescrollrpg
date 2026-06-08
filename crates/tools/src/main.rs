@@ -2,10 +2,10 @@ use belt_core::{
     sample_battle_config, BattleConfig, BattleEvent, BattleWorld, BeltPosition, MapDef, UnitDef,
     UnitDefId, UnitGroup, UnitSpawn, WaveDef,
 };
-use data_studio_core::{
-    sample_project, CellValue, DataProject, FieldId, ProjectFingerprints, ProjectStatus, RowData,
-    RowId, TableData, TableId, TableSchema,
-};
+use data_studio_core::{sample_project, DataProject, ProjectFingerprints, ProjectStatus, RowId};
+use generated_data::relation_cache::GeneratedRelationCache;
+use generated_data::schema_types as data_types;
+use generated_data::table_accessors::GeneratedDatabase;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -190,7 +190,7 @@ fn codegen(args: &[String]) -> Result<(), String> {
     )?;
     write_file(
         &out.join("relation_cache.rs"),
-        "// Generated relation cache will be expanded in the next phase.\n",
+        &project.generate_relation_cache(),
     )?;
     write_file(
         &out.join("lib.rs"),
@@ -305,64 +305,70 @@ fn battle_config_from_project(
     project: &DataProject,
     map_key: &str,
 ) -> Result<BattleConfig, String> {
-    let unit_table = table(project, "unit_def")?;
-    let group_table = table(project, "unit_group")?;
-    let member_table = table(project, "unit_group_member")?;
-    let wave_table = table(project, "wave_def")?;
-    let map_table = table(project, "map_def")?;
-
-    let unit_rows = table_data(project, unit_table.id)?;
-    let unit_defs = unit_rows
+    let db = GeneratedDatabase::from_project(project)?;
+    let cache = GeneratedRelationCache::build(&db)?;
+    let unit_defs = db
+        .unit_def
         .rows
         .iter()
-        .map(|row| unit_def_from_row(unit_table, row))
-        .collect::<Result<Vec<_>, _>>()?;
+        .map(unit_def_from_data)
+        .collect::<Vec<_>>();
 
-    let map_row = row_by_key(table_data(project, map_table.id)?, map_key)?;
-    let party_row_id = cell_row(map_table, map_row, "party")?;
-    let party = unit_group_from_row_id(project, group_table, member_table, party_row_id, 0.0)?;
-    let wave_row_ids = cell_rows(map_table, map_row, "waves")?;
+    let map = db
+        .map_def
+        .get_by_key(map_key)
+        .ok_or_else(|| format!("missing map {map_key}"))?;
+    let party_id = cache
+        .get_map_def_party(map.id)
+        .ok_or_else(|| format!("missing party relation for map {}", map.key))?;
+    let party = unit_group_from_data(&db, &cache, party_id, 0.0)?;
+    let wave_row_ids = cache
+        .get_map_def_waves(map.id)
+        .ok_or_else(|| format!("missing waves relation for map {}", map.key))?;
     let waves = wave_row_ids
         .iter()
-        .map(|row_id| wave_from_row_id(project, wave_table, group_table, member_table, *row_id))
+        .map(|row_id| wave_from_data(&db, &cache, *row_id))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(BattleConfig {
         party,
         map: MapDef {
-            id: map_row.key.clone(),
+            id: map.key.clone(),
             waves,
         },
         unit_defs,
-        left_scroll_speed: cell_f32(map_table, map_row, "left_scroll_speed")?,
-        wave_spawn_x: cell_f32(map_table, map_row, "wave_spawn_x")?,
+        left_scroll_speed: map.left_scroll_speed,
+        wave_spawn_x: map.wave_spawn_x,
     })
 }
 
-fn unit_def_from_row(table: &TableSchema, row: &RowData) -> Result<UnitDef, String> {
-    Ok(UnitDef {
+fn unit_def_from_data(row: &data_types::UnitDef) -> UnitDef {
+    UnitDef {
         id: UnitDefId(row.id.0 as u32),
-        name: cell_string(table, row, "name")?,
-        max_hp: cell_i32(table, row, "max_hp")?,
-        attack: cell_i32(table, row, "attack")?,
-        attack_range: cell_f32(table, row, "attack_range")?,
-        attack_interval: cell_f32(table, row, "attack_interval")?,
-        move_speed: cell_f32(table, row, "move_speed")?,
-    })
+        name: row.name.clone(),
+        max_hp: row.max_hp,
+        attack: row.attack,
+        attack_range: row.attack_range,
+        attack_interval: row.attack_interval,
+        move_speed: row.move_speed,
+    }
 }
 
-fn wave_from_row_id(
-    project: &DataProject,
-    wave_table: &TableSchema,
-    group_table: &TableSchema,
-    member_table: &TableSchema,
+fn wave_from_data(
+    db: &GeneratedDatabase,
+    cache: &GeneratedRelationCache,
     row_id: RowId,
 ) -> Result<WaveDef, String> {
-    let row = row_by_id(table_data(project, wave_table.id)?, row_id)?;
-    let enemy_group_ids = cell_rows(wave_table, row, "enemy_groups")?;
+    let row = db
+        .wave_def
+        .get_by_id(row_id)
+        .ok_or_else(|| format!("missing wave {:?}", row_id))?;
+    let enemy_group_ids = cache
+        .get_wave_def_enemy_groups(row.id)
+        .ok_or_else(|| format!("missing enemy group relation for wave {}", row.key))?;
     let enemy_groups = enemy_group_ids
         .iter()
-        .map(|group_id| unit_group_from_row_id(project, group_table, member_table, *group_id, 0.0))
+        .map(|group_id| unit_group_from_data(db, cache, *group_id, 0.0))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(WaveDef {
@@ -371,26 +377,34 @@ fn wave_from_row_id(
     })
 }
 
-fn unit_group_from_row_id(
-    project: &DataProject,
-    group_table: &TableSchema,
-    member_table: &TableSchema,
+fn unit_group_from_data(
+    db: &GeneratedDatabase,
+    cache: &GeneratedRelationCache,
     row_id: RowId,
     start_x: f32,
 ) -> Result<UnitGroup, String> {
-    let row = row_by_id(table_data(project, group_table.id)?, row_id)?;
-    let member_ids = cell_rows(group_table, row, "members")?;
-    let member_data = table_data(project, member_table.id)?;
+    let row = db
+        .unit_group
+        .get_by_id(row_id)
+        .ok_or_else(|| format!("missing unit group {:?}", row_id))?;
+    let member_ids = cache
+        .get_unit_group_members(row.id)
+        .ok_or_else(|| format!("missing member relation for group {}", row.key))?;
     let spawns = member_ids
         .iter()
         .map(|member_id| {
-            let member_row = row_by_id(member_data, *member_id)?;
-            let unit_id = cell_row(member_table, member_row, "unit")?;
+            let member = db
+                .unit_group_member
+                .get_by_id(*member_id)
+                .ok_or_else(|| format!("missing unit group member {:?}", member_id))?;
+            let unit_id = cache
+                .get_unit_group_member_unit(member.id)
+                .ok_or_else(|| format!("missing unit relation for member {}", member.key))?;
             Ok(UnitSpawn {
                 def_id: UnitDefId(unit_id.0 as u32),
                 position: BeltPosition {
-                    x: start_x + cell_f32(member_table, member_row, "x")?,
-                    lane: cell_f32(member_table, member_row, "lane")?,
+                    x: start_x + member.x,
+                    lane: member.lane,
                 },
             })
         })
@@ -400,107 +414,4 @@ fn unit_group_from_row_id(
         id: row.key.clone(),
         spawns,
     })
-}
-
-fn table<'a>(project: &'a DataProject, key: &str) -> Result<&'a TableSchema, String> {
-    project
-        .tables
-        .iter()
-        .find(|table| table.key == key)
-        .ok_or_else(|| format!("missing table {key}"))
-}
-
-fn table_data(project: &DataProject, table_id: TableId) -> Result<&TableData, String> {
-    project
-        .data
-        .iter()
-        .find(|data| data.table_id == table_id)
-        .ok_or_else(|| format!("missing data for table {:?}", table_id))
-}
-
-fn row_by_key<'a>(table_data: &'a TableData, key: &str) -> Result<&'a RowData, String> {
-    table_data
-        .rows
-        .iter()
-        .find(|row| row.key == key)
-        .ok_or_else(|| format!("missing row {key} in table {:?}", table_data.table_id))
-}
-
-fn row_by_id(table_data: &TableData, row_id: RowId) -> Result<&RowData, String> {
-    table_data
-        .rows
-        .iter()
-        .find(|row| row.id == row_id)
-        .ok_or_else(|| {
-            format!(
-                "missing row {:?} in table {:?}",
-                row_id, table_data.table_id
-            )
-        })
-}
-
-fn field_id(table: &TableSchema, key: &str) -> Result<FieldId, String> {
-    table
-        .fields
-        .iter()
-        .find(|field| field.key == key)
-        .map(|field| field.id)
-        .ok_or_else(|| format!("missing field {}.{key}", table.key))
-}
-
-fn cell<'a>(table: &TableSchema, row: &'a RowData, key: &str) -> Result<&'a CellValue, String> {
-    let field_id = field_id(table, key)?;
-    row.cells
-        .get(&field_id)
-        .ok_or_else(|| format!("missing cell {}.{key} in row {}", table.key, row.key))
-}
-
-fn cell_string(table: &TableSchema, row: &RowData, key: &str) -> Result<String, String> {
-    match cell(table, row, key)? {
-        CellValue::String(value) => Ok(value.clone()),
-        value => Err(format!(
-            "expected string in {}.{key}, got {value:?}",
-            table.key
-        )),
-    }
-}
-
-fn cell_i32(table: &TableSchema, row: &RowData, key: &str) -> Result<i32, String> {
-    match cell(table, row, key)? {
-        CellValue::I32(value) => Ok(*value),
-        value => Err(format!(
-            "expected i32 in {}.{key}, got {value:?}",
-            table.key
-        )),
-    }
-}
-
-fn cell_f32(table: &TableSchema, row: &RowData, key: &str) -> Result<f32, String> {
-    match cell(table, row, key)? {
-        CellValue::F32(value) => Ok(*value),
-        value => Err(format!(
-            "expected f32 in {}.{key}, got {value:?}",
-            table.key
-        )),
-    }
-}
-
-fn cell_row(table: &TableSchema, row: &RowData, key: &str) -> Result<RowId, String> {
-    match cell(table, row, key)? {
-        CellValue::Row(value) => Ok(*value),
-        value => Err(format!(
-            "expected row in {}.{key}, got {value:?}",
-            table.key
-        )),
-    }
-}
-
-fn cell_rows(table: &TableSchema, row: &RowData, key: &str) -> Result<Vec<RowId>, String> {
-    match cell(table, row, key)? {
-        CellValue::Rows(value) => Ok(value.clone()),
-        value => Err(format!(
-            "expected rows in {}.{key}, got {value:?}",
-            table.key
-        )),
-    }
 }
