@@ -101,4 +101,3 @@ pub struct UnitVisual {
     pub shadow_radius: f32,
     pub body_color: String,
 }
-

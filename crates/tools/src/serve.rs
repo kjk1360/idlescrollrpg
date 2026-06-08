@@ -1102,6 +1102,49 @@ const INDEX_HTML: &str = r#"<!doctype html>
       border-radius: 0;
       text-align: left;
     }
+    .visual-layout {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 12px;
+      min-height: 520px;
+    }
+    .visual-list {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      overflow: auto;
+    }
+    .visual-list button {
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 80px;
+      gap: 8px;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      border-radius: 0;
+      text-align: left;
+    }
+    .visual-list button.active {
+      background: #dfe8ee;
+      color: var(--accent);
+      font-weight: 650;
+    }
+    .visual-preview {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: 360px auto;
+      gap: 10px;
+    }
+    .visual-canvas {
+      width: 100%;
+      height: 360px;
+      border: 1px solid var(--line);
+      background: #202832;
+    }
+    .visual-states {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
     .nav-item.nested {
       padding-left: calc(10px + var(--depth, 0) * 18px);
     }
@@ -1200,6 +1243,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
       <div class="tabs">
         <button id="schemaTab" class="tab active">Schema</button>
         <button id="dataTab" class="tab">Data</button>
+        <button id="visualTab" class="tab">Visual</button>
       </div>
       <span id="projectPath" class="status">loading</span>
       <span id="freshness" class="status">status</span>
@@ -1232,7 +1276,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
     </main>
   </div>
   <script>
-    let state = { project: null, mode: 'schema', selected: null, backStack: [] };
+    let state = { project: null, mode: 'schema', selected: null, backStack: [], visual: { key: null, state: 'idle', started: 0 } };
     const $ = id => document.getElementById(id);
 
     async function api(path, options) {
@@ -1259,6 +1303,55 @@ const INDEX_HTML: &str = r#"<!doctype html>
 
     function tableData(tableId) {
       return state.project.data.find(t => t.table_id === tableId) || { rows: [] };
+    }
+
+    function tableByKey(key) {
+      return state.project.tables.find(table => table.key === key);
+    }
+
+    function tableDataByKey(key) {
+      const table = tableByKey(key);
+      return table ? tableData(table.id) : { rows: [] };
+    }
+
+    function fieldByKey(tableKey, fieldKey) {
+      return tableByKey(tableKey)?.fields.find(field => field.key === fieldKey);
+    }
+
+    function cellByKey(tableKey, row, fieldKey) {
+      if (!row) return { kind: 'empty' };
+      const field = fieldByKey(tableKey, fieldKey);
+      return field ? fieldCell(row, field.id) : { kind: 'empty' };
+    }
+
+    function rowByKey(tableKey, rowId) {
+      const table = tableByKey(tableKey);
+      return table ? rowById(table.id, rowId) : null;
+    }
+
+    function cellStringByKey(tableKey, row, fieldKey, fallback = '') {
+      const cell = cellByKey(tableKey, row, fieldKey);
+      return cell?.kind === 'string' ? cell.value : fallback;
+    }
+
+    function cellNumberByKey(tableKey, row, fieldKey, fallback = 0) {
+      const cell = cellByKey(tableKey, row, fieldKey);
+      return ['i32', 'i64', 'f32'].includes(cell?.kind) ? Number(cell.value) : fallback;
+    }
+
+    function cellBoolByKey(tableKey, row, fieldKey, fallback = false) {
+      const cell = cellByKey(tableKey, row, fieldKey);
+      return cell?.kind === 'bool' ? Boolean(cell.value) : fallback;
+    }
+
+    function cellRowByKey(tableKey, row, fieldKey) {
+      const cell = cellByKey(tableKey, row, fieldKey);
+      return cell?.kind === 'row' ? cell.value : null;
+    }
+
+    function cellRowsByKey(tableKey, row, fieldKey) {
+      const cell = cellByKey(tableKey, row, fieldKey);
+      return cell?.kind === 'rows' ? cell.value : [];
     }
 
     function kindKey(kind) {
@@ -1363,6 +1456,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
         </button>`).join('') : '';
       $('schemaTab').classList.toggle('active', state.mode === 'schema');
       $('dataTab').classList.toggle('active', state.mode === 'data');
+      $('visualTab').classList.toggle('active', state.mode === 'visual');
     }
 
     function renderStatus(status) {
@@ -1481,6 +1575,151 @@ const INDEX_HTML: &str = r#"<!doctype html>
         </div>`;
     }
 
+    function renderVisualDashboard() {
+      const visuals = tableDataByKey('unit_visual').rows;
+      const selected = visuals.find(row => row.key === state.visual.key) || visuals[0];
+      if (!selected) {
+        $('sheetTitle').textContent = 'Visual Preview';
+        $('sheetMeta').textContent = 'no unit_visual rows';
+        $('sheetTools').innerHTML = '';
+        $('grid').innerHTML = '';
+        return;
+      }
+      state.visual.key = selected.key;
+      const visualName = cellStringByKey('unit_visual', selected, 'name', selected.key);
+      $('sheetTitle').textContent = visualName;
+      $('sheetMeta').textContent = `${selected.key} / unit visual preview`;
+      $('sheetTools').innerHTML = `<button onclick="selectTable('unit_visual')">Open Table</button>`;
+      $('grid').innerHTML = `
+        <div class="visual-layout">
+          <div class="visual-list">
+            ${visuals.map(row => `<button class="${row.key === selected.key ? 'active' : ''}" onclick="selectVisual('${row.key}')">
+              <span>${escapeHtml(cellStringByKey('unit_visual', row, 'name', row.key))}</span>
+              <span>${row.key}</span>
+            </button>`).join('')}
+          </div>
+          <div class="visual-preview">
+            <canvas id="visualCanvas" class="visual-canvas"></canvas>
+            <div id="visualStates" class="visual-states"></div>
+          </div>
+        </div>`;
+      renderVisualStateButtons(selected);
+      drawVisualPreview();
+    }
+
+    function selectVisual(key) {
+      state.visual.key = key;
+      state.visual.state = 'idle';
+      state.visual.started = performance.now();
+      renderVisualDashboard();
+    }
+
+    function selectVisualState(key) {
+      state.visual.state = key;
+      state.visual.started = performance.now();
+      renderVisualDashboard();
+    }
+
+    function visualStateRows(visualRow) {
+      const machineId = cellRowByKey('unit_visual', visualRow, 'state_machine');
+      const machine = machineId ? rowByKey('visual_state_machine', machineId) : null;
+      return cellRowsByKey('visual_state_machine', machine, 'states')
+        .map(id => rowByKey('visual_state', id))
+        .filter(Boolean);
+    }
+
+    function renderVisualStateButtons(visualRow) {
+      const states = visualStateRows(visualRow);
+      const active = states.some(row => cellStringByKey('visual_state', row, 'state_key') === state.visual.state)
+        ? state.visual.state
+        : (states[0] ? cellStringByKey('visual_state', states[0], 'state_key') : 'idle');
+      state.visual.state = active;
+      $('visualStates').innerHTML = states.map(row => {
+        const key = cellStringByKey('visual_state', row, 'state_key', row.key);
+        return `<button class="${key === active ? 'primary' : ''}" onclick="selectVisualState('${key}')">${key}</button>`;
+      }).join('');
+    }
+
+    function selectedVisualRow() {
+      return tableDataByKey('unit_visual').rows.find(row => row.key === state.visual.key)
+        || tableDataByKey('unit_visual').rows[0];
+    }
+
+    function selectedVisualAnimation(visualRow) {
+      const stateRow = visualStateRows(visualRow)
+        .find(row => cellStringByKey('visual_state', row, 'state_key') === state.visual.state);
+      const animationId = stateRow ? cellRowByKey('visual_state', stateRow, 'animation') : null;
+      return animationId ? rowByKey('sprite_animation', animationId) : null;
+    }
+
+    function drawVisualPreview() {
+      if (state.mode !== 'visual') return;
+      const canvas = $('visualCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const visual = selectedVisualRow();
+      const animation = selectedVisualAnimation(visual);
+      const fps = animation ? cellNumberByKey('sprite_animation', animation, 'fps', 6) : 6;
+      const frameCount = Math.max(1, animation ? cellNumberByKey('sprite_animation', animation, 'frame_count', 4) : 4);
+      const t = (performance.now() - state.visual.started) / 1000;
+      const frame = Math.floor(t * fps) % frameCount;
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      drawVisualBackground(ctx, rect.width, rect.height);
+      drawPreviewSprite(ctx, rect.width / 2, rect.height * 0.62, visual, frame, frameCount);
+      ctx.fillStyle = '#dbe7ef';
+      ctx.font = '13px Segoe UI';
+      ctx.textAlign = 'left';
+      ctx.fillText(`state: ${state.visual.state}`, 16, 24);
+      ctx.fillText(`frame: ${frame + 1}/${frameCount} @ ${fps}fps`, 16, 44);
+      requestAnimationFrame(drawVisualPreview);
+    }
+
+    function drawVisualBackground(ctx, w, h) {
+      ctx.fillStyle = '#202832';
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#303d30';
+      ctx.fillRect(0, h * 0.58, w, h * 0.42);
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      for (let i = 0; i < 8; i++) {
+        const y = h * 0.62 + i * 22;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+    }
+
+    function drawPreviewSprite(ctx, x, y, visual, frame, frameCount) {
+      const scale = cellNumberByKey('unit_visual', visual, 'scale', 1);
+      const color = cellStringByKey('unit_visual', visual, 'body_color', '#999999');
+      const shadow = cellNumberByKey('unit_visual', visual, 'shadow_radius', 18) * scale;
+      const bob = Math.sin((frame / frameCount) * Math.PI * 2) * 5;
+      ctx.save();
+      ctx.translate(x, y + bob);
+      ctx.fillStyle = 'rgba(0,0,0,0.34)';
+      ctx.beginPath();
+      ctx.ellipse(0, 30 * scale, shadow, shadow * 0.36, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = color;
+      ctx.strokeStyle = '#eef6ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(-26 * scale, -56 * scale, 52 * scale, 78 * scale, 12 * scale);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#111820';
+      ctx.beginPath();
+      ctx.arc(-9 * scale, -28 * scale, 3 * scale, 0, Math.PI * 2);
+      ctx.arc(9 * scale, -28 * scale, 3 * scale, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
     function relationRowButton(tableId, row, action, handler) {
       return `<button class="relation-row" onclick="${handler}">
         <span>#${row.id}</span>
@@ -1494,6 +1733,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
       renderNav();
       const table = state.project.tables.find(table => table.key === key);
       if (state.mode === 'schema') renderSchemaTable(table);
+      else if (state.mode === 'visual') renderTable(table);
       else renderTable(table);
     }
 
@@ -1710,7 +1950,8 @@ const INDEX_HTML: &str = r#"<!doctype html>
       $('projectPath').textContent = data.project_path;
       renderStatus(data.status);
       renderNav();
-      if (selectFirst && state.project.tables.length) selectTable(state.project.tables[0].key);
+      if (state.mode === 'visual') renderVisualDashboard();
+      else if (selectFirst && state.project.tables.length) selectTable(state.project.tables[0].key);
       else if (state.selected?.type === 'relation') renderRelationPicker(state.selected);
       else if (state.selected?.type === 'table') {
         const table = state.project.tables.find(table => table.key === state.selected.key) || state.project.tables[0];
@@ -1727,6 +1968,10 @@ const INDEX_HTML: &str = r#"<!doctype html>
       state.mode = mode;
       state.selected = null;
       renderNav();
+      if (mode === 'visual') {
+        renderVisualDashboard();
+        return;
+      }
       if (state.project?.tables?.length) selectTable(state.project.tables[0].key);
     }
 
@@ -1763,6 +2008,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
     $('simulateBtn').onclick = () => command('/api/simulate', 'simulate', { map_key: 'endless_left_road' });
     $('schemaTab').onclick = () => setMode('schema');
     $('dataTab').onclick = () => setMode('data');
+    $('visualTab').onclick = () => setMode('visual');
     $('addTableBtn').onclick = addTable;
     loadProject().catch(error => log(`error: ${error.message}`));
   </script>

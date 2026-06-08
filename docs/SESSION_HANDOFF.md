@@ -213,6 +213,7 @@ Implemented UI/API surface:
 - Data Build button
 - Simulate button
 - command/status output panel
+- Visual tab for `unit_visual` and sprite animation preview
 
 Validated endpoints:
 
@@ -242,6 +243,7 @@ Implemented preview surface:
 - `unit_visual` references a visual state machine and placeholder body color.
 - visual states reference sprite animations.
 - sprite animations reference texture assets and expose frame count/fps/looping data.
+- Data Studio Visual tab previews unit visual states with placeholder sprite playback.
 
 Validated endpoints:
 
@@ -258,9 +260,8 @@ Recommended order:
 2. Add sprite sheet slicing data and preview.
 3. Add animation frame list editor with playback preview.
 4. Add visual state machine editor focused on states and animation references.
-5. Add unit visual preview panel inside Data Studio.
-6. Add pagination/search to relation picker for large target tables.
-7. Package and verify the updated `belt_tools.exe` again.
+5. Add pagination/search to relation picker for large target tables.
+6. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats
 

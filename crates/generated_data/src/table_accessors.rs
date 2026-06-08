@@ -31,9 +31,21 @@ pub struct GeneratedTable<T> {
 
 impl<T> GeneratedTable<T> {
     fn new(rows: Vec<T>, ids: Vec<RowId>, keys: Vec<String>) -> Self {
-        let by_id = ids.into_iter().enumerate().map(|(index, id)| (id, index)).collect();
-        let by_key = keys.into_iter().enumerate().map(|(index, key)| (key, index)).collect();
-        Self { rows, by_id, by_key }
+        let by_id = ids
+            .into_iter()
+            .enumerate()
+            .map(|(index, id)| (id, index))
+            .collect();
+        let by_key = keys
+            .into_iter()
+            .enumerate()
+            .map(|(index, key)| (key, index))
+            .collect();
+        Self {
+            rows,
+            by_id,
+            by_key,
+        }
     }
 
     pub fn get_by_id(&self, id: RowId) -> Option<&T> {
@@ -142,7 +154,9 @@ fn load_map_def(project: &DataProject) -> Result<GeneratedTable<MapDef>, String>
     Ok(GeneratedTable::new(typed_rows, ids, keys))
 }
 
-fn load_unit_group_member(project: &DataProject) -> Result<GeneratedTable<UnitGroupMember>, String> {
+fn load_unit_group_member(
+    project: &DataProject,
+) -> Result<GeneratedTable<UnitGroupMember>, String> {
     let rows = table_rows(project, TableId(5))?;
     let mut typed_rows = Vec::new();
     let mut ids = Vec::new();
@@ -203,7 +217,9 @@ fn load_sprite_animation(project: &DataProject) -> Result<GeneratedTable<SpriteA
     Ok(GeneratedTable::new(typed_rows, ids, keys))
 }
 
-fn load_visual_state_machine(project: &DataProject) -> Result<GeneratedTable<VisualStateMachine>, String> {
+fn load_visual_state_machine(
+    project: &DataProject,
+) -> Result<GeneratedTable<VisualStateMachine>, String> {
     let rows = table_rows(project, TableId(8))?;
     let mut typed_rows = Vec::new();
     let mut ids = Vec::new();
@@ -263,37 +279,65 @@ fn load_unit_visual(project: &DataProject) -> Result<GeneratedTable<UnitVisual>,
 }
 
 fn table_rows(project: &DataProject, table_id: TableId) -> Result<&[RowData], String> {
-    project.data.iter().find(|table| table.table_id == table_id).map(|table| table.rows.as_slice()).ok_or_else(|| format!("missing table data {:?}", table_id))
+    project
+        .data
+        .iter()
+        .find(|table| table.table_id == table_id)
+        .map(|table| table.rows.as_slice())
+        .ok_or_else(|| format!("missing table data {:?}", table_id))
 }
 
 fn cell<'a>(row: &'a RowData, field_id: FieldId, label: &str) -> Result<&'a CellValue, String> {
-    row.cells.get(&field_id).ok_or_else(|| format!("missing cell {label} in row {}", row.key))
+    row.cells
+        .get(&field_id)
+        .ok_or_else(|| format!("missing cell {label} in row {}", row.key))
 }
 
 fn read_bool(row: &RowData, field_id: FieldId, label: &str) -> Result<bool, String> {
-    match cell(row, field_id, label)? { CellValue::Bool(value) => Ok(*value), value => Err(format!("expected bool for {label}, got {value:?}")) }
+    match cell(row, field_id, label)? {
+        CellValue::Bool(value) => Ok(*value),
+        value => Err(format!("expected bool for {label}, got {value:?}")),
+    }
 }
 
 fn read_i32(row: &RowData, field_id: FieldId, label: &str) -> Result<i32, String> {
-    match cell(row, field_id, label)? { CellValue::I32(value) => Ok(*value), value => Err(format!("expected i32 for {label}, got {value:?}")) }
+    match cell(row, field_id, label)? {
+        CellValue::I32(value) => Ok(*value),
+        value => Err(format!("expected i32 for {label}, got {value:?}")),
+    }
 }
 
 fn read_i64(row: &RowData, field_id: FieldId, label: &str) -> Result<i64, String> {
-    match cell(row, field_id, label)? { CellValue::I64(value) => Ok(*value), value => Err(format!("expected i64 for {label}, got {value:?}")) }
+    match cell(row, field_id, label)? {
+        CellValue::I64(value) => Ok(*value),
+        value => Err(format!("expected i64 for {label}, got {value:?}")),
+    }
 }
 
 fn read_f32(row: &RowData, field_id: FieldId, label: &str) -> Result<f32, String> {
-    match cell(row, field_id, label)? { CellValue::F32(value) => Ok(*value), value => Err(format!("expected f32 for {label}, got {value:?}")) }
+    match cell(row, field_id, label)? {
+        CellValue::F32(value) => Ok(*value),
+        value => Err(format!("expected f32 for {label}, got {value:?}")),
+    }
 }
 
 fn read_string(row: &RowData, field_id: FieldId, label: &str) -> Result<String, String> {
-    match cell(row, field_id, label)? { CellValue::String(value) => Ok(value.clone()), value => Err(format!("expected string for {label}, got {value:?}")) }
+    match cell(row, field_id, label)? {
+        CellValue::String(value) => Ok(value.clone()),
+        value => Err(format!("expected string for {label}, got {value:?}")),
+    }
 }
 
 fn read_row(row: &RowData, field_id: FieldId, label: &str) -> Result<RowId, String> {
-    match cell(row, field_id, label)? { CellValue::Row(value) => Ok(*value), value => Err(format!("expected row id for {label}, got {value:?}")) }
+    match cell(row, field_id, label)? {
+        CellValue::Row(value) => Ok(*value),
+        value => Err(format!("expected row id for {label}, got {value:?}")),
+    }
 }
 
 fn read_rows(row: &RowData, field_id: FieldId, label: &str) -> Result<Vec<RowId>, String> {
-    match cell(row, field_id, label)? { CellValue::Rows(value) => Ok(value.clone()), value => Err(format!("expected row id list for {label}, got {value:?}")) }
+    match cell(row, field_id, label)? {
+        CellValue::Rows(value) => Ok(value.clone()),
+        value => Err(format!("expected row id list for {label}, got {value:?}")),
+    }
 }
