@@ -34,6 +34,8 @@
 - Packaged and verified `dist\tools\belt_tools.exe` with the sample project.
 - Added `belt_tools serve`, a local web Data Studio UI.
 - Added UI/API support for table grids, view grids, cell edits, validate, codegen, data-build, and simulate.
+- Split Data Studio into Schema and Data tabs.
+- Added Schema tab support for table add/delete and field add/delete.
 
 ## Current Stable CLI Flow
 
@@ -85,6 +87,8 @@ dist\tools\belt_tools.exe serve --project dist\projects\sample --addr 127.0.0.1:
 
 The first focused local UI is available through `belt_tools serve`:
 
+- Schema tab for table/field definition.
+- Data tab for row/view editing.
 - table list
 - row grid
 - view preview grid
@@ -94,18 +98,18 @@ The first focused local UI is available through `belt_tools serve`:
 - simulate button
 - command/status output panel
 - editable cells saved back to the file-based project
+- schema field add/delete
+- schema table add/delete
 
 ## Immediate Next Milestone: Relation/Nested Editing UX
 
-The UI can currently edit raw cell values. Next, make schema and relation-oriented data work comfortable:
+The UI can currently edit schema fields and raw cell values. Next, make relation-oriented data work comfortable:
 
-- schema field add/rename/type-change UI
-- field kind picker for primitive types, relation types, reference groups, and owned nested tables
 - relation-one picker that shows target row key/display value
 - relation-many/reference-group multi-picker
 - owned nested table panel launched from the parent cell
-- view validation for join/column mismatch cases
 - row create/delete for ordinary tables and nested tables
+- view validation for join/column mismatch cases
 
 ## Next Validation Work
 

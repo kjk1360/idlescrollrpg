@@ -183,7 +183,11 @@ cargo run -p belt_tools -- serve --project projects\sample --addr 127.0.0.1:7878
 
 Implemented UI/API surface:
 
+- Schema tab for table/field definition
+- Data tab for row/view editing
 - table list
+- schema table add/delete
+- schema field add/delete
 - editable row grid
 - materialized view grid
 - project freshness/status indicator
@@ -197,6 +201,10 @@ Validated endpoints:
 
 - `GET /api/project`
 - `GET /api/view?view=map_wave_preview`
+- `POST /api/schema/table`
+- `POST /api/schema/table/delete`
+- `POST /api/schema/field`
+- `POST /api/schema/field/delete`
 - `POST /api/simulate`
 
 ## Recommended Next Task
@@ -205,18 +213,17 @@ Improve relation and nested editing UX.
 
 Recommended order:
 
-1. Add schema field add/rename/type-change UI.
-2. Add field kind picker for primitive types, relation types, reference groups, and owned nested tables.
-3. Add relation-one picker UI that shows target row key/display values instead of raw row ids.
-4. Add relation-many/reference-group multi-picker UI.
-5. Add owned nested table panel launched from the parent table cell.
-6. Add row create/delete for ordinary and nested tables.
-7. Add richer view validation for join/column mismatch cases.
-8. Package and verify the updated `belt_tools.exe` again.
+1. Add row create/delete for ordinary tables.
+2. Add relation-one picker UI that shows target row key/display values instead of raw row ids.
+3. Add relation-many/reference-group multi-picker UI.
+4. Add owned nested table panel launched from the parent table cell.
+5. Add row create/delete for nested tables.
+6. Add richer view validation for join/column mismatch cases.
+7. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats
 
 - Renderer is not implemented yet.
-- Visual Data Studio UI is implemented only as a first local web UI; schema editing and relation/nested editing are still raw-id/manual workflows.
+- Visual Data Studio UI is implemented only as a first local web UI; relation/nested cell editing is still raw-id/manual.
 - Data Build currently writes a JSON snapshot only.
 - Generated relation cache validates and stores row ids, but does not yet expose typed target row helpers.

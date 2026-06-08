@@ -1,5 +1,6 @@
 use data_studio_core::{
-    CellValue, DataProject, FieldId, FieldKind, ProjectFingerprints, RowId, TableId,
+    CellValue, DataProject, FieldId, FieldKind, FieldSchema, ProjectFingerprints, RowId, TableData,
+    TableId, TableSchema,
 };
 use serde_json::{json, Value};
 use std::fs;
@@ -136,6 +137,10 @@ fn route_request(request: &Request, state: &ServerState) -> Vec<u8> {
         ("GET", "/api/status") => api_status(state),
         ("GET", "/api/view") => api_view(request, state),
         ("POST", "/api/cell") => api_update_cell(request, state),
+        ("POST", "/api/schema/table") => api_add_table(request, state),
+        ("POST", "/api/schema/table/delete") => api_delete_table(request, state),
+        ("POST", "/api/schema/field") => api_add_field(request, state),
+        ("POST", "/api/schema/field/delete") => api_delete_field(request, state),
         ("POST", "/api/validate") => api_validate(state),
         ("POST", "/api/codegen") => api_codegen(state),
         ("POST", "/api/data-build") => api_data_build(state),
@@ -227,6 +232,153 @@ fn api_update_cell(request: &Request, state: &ServerState) -> Result<Vec<u8>, (S
     Ok(json_response(200, &json!({ "ok": true })))
 }
 
+fn api_add_table(request: &Request, state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
+    let payload = parse_body(&request.body)?;
+    let key = string_value(&payload, "key")?;
+    validate_key(key)?;
+    let display_name = payload
+        .get("display_name")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(key);
+
+    let mut project = load_project(&state.project_path)?;
+    if project.tables.iter().any(|table| table.key == key) {
+        return Err((format!("table key already exists: {key}"), 400));
+    }
+
+    let table_id = next_table_id(&project);
+    project.tables.push(TableSchema {
+        id: table_id,
+        key: key.to_string(),
+        display_name: display_name.to_string(),
+        fields: Vec::new(),
+    });
+    project.data.push(TableData {
+        table_id,
+        rows: Vec::new(),
+    });
+    save_project(&project, state)?;
+    Ok(json_response(
+        200,
+        &json!({ "ok": true, "table_id": table_id.0 }),
+    ))
+}
+
+fn api_delete_table(request: &Request, state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
+    let payload = parse_body(&request.body)?;
+    let table_id = TableId(number(&payload, "table_id")?);
+    let mut project = load_project(&state.project_path)?;
+    let before = project.tables.len();
+    project.tables.retain(|table| table.id != table_id);
+    if project.tables.len() == before {
+        return Err(("unknown table".to_string(), 404));
+    }
+    project.data.retain(|table| table.table_id != table_id);
+    project.views.retain(|view| view.source_table != table_id);
+    for table in &mut project.tables {
+        table
+            .fields
+            .retain(|field| !field_targets_table(field, table_id));
+    }
+    for table_data in &mut project.data {
+        let Some(table) = project
+            .tables
+            .iter()
+            .find(|table| table.id == table_data.table_id)
+        else {
+            continue;
+        };
+        let valid_fields = table
+            .fields
+            .iter()
+            .map(|field| field.id)
+            .collect::<std::collections::BTreeSet<_>>();
+        for row in &mut table_data.rows {
+            row.cells
+                .retain(|field_id, _| valid_fields.contains(field_id));
+        }
+    }
+    save_project(&project, state)?;
+    Ok(json_response(200, &json!({ "ok": true })))
+}
+
+fn api_add_field(request: &Request, state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
+    let payload = parse_body(&request.body)?;
+    let table_id = TableId(number(&payload, "table_id")?);
+    let key = string_value(&payload, "key")?;
+    validate_key(key)?;
+    let display_name = payload
+        .get("display_name")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(key);
+    let kind = string_value(&payload, "kind")?;
+    let required = payload
+        .get("required")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let target_table = payload.get("target_table").and_then(Value::as_u64);
+
+    let mut project = load_project(&state.project_path)?;
+    let field_id = next_field_id(&project);
+    let field_kind = parse_field_kind(kind, target_table)?;
+    let table = project
+        .tables
+        .iter_mut()
+        .find(|table| table.id == table_id)
+        .ok_or_else(|| ("unknown table".to_string(), 404))?;
+    if table.fields.iter().any(|field| field.key == key) {
+        return Err((format!("field key already exists: {key}"), 400));
+    }
+    table.fields.push(FieldSchema {
+        id: field_id,
+        key: key.to_string(),
+        display_name: display_name.to_string(),
+        kind: field_kind,
+        required,
+    });
+    save_project(&project, state)?;
+    Ok(json_response(
+        200,
+        &json!({ "ok": true, "field_id": field_id.0 }),
+    ))
+}
+
+fn api_delete_field(request: &Request, state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
+    let payload = parse_body(&request.body)?;
+    let table_id = TableId(number(&payload, "table_id")?);
+    let field_id = FieldId(number(&payload, "field_id")?);
+    let mut project = load_project(&state.project_path)?;
+    let table = project
+        .tables
+        .iter_mut()
+        .find(|table| table.id == table_id)
+        .ok_or_else(|| ("unknown table".to_string(), 404))?;
+    let before = table.fields.len();
+    table.fields.retain(|field| field.id != field_id);
+    if table.fields.len() == before {
+        return Err(("unknown field".to_string(), 404));
+    }
+    if let Some(table_data) = project
+        .data
+        .iter_mut()
+        .find(|data| data.table_id == table_id)
+    {
+        for row in &mut table_data.rows {
+            row.cells.remove(&field_id);
+        }
+    }
+    for view in &mut project.views {
+        view.columns
+            .retain(|column| !(column.alias == "source" && column.field == field_id));
+        view.joins
+            .retain(|join| !(join.from_alias == "source" && join.field == field_id));
+    }
+    save_project(&project, state)?;
+    Ok(json_response(200, &json!({ "ok": true })))
+}
+
 fn api_validate(state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
     let project = load_project(&state.project_path)?;
     Ok(json_response(
@@ -281,6 +433,12 @@ fn api_simulate(request: &Request, state: &ServerState) -> Result<Vec<u8>, (Stri
 
 fn load_project(path: &Path) -> Result<DataProject, (String, u16)> {
     DataProject::load_from_dir(path).map_err(|error| (error.to_string(), 500))
+}
+
+fn save_project(project: &DataProject, state: &ServerState) -> Result<(), (String, u16)> {
+    project
+        .save_to_dir(&state.project_path, &project_name(&state.project_path))
+        .map_err(|error| (error.to_string(), 500))
 }
 
 fn project_status(project: &DataProject, path: &Path) -> Value {
@@ -347,6 +505,101 @@ fn parse_cell_value(kind: &FieldKind, raw: &str) -> Result<CellValue, (String, u
             .collect::<Result<Vec<_>, _>>()
             .map(CellValue::Rows)
             .map_err(|error| (error, 400)),
+    }
+}
+
+fn parse_body(body: &[u8]) -> Result<Value, (String, u16)> {
+    serde_json::from_slice(body).map_err(|error| (format!("invalid JSON body: {error}"), 400))
+}
+
+fn string_value<'a>(payload: &'a Value, key: &str) -> Result<&'a str, (String, u16)> {
+    payload
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| (format!("missing string {key}"), 400))
+}
+
+fn validate_key(key: &str) -> Result<(), (String, u16)> {
+    let valid = key
+        .chars()
+        .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_')
+        && key.chars().next().is_some_and(|ch| ch.is_ascii_lowercase());
+    if valid {
+        Ok(())
+    } else {
+        Err((
+            "key must start with a lowercase letter and use lowercase letters, digits, or '_'"
+                .to_string(),
+            400,
+        ))
+    }
+}
+
+fn parse_field_kind(kind: &str, target_table: Option<u64>) -> Result<FieldKind, (String, u16)> {
+    let target = || {
+        target_table.map(TableId).ok_or_else(|| {
+            (
+                "target_table is required for this field kind".to_string(),
+                400,
+            )
+        })
+    };
+    match kind {
+        "bool" => Ok(FieldKind::Bool),
+        "i32" => Ok(FieldKind::I32),
+        "i64" => Ok(FieldKind::I64),
+        "f32" => Ok(FieldKind::F32),
+        "string" => Ok(FieldKind::String),
+        "text" => Ok(FieldKind::Text),
+        "relation_one" => Ok(FieldKind::RelationOne {
+            target_table: target()?,
+        }),
+        "relation_many" => Ok(FieldKind::RelationMany {
+            target_table: target()?,
+        }),
+        "reference_group" => Ok(FieldKind::ReferenceGroup {
+            target_table: target()?,
+        }),
+        "owned_nested_table" => Ok(FieldKind::OwnedNestedTable {
+            nested_table: target()?,
+        }),
+        _ => Err((format!("unsupported field kind: {kind}"), 400)),
+    }
+}
+
+fn next_table_id(project: &DataProject) -> TableId {
+    TableId(
+        project
+            .tables
+            .iter()
+            .map(|table| table.id.0)
+            .max()
+            .unwrap_or(0)
+            + 1,
+    )
+}
+
+fn next_field_id(project: &DataProject) -> FieldId {
+    FieldId(
+        project
+            .tables
+            .iter()
+            .flat_map(|table| table.fields.iter().map(|field| field.id.0))
+            .max()
+            .unwrap_or(0)
+            + 1,
+    )
+}
+
+fn field_targets_table(field: &FieldSchema, table_id: TableId) -> bool {
+    match field.kind {
+        FieldKind::RelationOne { target_table }
+        | FieldKind::RelationMany { target_table }
+        | FieldKind::ReferenceGroup { target_table } => target_table == table_id,
+        FieldKind::OwnedNestedTable { nested_table } => nested_table == table_id,
+        _ => false,
     }
 }
 
@@ -477,6 +730,22 @@ const INDEX_HTML: &str = r#"<!doctype html>
       margin-left: auto;
       min-width: 0;
     }
+    .tabs {
+      display: flex;
+      gap: 4px;
+      height: 32px;
+      align-items: center;
+    }
+    .tab {
+      min-width: 84px;
+      background: #f5f7f9;
+    }
+    .tab.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: #e8f5f3;
+      font-weight: 650;
+    }
     button {
       height: 32px;
       border: 1px solid var(--line);
@@ -522,6 +791,15 @@ const INDEX_HTML: &str = r#"<!doctype html>
       background: #dfe8ee;
       border-color: #c9d4dd;
     }
+    .panel-actions {
+      display: grid;
+      gap: 6px;
+      margin: 8px 0 12px;
+    }
+    .panel-actions button {
+      width: 100%;
+      justify-content: center;
+    }
     main {
       min-width: 0;
       min-height: 0;
@@ -539,6 +817,20 @@ const INDEX_HTML: &str = r#"<!doctype html>
       align-items: baseline;
       gap: 10px;
       margin-bottom: 8px;
+    }
+    .sheet-tools {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+      align-items: center;
+    }
+    .schema-form {
+      display: grid;
+      grid-template-columns: minmax(110px, 1fr) minmax(130px, 1fr) 170px 170px 90px 110px;
+      gap: 8px;
+      margin-bottom: 10px;
+      align-items: center;
+      max-width: 980px;
     }
     .sheet-title {
       font-size: 18px;
@@ -589,6 +881,23 @@ const INDEX_HTML: &str = r#"<!doctype html>
       outline-offset: -2px;
       background: #fff;
     }
+    select.cell-input {
+      appearance: auto;
+    }
+    .schema-form input, .schema-form select {
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      padding: 0 8px;
+      font: inherit;
+      font-size: 13px;
+      min-width: 0;
+    }
+    .danger {
+      color: var(--danger);
+      border-color: #f3a19a;
+    }
     .output {
       border-top: 1px solid var(--line);
       background: #111820;
@@ -611,6 +920,10 @@ const INDEX_HTML: &str = r#"<!doctype html>
   <div class="app">
     <header>
       <h1>Belt Data Studio</h1>
+      <div class="tabs">
+        <button id="schemaTab" class="tab active">Schema</button>
+        <button id="dataTab" class="tab">Data</button>
+      </div>
       <span id="projectPath" class="status">loading</span>
       <span id="freshness" class="status">status</span>
       <div class="actions">
@@ -621,9 +934,12 @@ const INDEX_HTML: &str = r#"<!doctype html>
       </div>
     </header>
     <aside>
+      <div id="schemaActions" class="panel-actions">
+        <button id="addTableBtn">Add Table</button>
+      </div>
       <div class="nav-title">Tables</div>
       <div id="tables"></div>
-      <div class="nav-title">Views</div>
+      <div id="viewsTitle" class="nav-title">Views</div>
       <div id="views"></div>
     </aside>
     <main>
@@ -631,6 +947,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
         <div class="sheet-head">
           <div id="sheetTitle" class="sheet-title">Loading</div>
           <div id="sheetMeta" class="sheet-meta"></div>
+          <div id="sheetTools" class="sheet-tools"></div>
         </div>
         <div id="grid"></div>
       </section>
@@ -638,7 +955,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
     </main>
   </div>
   <script>
-    let state = { project: null, selected: null };
+    let state = { project: null, mode: 'schema', selected: null };
     const $ = id => document.getElementById(id);
 
     async function api(path, options) {
@@ -667,6 +984,16 @@ const INDEX_HTML: &str = r#"<!doctype html>
       return state.project.data.find(t => t.table_id === tableId) || { rows: [] };
     }
 
+    function kindKey(kind) {
+      return typeof kind === 'string' ? kind : kind.kind;
+    }
+
+    function kindLabel(kind) {
+      const key = kindKey(kind);
+      const target = kind.target_table ?? kind.nested_table;
+      return target ? `${key} -> #${target}` : key;
+    }
+
     function fieldCell(row, fieldId) {
       return row.cells[String(fieldId)] || row.cells[fieldId] || { kind: 'empty' };
     }
@@ -677,11 +1004,16 @@ const INDEX_HTML: &str = r#"<!doctype html>
           onclick="selectTable('${table.key}')">
           <span>${table.display_name}</span><span>${table.key}</span>
         </button>`).join('');
-      $('views').innerHTML = state.project.views.map(view => `
+      $('views').style.display = state.mode === 'data' ? '' : 'none';
+      $('viewsTitle').style.display = state.mode === 'data' ? '' : 'none';
+      $('schemaActions').style.display = state.mode === 'schema' ? 'grid' : 'none';
+      $('views').innerHTML = state.mode === 'data' ? state.project.views.map(view => `
         <button class="nav-item ${state.selected?.type === 'view' && state.selected.key === view.key ? 'active' : ''}"
           onclick="selectView('${view.key}')">
           <span>${view.display_name}</span><span>${view.key}</span>
-        </button>`).join('');
+        </button>`).join('') : '';
+      $('schemaTab').classList.toggle('active', state.mode === 'schema');
+      $('dataTab').classList.toggle('active', state.mode === 'data');
     }
 
     function renderStatus(status) {
@@ -695,6 +1027,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
       const data = tableData(table.id);
       $('sheetTitle').textContent = table.display_name;
       $('sheetMeta').textContent = `${table.key} / ${data.rows.length} rows`;
+      $('sheetTools').innerHTML = '';
       const headers = [`<th class="key">key</th>`, ...table.fields.map(field => `<th>${field.display_name}<br><small>${field.key}</small></th>`)].join('');
       const rows = data.rows.map(row => {
         const cells = table.fields.map(field => {
@@ -707,11 +1040,55 @@ const INDEX_HTML: &str = r#"<!doctype html>
       $('grid').innerHTML = `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
     }
 
+    function renderSchemaTable(table) {
+      $('sheetTitle').textContent = table.display_name;
+      $('sheetMeta').textContent = `${table.key} / ${table.fields.length} fields`;
+      $('sheetTools').innerHTML = `
+        <button class="danger" onclick="deleteTable(${table.id})">Delete Table</button>`;
+      const targetOptions = state.project.tables
+        .map(target => `<option value="${target.id}">${target.display_name} (${target.key})</option>`)
+        .join('');
+      const form = `
+        <div class="schema-form">
+          <input id="fieldKey" placeholder="field_key">
+          <input id="fieldName" placeholder="Field Name">
+          <select id="fieldKind" onchange="syncFieldTarget()">
+            <option value="string">string</option>
+            <option value="text">text</option>
+            <option value="bool">bool</option>
+            <option value="i32">i32</option>
+            <option value="i64">i64</option>
+            <option value="f32">f32</option>
+            <option value="relation_one">relation one</option>
+            <option value="relation_many">relation many</option>
+            <option value="reference_group">reference group</option>
+            <option value="owned_nested_table">owned nested table</option>
+          </select>
+          <select id="fieldTarget">${targetOptions}</select>
+          <label><input id="fieldRequired" type="checkbox"> required</label>
+          <button onclick="addFieldFromForm(${table.id})">Add Field</button>
+        </div>`;
+      const rows = table.fields.map(field => `
+        <tr>
+          <td class="key">${field.display_name}<br><small>${field.key}</small></td>
+          <td><input class="cell-input" readonly value="${escapeAttr(kindLabel(field.kind))}"></td>
+          <td><input class="cell-input" readonly value="${field.required ? 'required' : 'optional'}"></td>
+          <td><button class="danger" onclick="deleteField(${table.id}, ${field.id})">Remove</button></td>
+        </tr>`).join('');
+      $('grid').innerHTML = `${form}
+        <table>
+          <thead><tr><th class="key">Field</th><th>Type</th><th>Rule</th><th>Action</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+      syncFieldTarget();
+    }
+
     async function renderView(viewKey) {
       const data = await api(`/api/view?view=${viewKey}`);
       const view = state.project.views.find(v => v.key === viewKey);
       $('sheetTitle').textContent = view.display_name;
       $('sheetMeta').textContent = `${view.key} / ${data.view.rows.length} rows`;
+      $('sheetTools').innerHTML = '';
       const headers = data.view.headers.map(header => `<th>${header}</th>`).join('');
       const rows = data.view.rows.map(row => `<tr>${row.map(value => `<td><input class="cell-input" readonly value="${escapeAttr(value)}"></td>`).join('')}</tr>`).join('');
       $('grid').innerHTML = `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
@@ -720,7 +1097,9 @@ const INDEX_HTML: &str = r#"<!doctype html>
     function selectTable(key) {
       state.selected = { type: 'table', key };
       renderNav();
-      renderTable(state.project.tables.find(table => table.key === key));
+      const table = state.project.tables.find(table => table.key === key);
+      if (state.mode === 'schema') renderSchemaTable(table);
+      else renderTable(table);
     }
 
     async function selectView(key) {
@@ -739,6 +1118,92 @@ const INDEX_HTML: &str = r#"<!doctype html>
       await loadProject(false);
     }
 
+    function syncFieldTarget() {
+      const kind = $('fieldKind');
+      const target = $('fieldTarget');
+      if (!kind || !target) return;
+      const needsTarget = ['relation_one', 'relation_many', 'reference_group', 'owned_nested_table'].includes(kind.value);
+      target.disabled = !needsTarget;
+    }
+
+    async function addTable() {
+      const key = prompt('table key');
+      if (!key) return;
+      const displayName = prompt('display name', key.replaceAll('_', ' ')) || key;
+      try {
+        await api('/api/schema/table', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, display_name: displayName })
+        });
+        log(`added table ${key}`);
+        await loadProject(false);
+        selectTable(key);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
+    async function deleteTable(tableId) {
+      const table = state.project.tables.find(table => table.id === tableId);
+      if (!table || !confirm(`Delete table ${table.display_name}?`)) return;
+      try {
+        await api('/api/schema/table/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table_id: tableId })
+        });
+        log(`deleted table ${table.key}`);
+        state.selected = null;
+        await loadProject(true);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
+    async function addFieldFromForm(tableId) {
+      const key = $('fieldKey').value.trim();
+      const displayName = $('fieldName').value.trim() || key;
+      const kind = $('fieldKind').value;
+      const targetKinds = ['relation_one', 'relation_many', 'reference_group', 'owned_nested_table'];
+      const payload = {
+        table_id: tableId,
+        key,
+        display_name: displayName,
+        kind,
+        required: $('fieldRequired').checked
+      };
+      if (targetKinds.includes(kind)) payload.target_table = Number($('fieldTarget').value);
+      try {
+        await api('/api/schema/field', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        log(`added field ${key}`);
+        await loadProject(false);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
+    async function deleteField(tableId, fieldId) {
+      const table = state.project.tables.find(table => table.id === tableId);
+      const field = table?.fields.find(field => field.id === fieldId);
+      if (!field || !confirm(`Remove field ${field.display_name}?`)) return;
+      try {
+        await api('/api/schema/field/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table_id: tableId, field_id: fieldId })
+        });
+        log(`removed field ${field.key}`);
+        await loadProject(false);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
     async function loadProject(selectFirst = true) {
       const data = await api('/api/project');
       state.project = data.project;
@@ -746,8 +1211,22 @@ const INDEX_HTML: &str = r#"<!doctype html>
       renderStatus(data.status);
       renderNav();
       if (selectFirst && state.project.tables.length) selectTable(state.project.tables[0].key);
-      else if (state.selected?.type === 'table') renderTable(state.project.tables.find(table => table.key === state.selected.key));
-      else if (state.selected?.type === 'view') await renderView(state.selected.key);
+      else if (state.selected?.type === 'table') {
+        const table = state.project.tables.find(table => table.key === state.selected.key) || state.project.tables[0];
+        if (table) {
+          state.selected = { type: 'table', key: table.key };
+          if (state.mode === 'schema') renderSchemaTable(table);
+          else renderTable(table);
+        }
+      }
+      else if (state.selected?.type === 'view' && state.mode === 'data') await renderView(state.selected.key);
+    }
+
+    function setMode(mode) {
+      state.mode = mode;
+      state.selected = null;
+      renderNav();
+      if (state.project?.tables?.length) selectTable(state.project.tables[0].key);
     }
 
     async function command(path, label, body) {
@@ -777,6 +1256,9 @@ const INDEX_HTML: &str = r#"<!doctype html>
     $('codegenBtn').onclick = () => command('/api/codegen', 'codegen');
     $('buildBtn').onclick = () => command('/api/data-build', 'data-build');
     $('simulateBtn').onclick = () => command('/api/simulate', 'simulate', { map_key: 'endless_left_road' });
+    $('schemaTab').onclick = () => setMode('schema');
+    $('dataTab').onclick = () => setMode('data');
+    $('addTableBtn').onclick = addTable;
     loadProject().catch(error => log(`error: ${error.message}`));
   </script>
 </body>
