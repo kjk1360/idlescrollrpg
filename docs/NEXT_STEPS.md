@@ -17,6 +17,8 @@
 - Added `belt_tools view`.
 - Added `projects/sample/views/views.json`.
 - Added `map_wave_preview`, which expands map -> wave -> enemy group -> enemy unit.
+- Added `unit_group_member` with explicit `unit`, `x`, and `lane`.
+- Updated battle simulation to use explicit member slot positions.
 
 ## Immediate Next Milestone: Data-Driven BattleConfig
 
@@ -28,33 +30,28 @@ cargo run -p belt_tools -- simulate --project projects\sample --map endless_left
 
 The temporary adapter is implemented in `crates/tools/src/main.rs`.
 
-## Immediate Next Milestone: Explicit Formation Data
+## Completed Milestone: Explicit Formation Data
 
-Current limitation:
+Previous limitation:
 
 ```text
 unit_group.members: reference_group -> unit_def
 ```
 
-The adapter currently derives spawn `x` and `lane` from member order. That is acceptable for the first file-driven simulation, but not enough for real production authoring.
-
-Next schema target:
+Current structure:
 
 ```text
-unit_group
-  name: string
-  members: owned_nested_table -> unit_group_member
+unit_group.members: relation_many -> unit_group_member
 
-unit_group_member
+unit_group_member:
   unit: relation_one -> unit_def
   x: f32
   lane: f32
 ```
 
-Implementation choice:
+The current implementation uses an explicit top-level `unit_group_member` table. Later, the visual Data Studio can present this as an owned nested editor under `unit_group`.
 
-- Short term: use an explicit top-level `unit_group_member` table with a `group` relation.
-- Long term: represent this as `OwnedNestedTable` in Data Studio UI.
+## Immediate Next Milestone: Backend Hardening Before UI
 
 ## Step 1: Strengthen Validation
 

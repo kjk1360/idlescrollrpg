@@ -1,0 +1,156 @@
+[
+  {
+    "id": 5001,
+    "key": "party_start_knight",
+    "cells": {
+      "40": {
+        "kind": "string",
+        "value": "Knight Front"
+      },
+      "41": {
+        "kind": "row",
+        "value": 1001
+      },
+      "42": {
+        "kind": "f32",
+        "value": 0.0
+      },
+      "43": {
+        "kind": "f32",
+        "value": -0.6
+      }
+    }
+  },
+  {
+    "id": 5002,
+    "key": "party_start_archer",
+    "cells": {
+      "40": {
+        "kind": "string",
+        "value": "Archer Rear"
+      },
+      "41": {
+        "kind": "row",
+        "value": 1002
+      },
+      "42": {
+        "kind": "f32",
+        "value": 0.8
+      },
+      "43": {
+        "kind": "f32",
+        "value": 0.6
+      }
+    }
+  },
+  {
+    "id": 5101,
+    "key": "slime_pair_front",
+    "cells": {
+      "40": {
+        "kind": "string",
+        "value": "Slime Pair Front"
+      },
+      "41": {
+        "kind": "row",
+        "value": 1100
+      },
+      "42": {
+        "kind": "f32",
+        "value": 0.0
+      },
+      "43": {
+        "kind": "f32",
+        "value": -0.5
+      }
+    }
+  },
+  {
+    "id": 5102,
+    "key": "slime_pair_back",
+    "cells": {
+      "40": {
+        "kind": "string",
+        "value": "Slime Pair Back"
+      },
+      "41": {
+        "kind": "row",
+        "value": 1100
+      },
+      "42": {
+        "kind": "f32",
+        "value": 1.2
+      },
+      "43": {
+        "kind": "f32",
+        "value": 0.5
+      }
+    }
+  },
+  {
+    "id": 5201,
+    "key": "slime_line_low",
+    "cells": {
+      "40": {
+        "kind": "string",
+        "value": "Slime Line Low"
+      },
+      "41": {
+        "kind": "row",
+        "value": 1100
+      },
+      "42": {
+        "kind": "f32",
+        "value": 0.0
+      },
+      "43": {
+        "kind": "f32",
+        "value": -0.8
+      }
+    }
+  },
+  {
+    "id": 5202,
+    "key": "slime_line_mid",
+    "cells": {
+      "40": {
+        "kind": "string",
+        "value": "Slime Line Mid"
+      },
+      "41": {
+        "kind": "row",
+        "value": 1100
+      },
+      "42": {
+        "kind": "f32",
+        "value": 0.7
+      },
+      "43": {
+        "kind": "f32",
+        "value": 0.0
+      }
+    }
+  },
+  {
+    "id": 5203,
+    "key": "slime_line_high",
+    "cells": {
+      "40": {
+        "kind": "string",
+        "value": "Slime Line High"
+      },
+      "41": {
+        "kind": "row",
+        "value": 1100
+      },
+      "42": {
+        "kind": "f32",
+        "value": 1.4
+      },
+      "43": {
+        "kind": "f32",
+        "value": 0.8
+      }
+    }
+  }
+]

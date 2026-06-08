@@ -307,6 +307,7 @@ fn battle_config_from_project(
 ) -> Result<BattleConfig, String> {
     let unit_table = table(project, "unit_def")?;
     let group_table = table(project, "unit_group")?;
+    let member_table = table(project, "unit_group_member")?;
     let wave_table = table(project, "wave_def")?;
     let map_table = table(project, "map_def")?;
 
@@ -319,11 +320,11 @@ fn battle_config_from_project(
 
     let map_row = row_by_key(table_data(project, map_table.id)?, map_key)?;
     let party_row_id = cell_row(map_table, map_row, "party")?;
-    let party = unit_group_from_row_id(project, group_table, party_row_id, 0.0)?;
+    let party = unit_group_from_row_id(project, group_table, member_table, party_row_id, 0.0)?;
     let wave_row_ids = cell_rows(map_table, map_row, "waves")?;
     let waves = wave_row_ids
         .iter()
-        .map(|row_id| wave_from_row_id(project, wave_table, group_table, *row_id))
+        .map(|row_id| wave_from_row_id(project, wave_table, group_table, member_table, *row_id))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(BattleConfig {
@@ -354,13 +355,14 @@ fn wave_from_row_id(
     project: &DataProject,
     wave_table: &TableSchema,
     group_table: &TableSchema,
+    member_table: &TableSchema,
     row_id: RowId,
 ) -> Result<WaveDef, String> {
     let row = row_by_id(table_data(project, wave_table.id)?, row_id)?;
     let enemy_group_ids = cell_rows(wave_table, row, "enemy_groups")?;
     let enemy_groups = enemy_group_ids
         .iter()
-        .map(|group_id| unit_group_from_row_id(project, group_table, *group_id, 0.0))
+        .map(|group_id| unit_group_from_row_id(project, group_table, member_table, *group_id, 0.0))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(WaveDef {
@@ -372,36 +374,32 @@ fn wave_from_row_id(
 fn unit_group_from_row_id(
     project: &DataProject,
     group_table: &TableSchema,
+    member_table: &TableSchema,
     row_id: RowId,
     start_x: f32,
 ) -> Result<UnitGroup, String> {
     let row = row_by_id(table_data(project, group_table.id)?, row_id)?;
-    let members = cell_rows(group_table, row, "members")?;
-    let spawns = members
+    let member_ids = cell_rows(group_table, row, "members")?;
+    let member_data = table_data(project, member_table.id)?;
+    let spawns = member_ids
         .iter()
-        .enumerate()
-        .map(|(index, row_id)| UnitSpawn {
-            def_id: UnitDefId(row_id.0 as u32),
-            position: BeltPosition {
-                x: start_x + index as f32 * 0.8,
-                lane: lane_for_index(index, members.len()),
-            },
+        .map(|member_id| {
+            let member_row = row_by_id(member_data, *member_id)?;
+            let unit_id = cell_row(member_table, member_row, "unit")?;
+            Ok(UnitSpawn {
+                def_id: UnitDefId(unit_id.0 as u32),
+                position: BeltPosition {
+                    x: start_x + cell_f32(member_table, member_row, "x")?,
+                    lane: cell_f32(member_table, member_row, "lane")?,
+                },
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, String>>()?;
 
     Ok(UnitGroup {
         id: row.key.clone(),
         spawns,
     })
-}
-
-fn lane_for_index(index: usize, len: usize) -> f32 {
-    if len <= 1 {
-        0.0
-    } else {
-        let center = (len - 1) as f32 / 2.0;
-        (index as f32 - center) * 0.8
-    }
 }
 
 fn table<'a>(project: &'a DataProject, key: &str) -> Result<&'a TableSchema, String> {

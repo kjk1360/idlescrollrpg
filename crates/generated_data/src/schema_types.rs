@@ -41,3 +41,13 @@ pub struct MapDef {
     pub wave_spawn_x: f32,
 }
 
+#[derive(Debug, Clone)]
+pub struct UnitGroupMember {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub unit: RowId,
+    pub x: f32,
+    pub lane: f32,
+}
+

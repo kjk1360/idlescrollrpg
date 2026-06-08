@@ -20,6 +20,12 @@
       {
         "from_alias": "enemy_group",
         "field": 11,
+        "alias": "enemy_member",
+        "target_table": 5
+      },
+      {
+        "from_alias": "enemy_member",
+        "field": 41,
         "alias": "enemy_unit",
         "target_table": 1
       }
@@ -44,6 +50,16 @@
         "alias": "enemy_unit",
         "field": 1,
         "label": "Enemy Unit"
+      },
+      {
+        "alias": "enemy_member",
+        "field": 42,
+        "label": "X"
+      },
+      {
+        "alias": "enemy_member",
+        "field": 43,
+        "label": "Lane"
       },
       {
         "alias": "enemy_unit",

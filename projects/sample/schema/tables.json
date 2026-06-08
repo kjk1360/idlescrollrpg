@@ -79,8 +79,8 @@
         "key": "members",
         "display_name": "Members",
         "kind": {
-          "kind": "reference_group",
-          "target_table": 1
+          "kind": "relation_many",
+          "target_table": 5
         },
         "required": true
       }
@@ -159,6 +159,50 @@
         "id": 34,
         "key": "wave_spawn_x",
         "display_name": "Wave Spawn X",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "key": "unit_group_member",
+    "display_name": "Unit Group Member",
+    "fields": [
+      {
+        "id": 40,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 41,
+        "key": "unit",
+        "display_name": "Unit",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 1
+        },
+        "required": true
+      },
+      {
+        "id": 42,
+        "key": "x",
+        "display_name": "X",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 43,
+        "key": "lane",
+        "display_name": "Lane",
         "kind": {
           "kind": "f32"
         },

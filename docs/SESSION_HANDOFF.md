@@ -50,6 +50,7 @@ Implemented:
 - `crates/generated_data`: generated Rust crate from sample schema
 - `simulate --project projects\sample --map endless_left_road`
 - `view --project projects\sample --view map_wave_preview`
+- explicit `unit_group_member` data with `unit`, `x`, and `lane`
 
 ## Important Commands
 
@@ -101,6 +102,7 @@ projects/sample/
   data/
     unit_def.json
     unit_group.json
+    unit_group_member.json
     wave_def.json
     map_def.json
   views/
@@ -122,17 +124,30 @@ crates/generated_data/
     relation_cache.rs
 ```
 
+## Completed Formation Slot Data
+
+`unit_group.members` now points to `unit_group_member` rows instead of `unit_def` rows directly.
+
+Each `unit_group_member` row contains:
+
+```text
+unit: relation_one -> unit_def
+x: f32
+lane: f32
+```
+
+The battle config loader now reads these explicit `x/lane` values instead of deriving placement from member order.
+
 ## Recommended Next Task
 
-Replace the temporary unit group placement rule with explicit formation/member-slot data.
+Implement the first real Data Studio editing surface or continue backend hardening before UI.
 
 Recommended order:
 
-1. Add explicit `unit_group_member` data.
-2. Store `unit`, `x`, and `lane` per member instead of deriving placement by index.
-3. Decide whether the first implementation uses a top-level table or `OwnedNestedTable`.
-4. Update `map_wave_preview` or add a `formation_preview` view.
-5. Move the temporary `battle_config_from_project` adapter out of `belt_tools` later.
+1. Strengthen validation for duplicate keys and cell type mismatch.
+2. Add generated table accessors for `get_by_id` and `get_by_key`.
+3. Move the temporary `battle_config_from_project` adapter out of `belt_tools`.
+4. Start a minimal Data Studio UI only after accessors/validation are stable.
 
 ## Caveats
 
