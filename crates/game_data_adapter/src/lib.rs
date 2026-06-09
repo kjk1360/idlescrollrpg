@@ -119,6 +119,7 @@ fn skill_effect_from_data(db: &GeneratedDatabase, row_id: RowId) -> Result<Skill
     Ok(SkillEffect {
         kind: match row.effect_kind.as_str() {
             "damage" => SkillEffectKind::Damage,
+            "projectile_damage" => SkillEffectKind::ProjectileDamage,
             other => return Err(format!("unsupported skill effect kind {other}")),
         },
         power: row.power,

@@ -73,6 +73,9 @@ Implemented:
 - `belt_core` runtime skill models for `SkillDef`, `SkillStep`, `SkillEffect`, `CellPattern`, and rotated `CellOffset` cells
 - primary skills execute immediate `skill_step` damage effects through generated `CellPattern` data
 - knockback effect plumbing exists for forced grid movement with occupied-cell blocking and lane clamping
+- `projectile_damage` effects launch a delayed projectile impact at one grid cell per 0.2s tick
+- Play Preview renders area flashes as translucent animated red grid squares
+- Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
 ## Locked Design Direction
 
@@ -275,12 +278,15 @@ Implemented:
 - immediate `skill_step` execution when `tick_offset == 0`
 - effect cells from `CellPattern` relative `forward/side` offsets rotated by up/down/left/right facing
 - damage effects
+- `projectile_damage` effects with delayed impact damage
 - knockback movement plumbing
+- Play Preview `effects` frames for red grid area flashes
+- Play Preview `projectiles` frames for linear red orb projectile movement
 
 Not implemented yet:
 
 - queued skill steps for `tick_offset > 0`
-- projectile origins and per-tick projectile movement
+- projectile impact patterns such as fireball travel followed by 3x3 explosion cells
 - trigger timing and conditional skill activation
 - multi-skill behavior rule selection
 - skill authoring presets that generate `CellPattern` rows

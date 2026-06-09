@@ -100,6 +100,7 @@ pub struct SkillEffect {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SkillEffectKind {
     Damage,
+    ProjectileDamage,
 }
 
 #[derive(Debug, Clone)]
@@ -200,6 +201,15 @@ pub enum BattleEvent {
         target: UnitId,
         damage: i32,
     },
+    SkillAreaEffect {
+        cells: Vec<GridPosition>,
+    },
+    ProjectileLaunched {
+        caster: UnitId,
+        from: GridPosition,
+        to: GridPosition,
+        duration: f32,
+    },
     UnitKilled {
         unit_id: UnitId,
     },
@@ -246,6 +256,18 @@ pub struct BattleWorld {
     phase: BattlePhase,
     tick_accumulator: f32,
     prepare_ticks_remaining: u32,
+    pending_impacts: Vec<PendingImpact>,
+}
+
+#[derive(Debug, Clone)]
+struct PendingImpact {
+    caster_id: UnitId,
+    caster_team: Team,
+    cells: Vec<GridPosition>,
+    damage: i32,
+    knockback_cells: i32,
+    facing: Direction,
+    ticks_remaining: u32,
 }
 
 impl BattleWorld {
@@ -260,6 +282,7 @@ impl BattleWorld {
             phase: BattlePhase::Prepare,
             tick_accumulator: 0.0,
             prepare_ticks_remaining: 0,
+            pending_impacts: Vec::new(),
         };
 
         let party = world.config.party.clone();
@@ -308,6 +331,8 @@ impl BattleWorld {
             self.prepare_next_wave();
             return;
         }
+
+        self.tick_pending_impacts();
 
         let snapshot = self.units.clone();
         let mut actions = Vec::new();
@@ -411,6 +436,7 @@ impl BattleWorld {
             self.active_wave_id = Some(wave.id.clone());
             self.phase = BattlePhase::Prepare;
             self.prepare_ticks_remaining = self.config.prepare_ticks;
+            self.pending_impacts.clear();
             self.reset_party_home_grids();
             for group in &wave.enemy_groups {
                 self.spawn_group(group, Team::Enemy, self.config.wave_spawn_x);
@@ -563,7 +589,7 @@ impl BattleWorld {
                 .into_iter()
                 .collect::<HashSet<_>>();
             for effect in &step.effects {
-                self.apply_effect(&caster, facing, &cells, effect);
+                self.apply_effect(&caster, target.grid, facing, &cells, effect);
             }
         }
     }
@@ -571,14 +597,17 @@ impl BattleWorld {
     fn apply_effect(
         &mut self,
         caster: &UnitState,
+        target_grid: GridPosition,
         facing: Direction,
         cells: &HashSet<GridPosition>,
         effect: &SkillEffect,
     ) {
+        let damage = (effect.power as f32 + caster.attack as f32 * effect.scaling).round() as i32;
         match effect.kind {
             SkillEffectKind::Damage => {
-                let damage =
-                    (effect.power as f32 + caster.attack as f32 * effect.scaling).round() as i32;
+                self.events.push(BattleEvent::SkillAreaEffect {
+                    cells: cells.iter().copied().collect(),
+                });
                 let targets = self
                     .units
                     .iter()
@@ -592,6 +621,61 @@ impl BattleWorld {
                     if effect.knockback_cells > 0 {
                         self.knockback_unit(target, facing, effect.knockback_cells);
                     }
+                }
+            }
+            SkillEffectKind::ProjectileDamage => {
+                let distance = caster.grid.x.abs_diff(target_grid.x) as u32
+                    + caster.grid.lane.abs_diff(target_grid.lane) as u32;
+                let travel_ticks = distance.max(1);
+                self.events.push(BattleEvent::ProjectileLaunched {
+                    caster: caster.id,
+                    from: caster.grid,
+                    to: target_grid,
+                    duration: travel_ticks as f32 * self.config.tick_duration,
+                });
+                self.pending_impacts.push(PendingImpact {
+                    caster_id: caster.id,
+                    caster_team: caster.team,
+                    cells: vec![target_grid],
+                    damage,
+                    knockback_cells: effect.knockback_cells.max(0),
+                    facing,
+                    ticks_remaining: travel_ticks,
+                });
+            }
+        }
+    }
+
+    fn tick_pending_impacts(&mut self) {
+        let mut ready = Vec::new();
+        let mut pending = Vec::new();
+        for mut impact in self.pending_impacts.drain(..) {
+            impact.ticks_remaining = impact.ticks_remaining.saturating_sub(1);
+            if impact.ticks_remaining == 0 {
+                ready.push(impact);
+            } else {
+                pending.push(impact);
+            }
+        }
+        self.pending_impacts = pending;
+
+        for impact in ready {
+            self.events.push(BattleEvent::SkillAreaEffect {
+                cells: impact.cells.clone(),
+            });
+            let cell_set = impact.cells.iter().copied().collect::<HashSet<_>>();
+            let targets = self
+                .units
+                .iter()
+                .filter(|unit| unit.is_alive() && impact.caster_team.is_enemy_of(unit.team))
+                .filter(|unit| cell_set.contains(&unit.grid))
+                .map(|unit| unit.id)
+                .collect::<Vec<_>>();
+
+            for target in targets {
+                self.damage_unit(impact.caster_id, target, impact.damage);
+                if impact.knockback_cells > 0 {
+                    self.knockback_unit(target, impact.facing, impact.knockback_cells);
                 }
             }
         }
@@ -849,7 +933,7 @@ pub fn sample_battle_config() -> BattleConfig {
             origin: SkillStepOrigin::Caster,
             pattern: line_pattern,
             effects: vec![SkillEffect {
-                kind: SkillEffectKind::Damage,
+                kind: SkillEffectKind::ProjectileDamage,
                 power: 12,
                 scaling: 1.0,
                 knockback_cells: 0,

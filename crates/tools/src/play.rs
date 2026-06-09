@@ -1,4 +1,4 @@
-use belt_core::{BattleEvent, BattleWorld, Team, UnitDefId};
+use belt_core::{BattleEvent, BattleWorld, GridPosition, Team, UnitDefId};
 use data_studio_core::{CellValue, DataProject, FieldId, RowData, RowId, TableId};
 use game_data_adapter::battle_config_from_project;
 use serde_json::{json, Value};
@@ -139,10 +139,13 @@ fn build_playback(project: &DataProject, map_key: &str) -> Result<Value, String>
     let mut world = BattleWorld::new(config);
     let mut frames = Vec::new();
     let mut last_actions = std::collections::HashMap::new();
+    let mut area_effects = Vec::new();
+    let mut projectiles = Vec::new();
     let dt = 0.1_f32;
 
     for index in 0_usize..420 {
         world.tick(dt);
+        let frame_time = (index as f32) * dt;
         for event in world.drain_events() {
             match event {
                 BattleEvent::UnitMoved { unit_id, .. } => {
@@ -153,6 +156,27 @@ fn build_playback(project: &DataProject, map_key: &str) -> Result<Value, String>
                 }
                 BattleEvent::UnitKilled { unit_id } => {
                     last_actions.insert(unit_id.0, ("dead".to_string(), index));
+                }
+                BattleEvent::SkillAreaEffect { cells } => {
+                    area_effects.push(AreaEffectPreview {
+                        start: frame_time,
+                        end: frame_time + 0.28,
+                        cells,
+                    });
+                }
+                BattleEvent::ProjectileLaunched {
+                    caster,
+                    from,
+                    to,
+                    duration,
+                } => {
+                    projectiles.push(ProjectilePreview {
+                        caster: caster.0,
+                        start: frame_time,
+                        end: frame_time + duration.max(dt),
+                        from,
+                        to,
+                    });
                 }
                 _ => {}
             }
@@ -182,10 +206,22 @@ fn build_playback(project: &DataProject, map_key: &str) -> Result<Value, String>
                 })
             })
             .collect::<Vec<_>>();
+        let effects = area_effects
+            .iter()
+            .filter(|effect| effect.start <= frame_time && effect.end >= frame_time)
+            .map(area_effect_json)
+            .collect::<Vec<_>>();
+        let frame_projectiles = projectiles
+            .iter()
+            .filter(|projectile| projectile.start <= frame_time && projectile.end >= frame_time)
+            .map(projectile_json)
+            .collect::<Vec<_>>();
 
         frames.push(json!({
-            "t": (index as f32) * dt,
+            "t": frame_time,
             "units": units,
+            "effects": effects,
+            "projectiles": frame_projectiles,
         }));
     }
 
@@ -194,6 +230,49 @@ fn build_playback(project: &DataProject, map_key: &str) -> Result<Value, String>
         "map": map_key,
         "frames": frames,
     }))
+}
+
+#[derive(Debug, Clone)]
+struct AreaEffectPreview {
+    start: f32,
+    end: f32,
+    cells: Vec<GridPosition>,
+}
+
+#[derive(Debug, Clone)]
+struct ProjectilePreview {
+    caster: u64,
+    start: f32,
+    end: f32,
+    from: GridPosition,
+    to: GridPosition,
+}
+
+fn area_effect_json(effect: &AreaEffectPreview) -> Value {
+    json!({
+        "kind": "area_flash",
+        "start": effect.start,
+        "end": effect.end,
+        "cells": effect.cells.iter().map(grid_json).collect::<Vec<_>>(),
+    })
+}
+
+fn projectile_json(projectile: &ProjectilePreview) -> Value {
+    json!({
+        "kind": "red_orb",
+        "caster": projectile.caster,
+        "start": projectile.start,
+        "end": projectile.end,
+        "from": grid_json(&projectile.from),
+        "to": grid_json(&projectile.to),
+    })
+}
+
+fn grid_json(position: &GridPosition) -> Value {
+    json!({
+        "x": position.x,
+        "lane": position.lane,
+    })
 }
 
 fn team_label(team: Team) -> &'static str {
@@ -510,6 +589,8 @@ const PLAY_HTML: &str = r#"<!doctype html>
       const h = canvas.clientHeight;
       ctx.clearRect(0, 0, w, h);
       drawBackground(w, h, elapsed);
+      drawAreaEffects(frame.effects || [], elapsed, w, h);
+      drawProjectiles(frame.projectiles || [], elapsed, w, h);
       const sorted = [...frame.units].sort((a, b) => a.render_lane - b.render_lane);
       for (const unit of sorted) drawUnit(unit, elapsed, w, h);
       document.getElementById('time').textContent = `${elapsed.toFixed(1)}s / units ${frame.units.length}`;
@@ -547,8 +628,54 @@ const PLAY_HTML: &str = r#"<!doctype html>
       ctx.fillRect(0, horizon, w, 4);
     }
 
+    function drawAreaEffects(effects, elapsed, w, h) {
+      for (const effect of effects) {
+        const span = Math.max(0.001, Number(effect.end) - Number(effect.start));
+        const p = Math.max(0, Math.min(1, (elapsed - Number(effect.start)) / span));
+        const alpha = Math.sin(p * Math.PI) * 0.48;
+        for (const cell of effect.cells || []) {
+          const x = gridX(cell.x, w);
+          const y = laneY(cell.lane, h);
+          ctx.save();
+          ctx.translate(x, y + 6);
+          ctx.fillStyle = `rgba(225, 45, 45, ${alpha})`;
+          ctx.strokeStyle = `rgba(255, 212, 212, ${alpha * 0.8})`;
+          ctx.lineWidth = 2;
+          ctx.fillRect(-20, -16, 40, 32);
+          ctx.strokeRect(-20, -16, 40, 32);
+          ctx.restore();
+        }
+      }
+    }
+
+    function drawProjectiles(projectiles, elapsed, w, h) {
+      for (const projectile of projectiles) {
+        const span = Math.max(0.001, Number(projectile.end) - Number(projectile.start));
+        const p = Math.max(0, Math.min(1, (elapsed - Number(projectile.start)) / span));
+        const x = lerp(projectile.from?.x, projectile.to?.x, p);
+        const lane = lerp(projectile.from?.lane, projectile.to?.lane, p);
+        const sx = gridX(x, w);
+        const sy = laneY(lane, h) - 28;
+        const pulse = 1 + Math.sin(p * Math.PI) * 0.12;
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.fillStyle = 'rgba(0,0,0,0.32)';
+        ctx.beginPath();
+        ctx.ellipse(0, 22, 10, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#d83232';
+        ctx.strokeStyle = '#fff1f1';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, 7 * pulse, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
     function drawUnit(unit, t, w, h) {
-      const x = w * 0.5 - unit.render_x * 42;
+      const x = gridX(unit.render_x, w);
       const y = laneY(unit.render_lane, h);
       const scale = Number(unit.visual.scale || 1);
       const radius = Number(unit.visual.shadow_radius || 16) * scale;
@@ -613,6 +740,10 @@ const PLAY_HTML: &str = r#"<!doctype html>
 
     function laneY(lane, h) {
       return h * 0.67 + lane * h * 0.12;
+    }
+
+    function gridX(x, w) {
+      return w * 0.5 - Number(x || 0) * 42;
     }
 
     function visualState(visual, key) {

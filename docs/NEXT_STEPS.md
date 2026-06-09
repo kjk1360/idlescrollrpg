@@ -158,6 +158,9 @@ The first playable preview is available through `belt_tools play`:
 - Visual tab can edit the active `visual_state_machine` states, default state, and state animation references.
 - Visual tab can browse project image files and create/update `texture_asset` rows.
 - Battle runtime now reads generated skill data and resolves immediate damage through directional `CellPattern` cells.
+- Battle runtime supports `projectile_damage` effects that launch a projectile, travel linearly at one grid cell per 0.2s tick, and resolve delayed impact damage.
+- Play Preview renders default skill area flashes as translucent animated red grid squares.
+- Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows.
 
 ## Locked Design Direction
 
@@ -190,10 +193,10 @@ The first playable preview is available through `belt_tools play`:
 
 ## Immediate Next Milestone: Combat Skill Runtime v1
 
-The runtime is grid/tick based and immediate primary skills now execute through generated `CellPattern` data. Next, extend this into the full skill execution model:
+The runtime is grid/tick based, immediate primary skills execute through generated `CellPattern` data, and simple projectile damage is visible in the Play Preview. Next, extend this into the full skill execution model:
 
 - queued `skill_step` execution for `tick_offset > 0`
-- projectile runtime for moving skill origins such as fireballs
+- projectile impact patterns such as fireball travel followed by 3x3 explosion cells
 - trigger timing runtime for conditional skill activation
 - behavior/target rule runtime
 - dungeon reward result generation from `drop_table`

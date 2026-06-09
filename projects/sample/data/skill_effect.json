@@ -43,7 +43,7 @@
       },
       "171": {
         "kind": "string",
-        "value": "damage"
+        "value": "projectile_damage"
       },
       "172": {
         "kind": "i32",
