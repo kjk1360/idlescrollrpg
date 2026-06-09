@@ -1,6 +1,7 @@
 use belt_core::{
-    BattleConfig, BeltPosition, MapDef, SkillDefId, UnitDef, UnitDefId, UnitGroup, UnitSpawn,
-    WaveDef,
+    BattleConfig, BeltPosition, CellOffset, CellPattern, FacingMode, MapDef, SkillDef, SkillDefId,
+    SkillEffect, SkillEffectKind, SkillStep, SkillStepOrigin, UnitDef, UnitDefId, UnitGroup,
+    UnitSpawn, WaveDef,
 };
 use data_studio_core::{DataProject, RowId};
 use generated_data::relation_cache::GeneratedRelationCache;
@@ -27,6 +28,12 @@ pub fn battle_config_from_generated(
         .iter()
         .map(|row| unit_def_from_data(db, row))
         .collect::<Vec<_>>();
+    let skill_defs = db
+        .skill_def
+        .rows
+        .iter()
+        .map(|row| skill_def_from_data(db, row))
+        .collect::<Result<Vec<_>, _>>()?;
 
     let map = db
         .map_def
@@ -51,10 +58,109 @@ pub fn battle_config_from_generated(
             waves,
         },
         unit_defs,
+        skill_defs,
         left_scroll_speed: map.left_scroll_speed,
         wave_spawn_x: map.wave_spawn_x,
         tick_duration: 0.2,
         prepare_ticks: 5,
+    })
+}
+
+fn skill_def_from_data(
+    db: &GeneratedDatabase,
+    row: &data_types::SkillDef,
+) -> Result<SkillDef, String> {
+    let cast_pattern = cell_pattern_from_data(db, row.cast_pattern)?;
+    let steps = row
+        .steps
+        .iter()
+        .map(|step_id| skill_step_from_data(db, *step_id))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(SkillDef {
+        id: SkillDefId(row.id.0 as u32),
+        name: row.name.clone(),
+        cooldown_ticks: row.cooldown_ticks.max(1) as u32,
+        cast_pattern,
+        steps,
+        target_rule: row.target_rule.clone(),
+    })
+}
+
+fn skill_step_from_data(db: &GeneratedDatabase, row_id: RowId) -> Result<SkillStep, String> {
+    let row = db
+        .skill_step
+        .get_by_id(row_id)
+        .ok_or_else(|| format!("missing skill step {:?}", row_id))?;
+    let pattern = cell_pattern_from_data(db, row.pattern)?;
+    let effects = row
+        .effects
+        .iter()
+        .map(|effect_id| skill_effect_from_data(db, *effect_id))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(SkillStep {
+        tick_offset: row.tick_offset.max(0) as u32,
+        origin: match row.origin.as_str() {
+            "target" => SkillStepOrigin::Target,
+            _ => SkillStepOrigin::Caster,
+        },
+        pattern,
+        effects,
+    })
+}
+
+fn skill_effect_from_data(db: &GeneratedDatabase, row_id: RowId) -> Result<SkillEffect, String> {
+    let row = db
+        .skill_effect
+        .get_by_id(row_id)
+        .ok_or_else(|| format!("missing skill effect {:?}", row_id))?;
+
+    Ok(SkillEffect {
+        kind: match row.effect_kind.as_str() {
+            "damage" => SkillEffectKind::Damage,
+            other => return Err(format!("unsupported skill effect kind {other}")),
+        },
+        power: row.power,
+        scaling: row.scaling,
+        knockback_cells: row.knockback_cells.max(0),
+        trigger_skill: if row.trigger_timing.is_empty() {
+            None
+        } else {
+            Some(SkillDefId(row.trigger_skill.0 as u32))
+        },
+        trigger_timing: (!row.trigger_timing.is_empty()).then(|| row.trigger_timing.clone()),
+    })
+}
+
+fn cell_pattern_from_data(db: &GeneratedDatabase, row_id: RowId) -> Result<CellPattern, String> {
+    let row = db
+        .cell_pattern
+        .get_by_id(row_id)
+        .ok_or_else(|| format!("missing cell pattern {:?}", row_id))?;
+    let cells = row
+        .cells
+        .iter()
+        .map(|cell_id| {
+            let cell = db
+                .cell_offset
+                .get_by_id(*cell_id)
+                .ok_or_else(|| format!("missing cell offset {:?}", cell_id))?;
+            Ok(CellOffset {
+                forward: cell.forward,
+                side: cell.side,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+
+    Ok(CellPattern {
+        id: row.id.0 as u32,
+        name: row.name.clone(),
+        facing_mode: match row.facing_mode.as_str() {
+            "fixed" => FacingMode::Fixed,
+            _ => FacingMode::RotateByFacing,
+        },
+        cells,
     })
 }
 

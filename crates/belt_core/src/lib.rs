@@ -64,6 +64,73 @@ pub struct UnitDef {
 }
 
 #[derive(Debug, Clone)]
+pub struct SkillDef {
+    pub id: SkillDefId,
+    pub name: String,
+    pub cooldown_ticks: u32,
+    pub cast_pattern: CellPattern,
+    pub steps: Vec<SkillStep>,
+    pub target_rule: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SkillStep {
+    pub tick_offset: u32,
+    pub origin: SkillStepOrigin,
+    pub pattern: CellPattern,
+    pub effects: Vec<SkillEffect>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkillStepOrigin {
+    Caster,
+    Target,
+}
+
+#[derive(Debug, Clone)]
+pub struct SkillEffect {
+    pub kind: SkillEffectKind,
+    pub power: i32,
+    pub scaling: f32,
+    pub knockback_cells: i32,
+    pub trigger_skill: Option<SkillDefId>,
+    pub trigger_timing: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkillEffectKind {
+    Damage,
+}
+
+#[derive(Debug, Clone)]
+pub struct CellPattern {
+    pub id: u32,
+    pub name: String,
+    pub facing_mode: FacingMode,
+    pub cells: Vec<CellOffset>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FacingMode {
+    RotateByFacing,
+    Fixed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CellOffset {
+    pub forward: i32,
+    pub side: i32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+#[derive(Debug, Clone)]
 pub struct UnitSpawn {
     pub def_id: UnitDefId,
     pub position: BeltPosition,
@@ -153,6 +220,7 @@ pub struct BattleConfig {
     pub party: UnitGroup,
     pub map: MapDef,
     pub unit_defs: Vec<UnitDef>,
+    pub skill_defs: Vec<SkillDef>,
     pub left_scroll_speed: f32,
     pub wave_spawn_x: f32,
     pub tick_duration: f32,
@@ -242,7 +310,7 @@ impl BattleWorld {
         }
 
         let snapshot = self.units.clone();
-        let mut attacks = Vec::new();
+        let mut actions = Vec::new();
 
         for index in 0..self.units.len() {
             if !self.units[index].is_alive() {
@@ -251,44 +319,39 @@ impl BattleWorld {
 
             self.units[index].attack_cooldown = (self.units[index].attack_cooldown - dt).max(0.0);
 
-            let target = closest_target(&snapshot, &self.units[index]);
-            let in_range = target
-                .as_ref()
-                .map(|target| {
-                    grid_in_range(
-                        self.units[index].grid,
-                        target.grid,
-                        self.units[index].attack_range,
-                    )
-                })
-                .unwrap_or(false);
-
-            if let Some(target) = target {
-                if in_range && self.units[index].attack_cooldown <= 0.0 {
-                    attacks.push((self.units[index].id, target.id, self.units[index].attack));
-                    self.units[index].attack_cooldown =
-                        self.units[index].skill_cooldown_ticks as f32 * self.config.tick_duration;
-                } else if !in_range {
+            let Some(target) = closest_target(&snapshot, &self.units[index]) else {
+                continue;
+            };
+            let Some(skill) = self.primary_skill_for(&self.units[index]) else {
+                if !grid_in_range(
+                    self.units[index].grid,
+                    target.grid,
+                    self.units[index].attack_range,
+                ) {
                     self.move_toward(index, target.grid);
                 }
+                continue;
+            };
+
+            let facing = direction_toward(self.units[index].grid, target.grid);
+            if pattern_contains(
+                &skill.cast_pattern,
+                self.units[index].grid,
+                facing,
+                target.grid,
+            ) {
+                if self.units[index].attack_cooldown <= 0.0 {
+                    actions.push((self.units[index].id, target.id, skill.id));
+                    self.units[index].attack_cooldown =
+                        skill.cooldown_ticks.max(1) as f32 * self.config.tick_duration;
+                }
+            } else {
+                self.move_toward(index, target.grid);
             }
         }
 
-        for (attacker, target, damage) in attacks {
-            if let Some(target_unit) = self.units.iter_mut().find(|unit| unit.id == target) {
-                if target_unit.is_alive() {
-                    target_unit.hp = (target_unit.hp - damage).max(0);
-                    self.events.push(BattleEvent::UnitAttacked {
-                        attacker,
-                        target,
-                        damage,
-                    });
-                    if target_unit.hp == 0 {
-                        self.events
-                            .push(BattleEvent::UnitKilled { unit_id: target });
-                    }
-                }
-            }
+        for (caster, target, skill_id) in actions {
+            self.execute_skill(caster, target, skill_id);
         }
     }
 
@@ -464,6 +527,116 @@ impl BattleWorld {
             lane: self.units[index].position.lane,
         });
     }
+
+    fn primary_skill_for(&self, unit: &UnitState) -> Option<&SkillDef> {
+        let skill_id = unit.primary_skill?;
+        self.config
+            .skill_defs
+            .iter()
+            .find(|skill| skill.id == skill_id)
+    }
+
+    fn execute_skill(&mut self, caster_id: UnitId, target_id: UnitId, skill_id: SkillDefId) {
+        let Some(skill) = self
+            .config
+            .skill_defs
+            .iter()
+            .find(|skill| skill.id == skill_id)
+            .cloned()
+        else {
+            return;
+        };
+        let Some(caster) = self.units.iter().find(|unit| unit.id == caster_id).cloned() else {
+            return;
+        };
+        let Some(target) = self.units.iter().find(|unit| unit.id == target_id).cloned() else {
+            return;
+        };
+        let facing = direction_toward(caster.grid, target.grid);
+
+        for step in skill.steps.iter().filter(|step| step.tick_offset == 0) {
+            let origin = match step.origin {
+                SkillStepOrigin::Caster => caster.grid,
+                SkillStepOrigin::Target => target.grid,
+            };
+            let cells = pattern_cells(&step.pattern, origin, facing)
+                .into_iter()
+                .collect::<HashSet<_>>();
+            for effect in &step.effects {
+                self.apply_effect(&caster, facing, &cells, effect);
+            }
+        }
+    }
+
+    fn apply_effect(
+        &mut self,
+        caster: &UnitState,
+        facing: Direction,
+        cells: &HashSet<GridPosition>,
+        effect: &SkillEffect,
+    ) {
+        match effect.kind {
+            SkillEffectKind::Damage => {
+                let damage =
+                    (effect.power as f32 + caster.attack as f32 * effect.scaling).round() as i32;
+                let targets = self
+                    .units
+                    .iter()
+                    .filter(|unit| unit.is_alive() && caster.team.is_enemy_of(unit.team))
+                    .filter(|unit| cells.contains(&unit.grid))
+                    .map(|unit| unit.id)
+                    .collect::<Vec<_>>();
+
+                for target in targets {
+                    self.damage_unit(caster.id, target, damage);
+                    if effect.knockback_cells > 0 {
+                        self.knockback_unit(target, facing, effect.knockback_cells);
+                    }
+                }
+            }
+        }
+    }
+
+    fn damage_unit(&mut self, attacker: UnitId, target: UnitId, damage: i32) {
+        if let Some(target_unit) = self.units.iter_mut().find(|unit| unit.id == target) {
+            if target_unit.is_alive() {
+                target_unit.hp = (target_unit.hp - damage).max(0);
+                self.events.push(BattleEvent::UnitAttacked {
+                    attacker,
+                    target,
+                    damage,
+                });
+                if target_unit.hp == 0 {
+                    self.events
+                        .push(BattleEvent::UnitKilled { unit_id: target });
+                }
+            }
+        }
+    }
+
+    fn knockback_unit(&mut self, target: UnitId, facing: Direction, cells: i32) {
+        let Some(index) = self.units.iter().position(|unit| unit.id == target) else {
+            return;
+        };
+        if !self.units[index].is_alive() {
+            return;
+        }
+        let mut occupied = self.occupied_cells();
+        occupied.remove(&self.units[index].grid);
+        let mut next = self.units[index].grid;
+        for _ in 0..cells {
+            let candidate = step_in_direction(next, facing);
+            if candidate.lane < -1 || candidate.lane > 1 || occupied.contains_key(&candidate) {
+                break;
+            }
+            next = candidate;
+        }
+        if next != self.units[index].grid {
+            self.units[index].grid = next;
+            self.units[index].position = next.to_belt();
+            self.emit_move(index);
+        }
+    }
 }
 
 fn closest_target(units: &[UnitState], actor: &UnitState) -> Option<UnitState> {
@@ -509,6 +682,97 @@ fn grid_in_range(actor: GridPosition, target: GridPosition, range: f32) -> bool 
     (actor.x - target.x).abs() <= range && (actor.lane - target.lane).abs() <= range
 }
 
+fn direction_toward(actor: GridPosition, target: GridPosition) -> Direction {
+    let dx = target.x - actor.x;
+    let dl = target.lane - actor.lane;
+    if dx.abs() >= dl.abs() {
+        if dx >= 0 {
+            Direction::Right
+        } else {
+            Direction::Left
+        }
+    } else if dl >= 0 {
+        Direction::Up
+    } else {
+        Direction::Down
+    }
+}
+
+fn pattern_contains(
+    pattern: &CellPattern,
+    origin: GridPosition,
+    facing: Direction,
+    target: GridPosition,
+) -> bool {
+    pattern_cells(pattern, origin, facing).contains(&target)
+}
+
+fn pattern_cells(
+    pattern: &CellPattern,
+    origin: GridPosition,
+    facing: Direction,
+) -> Vec<GridPosition> {
+    pattern
+        .cells
+        .iter()
+        .map(|cell| apply_cell_offset(origin, *cell, pattern.facing_mode, facing))
+        .collect()
+}
+
+fn apply_cell_offset(
+    origin: GridPosition,
+    offset: CellOffset,
+    facing_mode: FacingMode,
+    facing: Direction,
+) -> GridPosition {
+    if facing_mode == FacingMode::Fixed {
+        return GridPosition {
+            x: origin.x + offset.forward,
+            lane: origin.lane + offset.side,
+        };
+    }
+
+    match facing {
+        Direction::Right => GridPosition {
+            x: origin.x + offset.forward,
+            lane: origin.lane + offset.side,
+        },
+        Direction::Left => GridPosition {
+            x: origin.x - offset.forward,
+            lane: origin.lane - offset.side,
+        },
+        Direction::Up => GridPosition {
+            x: origin.x - offset.side,
+            lane: origin.lane + offset.forward,
+        },
+        Direction::Down => GridPosition {
+            x: origin.x + offset.side,
+            lane: origin.lane - offset.forward,
+        },
+    }
+}
+
+fn step_in_direction(position: GridPosition, direction: Direction) -> GridPosition {
+    match direction {
+        Direction::Left => GridPosition {
+            x: position.x - 1,
+            lane: position.lane,
+        },
+        Direction::Right => GridPosition {
+            x: position.x + 1,
+            lane: position.lane,
+        },
+        Direction::Up => GridPosition {
+            x: position.x,
+            lane: position.lane + 1,
+        },
+        Direction::Down => GridPosition {
+            x: position.x,
+            lane: position.lane - 1,
+        },
+    }
+}
+
 fn next_step_toward(
     current: GridPosition,
     target: GridPosition,
@@ -538,6 +802,83 @@ fn next_step_toward(
 }
 
 pub fn sample_battle_config() -> BattleConfig {
+    let melee_pattern = CellPattern {
+        id: 20001,
+        name: "Melee Forward 1".to_string(),
+        facing_mode: FacingMode::RotateByFacing,
+        cells: vec![CellOffset {
+            forward: 1,
+            side: 0,
+        }],
+    };
+    let line_pattern = CellPattern {
+        id: 20002,
+        name: "Line Forward 5".to_string(),
+        facing_mode: FacingMode::RotateByFacing,
+        cells: (1..=5)
+            .map(|forward| CellOffset { forward, side: 0 })
+            .collect(),
+    };
+    let knight_skill = SkillDef {
+        id: SkillDefId(17001),
+        name: "Knight Slash".to_string(),
+        cooldown_ticks: 5,
+        cast_pattern: melee_pattern.clone(),
+        steps: vec![SkillStep {
+            tick_offset: 0,
+            origin: SkillStepOrigin::Caster,
+            pattern: melee_pattern.clone(),
+            effects: vec![SkillEffect {
+                kind: SkillEffectKind::Damage,
+                power: 18,
+                scaling: 1.0,
+                knockback_cells: 0,
+                trigger_skill: None,
+                trigger_timing: None,
+            }],
+        }],
+        target_rule: "nearest_enemy".to_string(),
+    };
+    let archer_skill = SkillDef {
+        id: SkillDefId(17002),
+        name: "Arrow Shot".to_string(),
+        cooldown_ticks: 4,
+        cast_pattern: line_pattern.clone(),
+        steps: vec![SkillStep {
+            tick_offset: 0,
+            origin: SkillStepOrigin::Caster,
+            pattern: line_pattern,
+            effects: vec![SkillEffect {
+                kind: SkillEffectKind::Damage,
+                power: 12,
+                scaling: 1.0,
+                knockback_cells: 0,
+                trigger_skill: None,
+                trigger_timing: None,
+            }],
+        }],
+        target_rule: "nearest_enemy".to_string(),
+    };
+    let slime_skill = SkillDef {
+        id: SkillDefId(17003),
+        name: "Slime Tackle".to_string(),
+        cooldown_ticks: 6,
+        cast_pattern: melee_pattern.clone(),
+        steps: vec![SkillStep {
+            tick_offset: 0,
+            origin: SkillStepOrigin::Caster,
+            pattern: melee_pattern,
+            effects: vec![SkillEffect {
+                kind: SkillEffectKind::Damage,
+                power: 8,
+                scaling: 1.0,
+                knockback_cells: 0,
+                trigger_skill: None,
+                trigger_timing: None,
+            }],
+        }],
+        target_rule: "nearest_enemy".to_string(),
+    };
     let knight = UnitDef {
         id: UnitDefId(1),
         name: "Knight".to_string(),
@@ -628,6 +969,7 @@ pub fn sample_battle_config() -> BattleConfig {
             ],
         },
         unit_defs: vec![knight, archer, slime],
+        skill_defs: vec![knight_skill, archer_skill, slime_skill],
         left_scroll_speed: 1.8,
         wave_spawn_x: -8.0,
         tick_duration: 0.2,
@@ -658,5 +1000,36 @@ mod tests {
             .map(|unit| unit.grid)
             .collect::<HashSet<_>>();
         assert_eq!(occupied.len(), world.units().len());
+    }
+
+    #[test]
+    fn cell_pattern_rotates_forward_and_side_offsets() {
+        let pattern = CellPattern {
+            id: 1,
+            name: "test".to_string(),
+            facing_mode: FacingMode::RotateByFacing,
+            cells: vec![CellOffset {
+                forward: 2,
+                side: 1,
+            }],
+        };
+        let origin = GridPosition { x: 10, lane: 0 };
+
+        assert_eq!(
+            pattern_cells(&pattern, origin, Direction::Right),
+            vec![GridPosition { x: 12, lane: 1 }]
+        );
+        assert_eq!(
+            pattern_cells(&pattern, origin, Direction::Left),
+            vec![GridPosition { x: 8, lane: -1 }]
+        );
+        assert_eq!(
+            pattern_cells(&pattern, origin, Direction::Up),
+            vec![GridPosition { x: 9, lane: 2 }]
+        );
+        assert_eq!(
+            pattern_cells(&pattern, origin, Direction::Down),
+            vec![GridPosition { x: 11, lane: -2 }]
+        );
     }
 }

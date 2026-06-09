@@ -70,6 +70,9 @@ Implemented:
 - initial item/drop/energy/storage data tables for dungeon reward and operation UI foundations
 - initial CellPattern-based skill, skill step, skill effect, and behavior rule data tables
 - `unit_def.skills` linked to sample unit skills; adapter reads primary skill cooldown
+- `belt_core` runtime skill models for `SkillDef`, `SkillStep`, `SkillEffect`, `CellPattern`, and rotated `CellOffset` cells
+- primary skills execute immediate `skill_step` damage effects through generated `CellPattern` data
+- knockback effect plumbing exists for forced grid movement with occupied-cell blocking and lane clamping
 
 ## Locked Design Direction
 
@@ -258,6 +261,31 @@ Verified packaged commands:
 - `simulate --map endless_left_road`: runs the generated-data-backed battle simulation.
 - `serve`: starts the local Data Studio at `http://127.0.0.1:7878`.
 - `play`: starts the playable canvas preview at `http://127.0.0.1:7879`.
+
+## Current Combat Runtime Boundary
+
+Implemented:
+
+- grid/tick wave combat
+- prepare/engage wave flow
+- one unit per grid cell
+- movement blocked by occupied cells
+- primary skill selection from `unit_def.skills`
+- skill cooldown from `skill_def.cooldown_ticks`
+- immediate `skill_step` execution when `tick_offset == 0`
+- effect cells from `CellPattern` relative `forward/side` offsets rotated by up/down/left/right facing
+- damage effects
+- knockback movement plumbing
+
+Not implemented yet:
+
+- queued skill steps for `tick_offset > 0`
+- projectile origins and per-tick projectile movement
+- trigger timing and conditional skill activation
+- multi-skill behavior rule selection
+- skill authoring presets that generate `CellPattern` rows
+- dungeon reward settlement from `drop_table`
+- account energy spending/recovery simulation
 
 ## Current Data Studio UI
 

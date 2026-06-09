@@ -63,6 +63,9 @@
 - Added initial item, drop table, account energy, and storage tab data tables.
 - Added initial CellPattern-based skill, skill step, skill effect, and behavior rule data tables.
 - Linked `unit_def.skills` to sample unit skills and wired primary skill cooldown into battle config conversion.
+- Added `belt_core` runtime models for `SkillDef`, `SkillStep`, `SkillEffect`, `CellPattern`, and rotated `CellOffset` cells.
+- Changed grid combat to execute primary skills through `CellPattern` judgment and immediate `skill_step` damage effects.
+- Added knockback effect plumbing for forced grid movement, including occupied-cell blocking and lane clamping.
 
 ## Current Stable CLI Flow
 
@@ -154,6 +157,7 @@ The first playable preview is available through `belt_tools play`:
 - Visual tab can edit the active `sprite_animation.frames` order, add/remove frames, and update fps/looping.
 - Visual tab can edit the active `visual_state_machine` states, default state, and state animation references.
 - Visual tab can browse project image files and create/update `texture_asset` rows.
+- Battle runtime now reads generated skill data and resolves immediate damage through directional `CellPattern` cells.
 
 ## Locked Design Direction
 
@@ -184,18 +188,18 @@ The first playable preview is available through `belt_tools play`:
 - Forge crafts equipment from a consumable equipment recipe plus required material slots.
 - Refinement Workbench cubing uses one equipment slot and one material slot for option rerolls/mutation.
 
-## Immediate Next Milestone: Combat Data Model
+## Immediate Next Milestone: Combat Skill Runtime v1
 
-The runtime is now grid/tick based and skill data exists, but effect execution still maps to old damage/range fields. Next, make combat use skill steps directly:
+The runtime is grid/tick based and immediate primary skills now execute through generated `CellPattern` data. Next, extend this into the full skill execution model:
 
-- execute `skill_step` by tick offset
-- resolve effect cells through `cell_pattern`
-- apply `skill_effect` damage/knockback
+- queued `skill_step` execution for `tick_offset > 0`
+- projectile runtime for moving skill origins such as fireballs
+- trigger timing runtime for conditional skill activation
 - behavior/target rule runtime
 - dungeon reward result generation from `drop_table`
 - account energy spending/recovery simulation
 - battle simulation states to visual state machine keys
-- knockback forced movement effect
+- skill authoring presets that generate `CellPattern` rows: AABB, line, cross, 3x3
 - row preview thumbnails for sprite frame lists and palettes
 - relation picker pagination/search for large tables
 - richer row display labels beyond id/key/name fallback
