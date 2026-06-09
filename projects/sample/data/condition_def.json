@@ -1,0 +1,44 @@
+[
+  {
+    "id": 25001,
+    "key": "nearest_enemy_in_cast_pattern",
+    "cells": {
+      "230": { "kind": "string", "value": "Nearest Enemy In Cast Pattern" },
+      "231": { "kind": "string", "value": "nearest_enemy_in_cast_pattern" },
+      "232": { "kind": "string", "value": "target" },
+      "233": { "kind": "row", "value": 23002 },
+      "234": { "kind": "string", "value": "gte" },
+      "235": { "kind": "string", "value": "value" },
+      "236": { "kind": "f32", "value": 0.0 },
+      "237": { "kind": "row", "value": 23001 }
+    }
+  },
+  {
+    "id": 25002,
+    "key": "self_hp_below_half",
+    "cells": {
+      "230": { "kind": "string", "value": "Self HP Below Half" },
+      "231": { "kind": "string", "value": "stat_compare" },
+      "232": { "kind": "string", "value": "self" },
+      "233": { "kind": "row", "value": 23002 },
+      "234": { "kind": "string", "value": "lt" },
+      "235": { "kind": "string", "value": "stat_ratio" },
+      "236": { "kind": "f32", "value": 0.5 },
+      "237": { "kind": "row", "value": 23001 }
+    }
+  },
+  {
+    "id": 25003,
+    "key": "self_mana_at_least_one",
+    "cells": {
+      "230": { "kind": "string", "value": "Self Mana At Least One" },
+      "231": { "kind": "string", "value": "stat_compare" },
+      "232": { "kind": "string", "value": "self" },
+      "233": { "kind": "row", "value": 23004 },
+      "234": { "kind": "string", "value": "gte" },
+      "235": { "kind": "string", "value": "value" },
+      "236": { "kind": "f32", "value": 1.0 },
+      "237": { "kind": "row", "value": 23004 }
+    }
+  }
+]

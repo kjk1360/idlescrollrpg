@@ -15,6 +15,7 @@ pub struct UnitDef {
     pub visual: RowId,
     pub skills: Vec<RowId>,
     pub behavior_rules: Vec<RowId>,
+    pub base_stats: Vec<RowId>,
 }
 
 #[derive(Debug, Clone)]
@@ -236,4 +237,40 @@ pub struct BehaviorRule {
     pub priority: i32,
     pub skill: RowId,
     pub condition: String,
+    pub conditions: Vec<RowId>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StatDef {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub value_kind: String,
+    pub default_value: f32,
+    pub min_value: f32,
+    pub max_value: f32,
+    pub category: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct UnitBaseStat {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub stat: RowId,
+    pub value: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConditionDef {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub condition_kind: String,
+    pub subject: String,
+    pub stat: RowId,
+    pub operator: String,
+    pub compare_mode: String,
+    pub value: f32,
+    pub other_stat: RowId,
 }

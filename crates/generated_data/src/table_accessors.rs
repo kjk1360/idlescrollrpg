@@ -32,6 +32,9 @@ pub struct GeneratedDatabase {
     pub cell_pattern: GeneratedTable<CellPattern>,
     pub cell_offset: GeneratedTable<CellOffset>,
     pub behavior_rule: GeneratedTable<BehaviorRule>,
+    pub stat_def: GeneratedTable<StatDef>,
+    pub unit_base_stat: GeneratedTable<UnitBaseStat>,
+    pub condition_def: GeneratedTable<ConditionDef>,
 }
 
 #[derive(Debug, Clone)]
@@ -94,6 +97,9 @@ impl GeneratedDatabase {
             cell_pattern: load_cell_pattern(project)?,
             cell_offset: load_cell_offset(project)?,
             behavior_rule: load_behavior_rule(project)?,
+            stat_def: load_stat_def(project)?,
+            unit_base_stat: load_unit_base_stat(project)?,
+            condition_def: load_condition_def(project)?,
         })
     }
 }
@@ -116,6 +122,7 @@ fn load_unit_def(project: &DataProject) -> Result<GeneratedTable<UnitDef>, Strin
             visual: read_row(row, FieldId(7), "unit_def.visual")?,
             skills: read_rows(row, FieldId(8), "unit_def.skills")?,
             behavior_rules: read_rows(row, FieldId(9), "unit_def.behavior_rules")?,
+            base_stats: read_rows(row, FieldId(10), "unit_def.base_stats")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());
@@ -555,6 +562,72 @@ fn load_behavior_rule(project: &DataProject) -> Result<GeneratedTable<BehaviorRu
             priority: read_i32(row, FieldId(201), "behavior_rule.priority")?,
             skill: read_row(row, FieldId(202), "behavior_rule.skill")?,
             condition: read_string(row, FieldId(203), "behavior_rule.condition")?,
+            conditions: read_rows(row, FieldId(204), "behavior_rule.conditions")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_stat_def(project: &DataProject) -> Result<GeneratedTable<StatDef>, String> {
+    let rows = table_rows(project, TableId(23))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(StatDef {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(210), "stat_def.name")?,
+            value_kind: read_string(row, FieldId(211), "stat_def.value_kind")?,
+            default_value: read_f32(row, FieldId(212), "stat_def.default_value")?,
+            min_value: read_f32(row, FieldId(213), "stat_def.min_value")?,
+            max_value: read_f32(row, FieldId(214), "stat_def.max_value")?,
+            category: read_string(row, FieldId(215), "stat_def.category")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_unit_base_stat(project: &DataProject) -> Result<GeneratedTable<UnitBaseStat>, String> {
+    let rows = table_rows(project, TableId(24))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(UnitBaseStat {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(220), "unit_base_stat.name")?,
+            stat: read_row(row, FieldId(221), "unit_base_stat.stat")?,
+            value: read_f32(row, FieldId(222), "unit_base_stat.value")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_condition_def(project: &DataProject) -> Result<GeneratedTable<ConditionDef>, String> {
+    let rows = table_rows(project, TableId(25))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(ConditionDef {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(230), "condition_def.name")?,
+            condition_kind: read_string(row, FieldId(231), "condition_def.condition_kind")?,
+            subject: read_string(row, FieldId(232), "condition_def.subject")?,
+            stat: read_row(row, FieldId(233), "condition_def.stat")?,
+            operator: read_string(row, FieldId(234), "condition_def.operator")?,
+            compare_mode: read_string(row, FieldId(235), "condition_def.compare_mode")?,
+            value: read_f32(row, FieldId(236), "condition_def.value")?,
+            other_stat: read_row(row, FieldId(237), "condition_def.other_stat")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());

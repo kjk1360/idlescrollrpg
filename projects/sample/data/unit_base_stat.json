@@ -1,0 +1,17 @@
+[
+  { "id": 24001, "key": "knight_max_hp", "cells": { "220": { "kind": "string", "value": "Knight Max HP" }, "221": { "kind": "row", "value": 23001 }, "222": { "kind": "f32", "value": 120.0 } } },
+  { "id": 24002, "key": "knight_current_hp", "cells": { "220": { "kind": "string", "value": "Knight Current HP" }, "221": { "kind": "row", "value": 23002 }, "222": { "kind": "f32", "value": 120.0 } } },
+  { "id": 24003, "key": "knight_attack", "cells": { "220": { "kind": "string", "value": "Knight Attack" }, "221": { "kind": "row", "value": 23003 }, "222": { "kind": "f32", "value": 18.0 } } },
+  { "id": 24004, "key": "knight_current_mana", "cells": { "220": { "kind": "string", "value": "Knight Current Mana" }, "221": { "kind": "row", "value": 23004 }, "222": { "kind": "f32", "value": 0.0 } } },
+  { "id": 24005, "key": "knight_bleed_stack", "cells": { "220": { "kind": "string", "value": "Knight Bleed Stack" }, "221": { "kind": "row", "value": 23005 }, "222": { "kind": "f32", "value": 0.0 } } },
+  { "id": 24011, "key": "archer_max_hp", "cells": { "220": { "kind": "string", "value": "Archer Max HP" }, "221": { "kind": "row", "value": 23001 }, "222": { "kind": "f32", "value": 70.0 } } },
+  { "id": 24012, "key": "archer_current_hp", "cells": { "220": { "kind": "string", "value": "Archer Current HP" }, "221": { "kind": "row", "value": 23002 }, "222": { "kind": "f32", "value": 70.0 } } },
+  { "id": 24013, "key": "archer_attack", "cells": { "220": { "kind": "string", "value": "Archer Attack" }, "221": { "kind": "row", "value": 23003 }, "222": { "kind": "f32", "value": 12.0 } } },
+  { "id": 24014, "key": "archer_current_mana", "cells": { "220": { "kind": "string", "value": "Archer Current Mana" }, "221": { "kind": "row", "value": 23004 }, "222": { "kind": "f32", "value": 0.0 } } },
+  { "id": 24015, "key": "archer_bleed_stack", "cells": { "220": { "kind": "string", "value": "Archer Bleed Stack" }, "221": { "kind": "row", "value": 23005 }, "222": { "kind": "f32", "value": 0.0 } } },
+  { "id": 24021, "key": "slime_max_hp", "cells": { "220": { "kind": "string", "value": "Slime Max HP" }, "221": { "kind": "row", "value": 23001 }, "222": { "kind": "f32", "value": 45.0 } } },
+  { "id": 24022, "key": "slime_current_hp", "cells": { "220": { "kind": "string", "value": "Slime Current HP" }, "221": { "kind": "row", "value": 23002 }, "222": { "kind": "f32", "value": 45.0 } } },
+  { "id": 24023, "key": "slime_attack", "cells": { "220": { "kind": "string", "value": "Slime Attack" }, "221": { "kind": "row", "value": 23003 }, "222": { "kind": "f32", "value": 8.0 } } },
+  { "id": 24024, "key": "slime_current_mana", "cells": { "220": { "kind": "string", "value": "Slime Current Mana" }, "221": { "kind": "row", "value": 23004 }, "222": { "kind": "f32", "value": 0.0 } } },
+  { "id": 24025, "key": "slime_bleed_stack", "cells": { "220": { "kind": "string", "value": "Slime Bleed Stack" }, "221": { "kind": "row", "value": 23005 }, "222": { "kind": "f32", "value": 0.0 } } }
+]

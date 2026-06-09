@@ -1,0 +1,62 @@
+[
+  {
+    "id": 23001,
+    "key": "max_hp",
+    "cells": {
+      "210": { "kind": "string", "value": "Max HP" },
+      "211": { "kind": "string", "value": "f32" },
+      "212": { "kind": "f32", "value": 1.0 },
+      "213": { "kind": "f32", "value": 1.0 },
+      "214": { "kind": "f32", "value": 999999.0 },
+      "215": { "kind": "string", "value": "combat" }
+    }
+  },
+  {
+    "id": 23002,
+    "key": "current_hp",
+    "cells": {
+      "210": { "kind": "string", "value": "Current HP" },
+      "211": { "kind": "string", "value": "f32" },
+      "212": { "kind": "f32", "value": 1.0 },
+      "213": { "kind": "f32", "value": 0.0 },
+      "214": { "kind": "f32", "value": 999999.0 },
+      "215": { "kind": "string", "value": "combat" }
+    }
+  },
+  {
+    "id": 23003,
+    "key": "attack",
+    "cells": {
+      "210": { "kind": "string", "value": "Attack" },
+      "211": { "kind": "string", "value": "f32" },
+      "212": { "kind": "f32", "value": 1.0 },
+      "213": { "kind": "f32", "value": 0.0 },
+      "214": { "kind": "f32", "value": 999999.0 },
+      "215": { "kind": "string", "value": "combat" }
+    }
+  },
+  {
+    "id": 23004,
+    "key": "current_mana",
+    "cells": {
+      "210": { "kind": "string", "value": "Current Mana" },
+      "211": { "kind": "string", "value": "f32" },
+      "212": { "kind": "f32", "value": 0.0 },
+      "213": { "kind": "f32", "value": 0.0 },
+      "214": { "kind": "f32", "value": 999999.0 },
+      "215": { "kind": "string", "value": "resource" }
+    }
+  },
+  {
+    "id": 23005,
+    "key": "bleed_stack",
+    "cells": {
+      "210": { "kind": "string", "value": "Bleed Stack" },
+      "211": { "kind": "string", "value": "f32" },
+      "212": { "kind": "f32", "value": 0.0 },
+      "213": { "kind": "f32", "value": 0.0 },
+      "214": { "kind": "f32", "value": 999999.0 },
+      "215": { "kind": "string", "value": "status" }
+    }
+  }
+]

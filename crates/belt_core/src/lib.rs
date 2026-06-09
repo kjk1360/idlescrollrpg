@@ -7,6 +7,13 @@ pub struct UnitDefId(pub u32);
 pub struct SkillDefId(pub u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StatDefId(pub u32);
+
+pub const STAT_MAX_HP: StatDefId = StatDefId(23001);
+pub const STAT_CURRENT_HP: StatDefId = StatDefId(23002);
+pub const STAT_ATTACK: StatDefId = StatDefId(23003);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnitId(pub u64);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,6 +68,7 @@ pub struct UnitDef {
     pub move_speed: f32,
     pub primary_skill: Option<SkillDefId>,
     pub behavior_rules: Vec<BehaviorRule>,
+    pub base_stats: StatBlock,
     pub skill_cooldown_ticks: u32,
 }
 
@@ -69,12 +77,72 @@ pub struct BehaviorRule {
     pub priority: i32,
     pub skill: SkillDefId,
     pub condition: BehaviorCondition,
+    pub conditions: Vec<ConditionDef>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BehaviorCondition {
     NearestEnemyInCastPattern,
     Always,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConditionDef {
+    pub kind: ConditionKind,
+    pub subject: ConditionSubject,
+    pub stat: StatDefId,
+    pub operator: CompareOperator,
+    pub compare: StatCompare,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConditionKind {
+    NearestEnemyInCastPattern,
+    StatCompare,
+    Always,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConditionSubject {
+    SelfUnit,
+    Target,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum StatCompare {
+    Value(f32),
+    StatRatio { other_stat: StatDefId, ratio: f32 },
+    Stat(StatDefId),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompareOperator {
+    Lt,
+    Lte,
+    Eq,
+    Gte,
+    Gt,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct StatBlock {
+    values: HashMap<StatDefId, f32>,
+}
+
+impl StatBlock {
+    pub fn new(values: impl IntoIterator<Item = (StatDefId, f32)>) -> Self {
+        Self {
+            values: values.into_iter().collect(),
+        }
+    }
+
+    pub fn get(&self, stat: StatDefId) -> f32 {
+        self.values.get(&stat).copied().unwrap_or(0.0)
+    }
+
+    pub fn set(&mut self, stat: StatDefId, value: f32) {
+        self.values.insert(stat, value);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -185,6 +253,7 @@ pub struct UnitState {
     pub move_speed: f32,
     pub primary_skill: Option<SkillDefId>,
     pub behavior_rules: Vec<BehaviorRule>,
+    pub stats: StatBlock,
     pub skill_cooldown_ticks: u32,
     pub position: BeltPosition,
     pub grid: GridPosition,
@@ -524,20 +593,31 @@ impl BattleWorld {
             let unit_id = UnitId(self.next_unit_id);
             self.next_unit_id += 1;
             let home_grid = grid_from_belt(spawn.position, x_offset);
+            let mut stats = def.base_stats.clone();
+            if stats.get(STAT_MAX_HP) <= 0.0 {
+                stats.set(STAT_MAX_HP, def.max_hp as f32);
+            }
+            if stats.get(STAT_CURRENT_HP) <= 0.0 {
+                stats.set(STAT_CURRENT_HP, stats.get(STAT_MAX_HP));
+            }
+            if stats.get(STAT_ATTACK) <= 0.0 {
+                stats.set(STAT_ATTACK, def.attack as f32);
+            }
             let state = UnitState {
                 id: unit_id,
                 def_id: def.id,
                 name: def.name.clone(),
                 team,
-                hp: def.max_hp,
-                max_hp: def.max_hp,
-                attack: def.attack,
+                hp: stats.get(STAT_CURRENT_HP).round() as i32,
+                max_hp: stats.get(STAT_MAX_HP).round() as i32,
+                attack: stats.get(STAT_ATTACK).round() as i32,
                 attack_range: def.attack_range,
                 attack_interval: def.attack_interval,
                 attack_cooldown: 0.0,
                 move_speed: def.move_speed,
                 primary_skill: def.primary_skill,
                 behavior_rules: def.behavior_rules.clone(),
+                stats,
                 skill_cooldown_ticks: def.skill_cooldown_ticks,
                 position: home_grid.to_belt(),
                 grid: home_grid,
@@ -619,7 +699,7 @@ impl BattleWorld {
             let Some(skill) = self.skill_by_id(rule.skill) else {
                 continue;
             };
-            if behavior_condition_matches(rule.condition, unit.grid, target.grid, facing, skill) {
+            if self.behavior_rule_matches(rule, unit, target, facing, skill) {
                 return Some(skill);
             }
         }
@@ -632,6 +712,24 @@ impl BattleWorld {
             .skill_defs
             .iter()
             .find(|skill| skill.id == skill_id)
+    }
+
+    fn behavior_rule_matches(
+        &self,
+        rule: &BehaviorRule,
+        unit: &UnitState,
+        target: &UnitState,
+        facing: Direction,
+        skill: &SkillDef,
+    ) -> bool {
+        if !rule.conditions.is_empty() {
+            return rule
+                .conditions
+                .iter()
+                .all(|condition| condition_matches(condition, unit, target, facing, skill));
+        }
+
+        behavior_condition_matches(rule.condition, unit.grid, target.grid, facing, skill)
     }
 
     fn execute_skill(&mut self, caster_id: UnitId, target_id: UnitId, skill_id: SkillDefId) {
@@ -799,6 +897,9 @@ impl BattleWorld {
         if let Some(target_unit) = self.units.iter_mut().find(|unit| unit.id == target) {
             if target_unit.is_alive() {
                 target_unit.hp = (target_unit.hp - damage).max(0);
+                target_unit
+                    .stats
+                    .set(STAT_CURRENT_HP, target_unit.hp as f32);
                 self.events.push(BattleEvent::UnitAttacked {
                     attacker,
                     target,
@@ -892,6 +993,46 @@ fn behavior_condition_matches(
             pattern_contains(&skill.cast_pattern, actor, facing, target)
         }
         BehaviorCondition::Always => true,
+    }
+}
+
+fn condition_matches(
+    condition: &ConditionDef,
+    actor: &UnitState,
+    target: &UnitState,
+    facing: Direction,
+    skill: &SkillDef,
+) -> bool {
+    match condition.kind {
+        ConditionKind::NearestEnemyInCastPattern => {
+            pattern_contains(&skill.cast_pattern, actor.grid, facing, target.grid)
+        }
+        ConditionKind::Always => true,
+        ConditionKind::StatCompare => {
+            let subject = match condition.subject {
+                ConditionSubject::SelfUnit => actor,
+                ConditionSubject::Target => target,
+            };
+            let left = subject.stats.get(condition.stat);
+            let right = match condition.compare {
+                StatCompare::Value(value) => value,
+                StatCompare::Stat(other_stat) => subject.stats.get(other_stat),
+                StatCompare::StatRatio { other_stat, ratio } => {
+                    subject.stats.get(other_stat) * ratio
+                }
+            };
+            compare_values(left, condition.operator, right)
+        }
+    }
+}
+
+fn compare_values(left: f32, operator: CompareOperator, right: f32) -> bool {
+    match operator {
+        CompareOperator::Lt => left < right,
+        CompareOperator::Lte => left <= right,
+        CompareOperator::Eq => (left - right).abs() <= f32::EPSILON,
+        CompareOperator::Gte => left >= right,
+        CompareOperator::Gt => left > right,
     }
 }
 
@@ -1015,6 +1156,13 @@ fn next_step_toward(
 }
 
 pub fn sample_battle_config() -> BattleConfig {
+    let in_cast_pattern = ConditionDef {
+        kind: ConditionKind::NearestEnemyInCastPattern,
+        subject: ConditionSubject::Target,
+        stat: STAT_CURRENT_HP,
+        operator: CompareOperator::Gte,
+        compare: StatCompare::Value(0.0),
+    };
     let melee_pattern = CellPattern {
         id: 20001,
         name: "Melee Forward 1".to_string(),
@@ -1132,7 +1280,13 @@ pub fn sample_battle_config() -> BattleConfig {
             priority: 100,
             skill: SkillDefId(17001),
             condition: BehaviorCondition::NearestEnemyInCastPattern,
+            conditions: vec![in_cast_pattern.clone()],
         }],
+        base_stats: StatBlock::new([
+            (STAT_MAX_HP, 120.0),
+            (STAT_CURRENT_HP, 120.0),
+            (STAT_ATTACK, 18.0),
+        ]),
         skill_cooldown_ticks: 5,
     };
     let archer = UnitDef {
@@ -1148,7 +1302,13 @@ pub fn sample_battle_config() -> BattleConfig {
             priority: 100,
             skill: SkillDefId(17002),
             condition: BehaviorCondition::NearestEnemyInCastPattern,
+            conditions: vec![in_cast_pattern.clone()],
         }],
+        base_stats: StatBlock::new([
+            (STAT_MAX_HP, 70.0),
+            (STAT_CURRENT_HP, 70.0),
+            (STAT_ATTACK, 12.0),
+        ]),
         skill_cooldown_ticks: 4,
     };
     let slime = UnitDef {
@@ -1164,7 +1324,13 @@ pub fn sample_battle_config() -> BattleConfig {
             priority: 100,
             skill: SkillDefId(17003),
             condition: BehaviorCondition::NearestEnemyInCastPattern,
+            conditions: vec![in_cast_pattern],
         }],
+        base_stats: StatBlock::new([
+            (STAT_MAX_HP, 45.0),
+            (STAT_CURRENT_HP, 45.0),
+            (STAT_ATTACK, 8.0),
+        ]),
         skill_cooldown_ticks: 6,
     };
 
@@ -1354,9 +1520,68 @@ mod tests {
             priority: 200,
             skill: SkillDefId(17002),
             condition: BehaviorCondition::NearestEnemyInCastPattern,
+            conditions: vec![ConditionDef {
+                kind: ConditionKind::NearestEnemyInCastPattern,
+                subject: ConditionSubject::Target,
+                stat: STAT_CURRENT_HP,
+                operator: CompareOperator::Gte,
+                compare: StatCompare::Value(0.0),
+            }],
         }];
 
         let mut world = BattleWorld::new(config);
+        let mut saw_knight_projectile = false;
+        for _ in 0..120 {
+            world.tick(0.2);
+            for event in world.drain_events() {
+                if matches!(
+                    event,
+                    BattleEvent::ProjectileLaunched {
+                        caster: UnitId(1),
+                        ..
+                    }
+                ) {
+                    saw_knight_projectile = true;
+                }
+            }
+        }
+
+        assert!(saw_knight_projectile);
+    }
+
+    #[test]
+    fn behavior_rules_can_check_self_stat_ratio() {
+        let mut config = sample_battle_config();
+        let knight = config
+            .unit_defs
+            .iter_mut()
+            .find(|def| def.id == UnitDefId(1))
+            .expect("knight exists");
+        knight.base_stats.set(STAT_CURRENT_HP, 40.0);
+        knight.behavior_rules = vec![BehaviorRule {
+            priority: 300,
+            skill: SkillDefId(17002),
+            condition: BehaviorCondition::Always,
+            conditions: vec![ConditionDef {
+                kind: ConditionKind::StatCompare,
+                subject: ConditionSubject::SelfUnit,
+                stat: STAT_CURRENT_HP,
+                operator: CompareOperator::Lt,
+                compare: StatCompare::StatRatio {
+                    other_stat: STAT_MAX_HP,
+                    ratio: 0.5,
+                },
+            }],
+        }];
+
+        let mut world = BattleWorld::new(config);
+        let knight = world
+            .units()
+            .iter()
+            .find(|unit| unit.id == UnitId(1))
+            .expect("knight spawned");
+        assert_eq!(knight.hp, 40);
+
         let mut saw_knight_projectile = false;
         for _ in 0..120 {
             world.tick(0.2);

@@ -1,7 +1,8 @@
 use belt_core::{
     BattleConfig, BehaviorCondition, BehaviorRule, BeltPosition, CellOffset, CellPattern,
-    FacingMode, MapDef, SkillDef, SkillDefId, SkillEffect, SkillEffectKind, SkillStep,
-    SkillStepOrigin, UnitDef, UnitDefId, UnitGroup, UnitSpawn, WaveDef,
+    CompareOperator, ConditionDef, ConditionKind, ConditionSubject, FacingMode, MapDef, SkillDef,
+    SkillDefId, SkillEffect, SkillEffectKind, SkillStep, SkillStepOrigin, StatBlock, StatCompare,
+    StatDefId, UnitDef, UnitDefId, UnitGroup, UnitSpawn, WaveDef,
 };
 use data_studio_core::{DataProject, RowId};
 use generated_data::relation_cache::GeneratedRelationCache;
@@ -180,6 +181,11 @@ fn unit_def_from_data(
         .iter()
         .map(|rule_id| behavior_rule_from_data(db, *rule_id))
         .collect::<Result<Vec<_>, _>>()?;
+    let base_stats = row
+        .base_stats
+        .iter()
+        .map(|stat_id| unit_base_stat_from_data(db, *stat_id))
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(UnitDef {
         id: UnitDefId(row.id.0 as u32),
@@ -191,6 +197,7 @@ fn unit_def_from_data(
         move_speed: row.move_speed,
         primary_skill: primary_skill.map(|skill_id| SkillDefId(skill_id.0 as u32)),
         behavior_rules,
+        base_stats: StatBlock::new(base_stats),
         skill_cooldown_ticks,
     })
 }
@@ -207,6 +214,61 @@ fn behavior_rule_from_data(db: &GeneratedDatabase, row_id: RowId) -> Result<Beha
             "always" => BehaviorCondition::Always,
             "nearest_enemy_in_cast_pattern" => BehaviorCondition::NearestEnemyInCastPattern,
             other => return Err(format!("unsupported behavior condition {other}")),
+        },
+        conditions: row
+            .conditions
+            .iter()
+            .map(|condition_id| condition_def_from_data(db, *condition_id))
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+fn unit_base_stat_from_data(
+    db: &GeneratedDatabase,
+    row_id: RowId,
+) -> Result<(StatDefId, f32), String> {
+    let row = db
+        .unit_base_stat
+        .get_by_id(row_id)
+        .ok_or_else(|| format!("missing unit base stat {:?}", row_id))?;
+    Ok((StatDefId(row.stat.0 as u32), row.value))
+}
+
+fn condition_def_from_data(db: &GeneratedDatabase, row_id: RowId) -> Result<ConditionDef, String> {
+    let row = db
+        .condition_def
+        .get_by_id(row_id)
+        .ok_or_else(|| format!("missing condition {:?}", row_id))?;
+    let other_stat = StatDefId(row.other_stat.0 as u32);
+    Ok(ConditionDef {
+        kind: match row.condition_kind.as_str() {
+            "always" => ConditionKind::Always,
+            "nearest_enemy_in_cast_pattern" => ConditionKind::NearestEnemyInCastPattern,
+            "stat_compare" => ConditionKind::StatCompare,
+            other => return Err(format!("unsupported condition kind {other}")),
+        },
+        subject: match row.subject.as_str() {
+            "target" => ConditionSubject::Target,
+            "self" => ConditionSubject::SelfUnit,
+            other => return Err(format!("unsupported condition subject {other}")),
+        },
+        stat: StatDefId(row.stat.0 as u32),
+        operator: match row.operator.as_str() {
+            "lt" => CompareOperator::Lt,
+            "lte" => CompareOperator::Lte,
+            "eq" => CompareOperator::Eq,
+            "gte" => CompareOperator::Gte,
+            "gt" => CompareOperator::Gt,
+            other => return Err(format!("unsupported compare operator {other}")),
+        },
+        compare: match row.compare_mode.as_str() {
+            "value" => StatCompare::Value(row.value),
+            "stat_ratio" => StatCompare::StatRatio {
+                other_stat,
+                ratio: row.value,
+            },
+            "stat" => StatCompare::Stat(other_stat),
+            other => return Err(format!("unsupported compare mode {other}")),
         },
     })
 }

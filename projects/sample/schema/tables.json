@@ -87,6 +87,16 @@
           "target_table": 22
         },
         "required": false
+      },
+      {
+        "id": 10,
+        "key": "base_stats",
+        "display_name": "Base Stats",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 24
+        },
+        "required": true
       }
     ]
   },
@@ -1111,6 +1121,193 @@
         "display_name": "Condition",
         "kind": {
           "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 204,
+        "key": "conditions",
+        "display_name": "Conditions",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 25
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 23,
+    "key": "stat_def",
+    "display_name": "Stat Def",
+    "fields": [
+      {
+        "id": 210,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 211,
+        "key": "value_kind",
+        "display_name": "Value Kind",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 212,
+        "key": "default_value",
+        "display_name": "Default Value",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 213,
+        "key": "min_value",
+        "display_name": "Min Value",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 214,
+        "key": "max_value",
+        "display_name": "Max Value",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 215,
+        "key": "category",
+        "display_name": "Category",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 24,
+    "key": "unit_base_stat",
+    "display_name": "Unit Base Stat",
+    "fields": [
+      {
+        "id": 220,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 221,
+        "key": "stat",
+        "display_name": "Stat",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 23
+        },
+        "required": true
+      },
+      {
+        "id": 222,
+        "key": "value",
+        "display_name": "Value",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 25,
+    "key": "condition_def",
+    "display_name": "Condition Def",
+    "fields": [
+      {
+        "id": 230,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 231,
+        "key": "condition_kind",
+        "display_name": "Condition Kind",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 232,
+        "key": "subject",
+        "display_name": "Subject",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 233,
+        "key": "stat",
+        "display_name": "Stat",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 23
+        },
+        "required": true
+      },
+      {
+        "id": 234,
+        "key": "operator",
+        "display_name": "Operator",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 235,
+        "key": "compare_mode",
+        "display_name": "Compare Mode",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 236,
+        "key": "value",
+        "display_name": "Value",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 237,
+        "key": "other_stat",
+        "display_name": "Other Stat",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 23
         },
         "required": true
       }

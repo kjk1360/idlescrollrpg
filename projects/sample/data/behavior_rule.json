@@ -18,6 +18,12 @@
       "203": {
         "kind": "string",
         "value": "nearest_enemy_in_cast_pattern"
+      },
+      "204": {
+        "kind": "rows",
+        "value": [
+          25001
+        ]
       }
     }
   },
@@ -40,6 +46,12 @@
       "203": {
         "kind": "string",
         "value": "nearest_enemy_in_cast_pattern"
+      },
+      "204": {
+        "kind": "rows",
+        "value": [
+          25001
+        ]
       }
     }
   },
@@ -62,6 +74,12 @@
       "203": {
         "kind": "string",
         "value": "nearest_enemy_in_cast_pattern"
+      },
+      "204": {
+        "kind": "rows",
+        "value": [
+          25001
+        ]
       }
     }
   }

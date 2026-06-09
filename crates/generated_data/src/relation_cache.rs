@@ -11,6 +11,7 @@ pub struct GeneratedRelationCache {
     pub unit_def_visual: HashMap<RowId, RowId>,
     pub unit_def_skills: HashMap<RowId, Vec<RowId>>,
     pub unit_def_behavior_rules: HashMap<RowId, Vec<RowId>>,
+    pub unit_def_base_stats: HashMap<RowId, Vec<RowId>>,
     pub unit_group_members: HashMap<RowId, Vec<RowId>>,
     pub wave_def_enemy_groups: HashMap<RowId, Vec<RowId>>,
     pub map_def_party: HashMap<RowId, RowId>,
@@ -35,6 +36,10 @@ pub struct GeneratedRelationCache {
     pub skill_effect_impact_pattern: HashMap<RowId, RowId>,
     pub cell_pattern_cells: HashMap<RowId, Vec<RowId>>,
     pub behavior_rule_skill: HashMap<RowId, RowId>,
+    pub behavior_rule_conditions: HashMap<RowId, Vec<RowId>>,
+    pub unit_base_stat_stat: HashMap<RowId, RowId>,
+    pub condition_def_stat: HashMap<RowId, RowId>,
+    pub condition_def_other_stat: HashMap<RowId, RowId>,
 }
 
 impl GeneratedRelationCache {
@@ -72,6 +77,19 @@ impl GeneratedRelationCache {
             cache
                 .unit_def_behavior_rules
                 .insert(row.id, row.behavior_rules.clone());
+        }
+        for row in &db.unit_def.rows {
+            for target_id in &row.base_stats {
+                if db.unit_base_stat.get_by_id(*target_id).is_none() {
+                    return Err(format!(
+                        "missing relation target for unit_def.base_stats from {:?} to {:?}",
+                        row.id, target_id
+                    ));
+                }
+            }
+            cache
+                .unit_def_base_stats
+                .insert(row.id, row.base_stats.clone());
         }
         for row in &db.unit_group.rows {
             for target_id in &row.members {
@@ -323,6 +341,48 @@ impl GeneratedRelationCache {
             }
             cache.behavior_rule_skill.insert(row.id, row.skill);
         }
+        for row in &db.behavior_rule.rows {
+            for target_id in &row.conditions {
+                if db.condition_def.get_by_id(*target_id).is_none() {
+                    return Err(format!(
+                        "missing relation target for behavior_rule.conditions from {:?} to {:?}",
+                        row.id, target_id
+                    ));
+                }
+            }
+            cache
+                .behavior_rule_conditions
+                .insert(row.id, row.conditions.clone());
+        }
+        for row in &db.unit_base_stat.rows {
+            if db.stat_def.get_by_id(row.stat).is_none() {
+                return Err(format!(
+                    "missing relation target for unit_base_stat.stat from {:?} to {:?}",
+                    row.id, row.stat
+                ));
+            }
+            cache.unit_base_stat_stat.insert(row.id, row.stat);
+        }
+        for row in &db.condition_def.rows {
+            if db.stat_def.get_by_id(row.stat).is_none() {
+                return Err(format!(
+                    "missing relation target for condition_def.stat from {:?} to {:?}",
+                    row.id, row.stat
+                ));
+            }
+            cache.condition_def_stat.insert(row.id, row.stat);
+        }
+        for row in &db.condition_def.rows {
+            if db.stat_def.get_by_id(row.other_stat).is_none() {
+                return Err(format!(
+                    "missing relation target for condition_def.other_stat from {:?} to {:?}",
+                    row.id, row.other_stat
+                ));
+            }
+            cache
+                .condition_def_other_stat
+                .insert(row.id, row.other_stat);
+        }
         Ok(cache)
     }
 
@@ -336,6 +396,10 @@ impl GeneratedRelationCache {
 
     pub fn get_unit_def_behavior_rules(&self, source: RowId) -> Option<&[RowId]> {
         self.unit_def_behavior_rules.get(&source).map(Vec::as_slice)
+    }
+
+    pub fn get_unit_def_base_stats(&self, source: RowId) -> Option<&[RowId]> {
+        self.unit_def_base_stats.get(&source).map(Vec::as_slice)
     }
 
     pub fn get_unit_group_members(&self, source: RowId) -> Option<&[RowId]> {
@@ -438,5 +502,23 @@ impl GeneratedRelationCache {
 
     pub fn get_behavior_rule_skill(&self, source: RowId) -> Option<RowId> {
         self.behavior_rule_skill.get(&source).copied()
+    }
+
+    pub fn get_behavior_rule_conditions(&self, source: RowId) -> Option<&[RowId]> {
+        self.behavior_rule_conditions
+            .get(&source)
+            .map(Vec::as_slice)
+    }
+
+    pub fn get_unit_base_stat_stat(&self, source: RowId) -> Option<RowId> {
+        self.unit_base_stat_stat.get(&source).copied()
+    }
+
+    pub fn get_condition_def_stat(&self, source: RowId) -> Option<RowId> {
+        self.condition_def_stat.get(&source).copied()
+    }
+
+    pub fn get_condition_def_other_stat(&self, source: RowId) -> Option<RowId> {
+        self.condition_def_other_stat.get(&source).copied()
     }
 }
