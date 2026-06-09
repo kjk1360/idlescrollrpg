@@ -76,6 +76,8 @@ Implemented:
 - `projectile_damage` effects launch a delayed projectile impact at one grid cell per 0.2s tick
 - `skill_effect.impact_pattern` resolves projectile impact cells centered on the projectile destination grid
 - sample archer projectile uses `impact_3x3`
+- `tick_offset > 0` skill steps are queued and executed after their tick delay
+- sample knight slash has a one-tick delayed 3x3 aftershock step
 - Play Preview renders area flashes as translucent animated red grid squares
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -281,6 +283,7 @@ Implemented:
 - primary skill selection from `unit_def.skills`
 - skill cooldown from `skill_def.cooldown_ticks`
 - immediate `skill_step` execution when `tick_offset == 0`
+- queued `skill_step` execution when `tick_offset > 0`
 - effect cells from `CellPattern` relative `forward/side` offsets rotated by up/down/left/right facing
 - damage effects
 - `projectile_damage` effects with delayed impact damage
@@ -291,7 +294,6 @@ Implemented:
 
 Not implemented yet:
 
-- queued skill steps for `tick_offset > 0`
 - explicit projectile authoring fields such as speed, visual type, pierce/block rules, and collision policy
 - trigger timing and conditional skill activation
 - multi-skill behavior rule selection

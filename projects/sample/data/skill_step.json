@@ -82,5 +82,33 @@
         ]
       }
     }
+  },
+  {
+    "id": 18004,
+    "key": "knight_aftershock_hit",
+    "cells": {
+      "160": {
+        "kind": "string",
+        "value": "Knight Aftershock Hit"
+      },
+      "161": {
+        "kind": "i32",
+        "value": 1
+      },
+      "162": {
+        "kind": "string",
+        "value": "target"
+      },
+      "163": {
+        "kind": "row",
+        "value": 20003
+      },
+      "164": {
+        "kind": "rows",
+        "value": [
+          19004
+        ]
+      }
+    }
   }
 ]

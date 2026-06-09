@@ -163,6 +163,8 @@ The first playable preview is available through `belt_tools play`:
 - Added sample `impact_3x3` data and linked it to the archer projectile impact.
 - Play Preview renders default skill area flashes as translucent animated red grid squares.
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows.
+- Added queued `skill_step` execution for `tick_offset > 0`.
+- Added a sample knight aftershock step that fires one tick after the initial slash.
 
 ## Locked Design Direction
 
@@ -197,9 +199,8 @@ The first playable preview is available through `belt_tools play`:
 
 ## Immediate Next Milestone: Combat Skill Runtime v1
 
-The runtime is grid/tick based, immediate primary skills execute through generated `CellPattern` data, and projectile impacts can resolve a destination-centered `CellPattern`. Next, extend this into the full skill execution model:
+The runtime is grid/tick based, primary skills execute immediate and delayed `skill_step` entries through generated `CellPattern` data, and projectile impacts can resolve a destination-centered `CellPattern`. Next, extend this into the full skill execution model:
 
-- queued `skill_step` execution for `tick_offset > 0`
 - explicit projectile authoring fields such as speed, visual type, pierce/block rules, and collision policy
 - trigger timing runtime for conditional skill activation
 - behavior/target rule runtime

@@ -257,18 +257,46 @@ pub struct BattleWorld {
     phase: BattlePhase,
     tick_accumulator: f32,
     prepare_ticks_remaining: u32,
+    pending_skill_steps: Vec<PendingSkillStep>,
     pending_impacts: Vec<PendingImpact>,
 }
 
 #[derive(Debug, Clone)]
+struct PendingSkillStep {
+    caster: EffectCaster,
+    target_grid: GridPosition,
+    facing: Direction,
+    step: SkillStep,
+    ticks_remaining: u32,
+}
+
+#[derive(Debug, Clone)]
 struct PendingImpact {
-    caster_id: UnitId,
-    caster_team: Team,
+    caster: EffectCaster,
     cells: Vec<GridPosition>,
     damage: i32,
     knockback_cells: i32,
     facing: Direction,
     ticks_remaining: u32,
+}
+
+#[derive(Debug, Clone)]
+struct EffectCaster {
+    id: UnitId,
+    team: Team,
+    attack: i32,
+    grid: GridPosition,
+}
+
+impl From<&UnitState> for EffectCaster {
+    fn from(unit: &UnitState) -> Self {
+        Self {
+            id: unit.id,
+            team: unit.team,
+            attack: unit.attack,
+            grid: unit.grid,
+        }
+    }
 }
 
 impl BattleWorld {
@@ -283,6 +311,7 @@ impl BattleWorld {
             phase: BattlePhase::Prepare,
             tick_accumulator: 0.0,
             prepare_ticks_remaining: 0,
+            pending_skill_steps: Vec::new(),
             pending_impacts: Vec::new(),
         };
 
@@ -333,6 +362,7 @@ impl BattleWorld {
             return;
         }
 
+        self.tick_pending_skill_steps();
         self.tick_pending_impacts();
 
         let snapshot = self.units.clone();
@@ -437,6 +467,7 @@ impl BattleWorld {
             self.active_wave_id = Some(wave.id.clone());
             self.phase = BattlePhase::Prepare;
             self.prepare_ticks_remaining = self.config.prepare_ticks;
+            self.pending_skill_steps.clear();
             self.pending_impacts.clear();
             self.reset_party_home_grids();
             for group in &wave.enemy_groups {
@@ -580,24 +611,45 @@ impl BattleWorld {
             return;
         };
         let facing = direction_toward(caster.grid, target.grid);
+        let caster = EffectCaster::from(&caster);
 
-        for step in skill.steps.iter().filter(|step| step.tick_offset == 0) {
-            let origin = match step.origin {
-                SkillStepOrigin::Caster => caster.grid,
-                SkillStepOrigin::Target => target.grid,
-            };
-            let cells = pattern_cells(&step.pattern, origin, facing)
-                .into_iter()
-                .collect::<HashSet<_>>();
-            for effect in &step.effects {
-                self.apply_effect(&caster, target.grid, facing, &cells, effect);
+        for step in &skill.steps {
+            if step.tick_offset > 0 {
+                self.pending_skill_steps.push(PendingSkillStep {
+                    caster: caster.clone(),
+                    target_grid: target.grid,
+                    facing,
+                    step: step.clone(),
+                    ticks_remaining: step.tick_offset,
+                });
+                continue;
             }
+            self.execute_skill_step(&caster, target.grid, facing, step);
+        }
+    }
+
+    fn execute_skill_step(
+        &mut self,
+        caster: &EffectCaster,
+        target_grid: GridPosition,
+        facing: Direction,
+        step: &SkillStep,
+    ) {
+        let origin = match step.origin {
+            SkillStepOrigin::Caster => caster.grid,
+            SkillStepOrigin::Target => target_grid,
+        };
+        let cells = pattern_cells(&step.pattern, origin, facing)
+            .into_iter()
+            .collect::<HashSet<_>>();
+        for effect in &step.effects {
+            self.apply_effect(caster, target_grid, facing, &cells, effect);
         }
     }
 
     fn apply_effect(
         &mut self,
-        caster: &UnitState,
+        caster: &EffectCaster,
         target_grid: GridPosition,
         facing: Direction,
         cells: &HashSet<GridPosition>,
@@ -635,8 +687,7 @@ impl BattleWorld {
                     duration: travel_ticks as f32 * self.config.tick_duration,
                 });
                 self.pending_impacts.push(PendingImpact {
-                    caster_id: caster.id,
-                    caster_team: caster.team,
+                    caster: caster.clone(),
                     cells: effect
                         .impact_pattern
                         .as_ref()
@@ -648,6 +699,24 @@ impl BattleWorld {
                     ticks_remaining: travel_ticks,
                 });
             }
+        }
+    }
+
+    fn tick_pending_skill_steps(&mut self) {
+        let mut ready = Vec::new();
+        let mut pending = Vec::new();
+        for mut step in self.pending_skill_steps.drain(..) {
+            step.ticks_remaining = step.ticks_remaining.saturating_sub(1);
+            if step.ticks_remaining == 0 {
+                ready.push(step);
+            } else {
+                pending.push(step);
+            }
+        }
+        self.pending_skill_steps = pending;
+
+        for step in ready {
+            self.execute_skill_step(&step.caster, step.target_grid, step.facing, &step.step);
         }
     }
 
@@ -672,13 +741,13 @@ impl BattleWorld {
             let targets = self
                 .units
                 .iter()
-                .filter(|unit| unit.is_alive() && impact.caster_team.is_enemy_of(unit.team))
+                .filter(|unit| unit.is_alive() && impact.caster.team.is_enemy_of(unit.team))
                 .filter(|unit| cell_set.contains(&unit.grid))
                 .map(|unit| unit.id)
                 .collect::<Vec<_>>();
 
             for target in targets {
-                self.damage_unit(impact.caster_id, target, impact.damage);
+                self.damage_unit(impact.caster.id, target, impact.damage);
                 if impact.knockback_cells > 0 {
                     self.knockback_unit(target, impact.facing, impact.knockback_cells);
                 }
@@ -921,20 +990,36 @@ pub fn sample_battle_config() -> BattleConfig {
         name: "Knight Slash".to_string(),
         cooldown_ticks: 5,
         cast_pattern: melee_pattern.clone(),
-        steps: vec![SkillStep {
-            tick_offset: 0,
-            origin: SkillStepOrigin::Caster,
-            pattern: melee_pattern.clone(),
-            effects: vec![SkillEffect {
-                kind: SkillEffectKind::Damage,
-                power: 18,
-                scaling: 1.0,
-                knockback_cells: 0,
-                impact_pattern: Some(melee_pattern.clone()),
-                trigger_skill: None,
-                trigger_timing: None,
-            }],
-        }],
+        steps: vec![
+            SkillStep {
+                tick_offset: 0,
+                origin: SkillStepOrigin::Caster,
+                pattern: melee_pattern.clone(),
+                effects: vec![SkillEffect {
+                    kind: SkillEffectKind::Damage,
+                    power: 18,
+                    scaling: 1.0,
+                    knockback_cells: 0,
+                    impact_pattern: Some(melee_pattern.clone()),
+                    trigger_skill: None,
+                    trigger_timing: None,
+                }],
+            },
+            SkillStep {
+                tick_offset: 1,
+                origin: SkillStepOrigin::Target,
+                pattern: impact_pattern.clone(),
+                effects: vec![SkillEffect {
+                    kind: SkillEffectKind::Damage,
+                    power: 5,
+                    scaling: 0.0,
+                    knockback_cells: 0,
+                    impact_pattern: Some(impact_pattern.clone()),
+                    trigger_skill: None,
+                    trigger_timing: None,
+                }],
+            },
+        ],
         target_rule: "nearest_enemy".to_string(),
     };
     let archer_skill = SkillDef {
@@ -1156,5 +1241,34 @@ mod tests {
 
         assert!(saw_projectile);
         assert!(saw_impact_3x3);
+    }
+
+    #[test]
+    fn delayed_skill_steps_execute_after_tick_offset() {
+        let mut world = BattleWorld::new(sample_battle_config());
+        let mut saw_delayed_area = false;
+
+        for _ in 0..120 {
+            world.tick(0.2);
+            let mut frame_has_attack = false;
+            let mut frame_has_3x3 = false;
+            for event in world.drain_events() {
+                match event {
+                    BattleEvent::UnitAttacked { attacker, .. } if attacker == UnitId(1) => {
+                        frame_has_attack = true;
+                    }
+                    BattleEvent::SkillAreaEffect { cells } if cells.len() == 9 => {
+                        frame_has_3x3 = true;
+                    }
+                    _ => {}
+                }
+            }
+            if frame_has_attack && frame_has_3x3 {
+                saw_delayed_area = true;
+                break;
+            }
+        }
+
+        assert!(saw_delayed_area);
     }
 }

@@ -112,5 +112,43 @@
         "value": 20001
       }
     }
+  },
+  {
+    "id": 19004,
+    "key": "knight_aftershock_damage",
+    "cells": {
+      "170": {
+        "kind": "string",
+        "value": "Knight Aftershock Damage"
+      },
+      "171": {
+        "kind": "string",
+        "value": "damage"
+      },
+      "172": {
+        "kind": "i32",
+        "value": 5
+      },
+      "173": {
+        "kind": "f32",
+        "value": 0.0
+      },
+      "174": {
+        "kind": "i32",
+        "value": 0
+      },
+      "175": {
+        "kind": "row",
+        "value": 17001
+      },
+      "176": {
+        "kind": "string",
+        "value": ""
+      },
+      "177": {
+        "kind": "row",
+        "value": 20003
+      }
+    }
   }
 ]
