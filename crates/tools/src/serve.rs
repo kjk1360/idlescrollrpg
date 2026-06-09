@@ -135,6 +135,7 @@ fn route_request(request: &Request, state: &ServerState) -> Vec<u8> {
     let result = match (request.method.as_str(), path_without_query(&request.path)) {
         ("GET", "/") => Ok(html(INDEX_HTML)),
         ("GET", "/asset") => asset(request, state),
+        ("GET", "/api/assets") => api_assets(state),
         ("GET", "/api/project") => api_project(state),
         ("GET", "/api/status") => api_status(state),
         ("GET", "/api/view") => api_view(request, state),
@@ -169,6 +170,7 @@ fn route_request(request: &Request, state: &ServerState) -> Vec<u8> {
 fn asset(request: &Request, state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
     let raw_path =
         query_value(&request.path, "path").ok_or_else(|| ("missing path".to_string(), 400))?;
+    let raw_path = percent_decode(raw_path).map_err(|error| (error, 400))?;
     if raw_path.contains("..") || raw_path.starts_with('/') || raw_path.starts_with('\\') {
         return Err(("invalid asset path".to_string(), 400));
     }
@@ -180,6 +182,60 @@ fn asset(request: &Request, state: &ServerState) -> Result<Vec<u8>, (String, u16
         )
     })?;
     Ok(response(200, content_type_for_path(&path), &bytes))
+}
+
+fn api_assets(state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
+    let root = state.project_path.join("assets");
+    let mut files = Vec::new();
+    if root.exists() {
+        collect_asset_files(&root, &root, &mut files)
+            .map_err(|error| (format!("failed to list assets: {error}"), 500))?;
+    }
+    files.sort_by(|a, b| {
+        a.get("path")
+            .and_then(Value::as_str)
+            .cmp(&b.get("path").and_then(Value::as_str))
+    });
+    Ok(json_response(200, &json!({ "ok": true, "assets": files })))
+}
+
+fn collect_asset_files(root: &Path, dir: &Path, files: &mut Vec<Value>) -> std::io::Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_asset_files(root, &path, files)?;
+            continue;
+        }
+        if !is_image_asset(&path) {
+            continue;
+        }
+        let relative = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        let asset_path = format!("assets/{relative}");
+        let metadata = entry.metadata()?;
+        files.push(json!({
+            "path": asset_path,
+            "name": path.file_name().and_then(|value| value.to_str()).unwrap_or(""),
+            "bytes": metadata.len(),
+            "content_type": content_type_for_path(&path),
+        }));
+    }
+    Ok(())
+}
+
+fn is_image_asset(path: &Path) -> bool {
+    matches!(
+        path.extension()
+            .and_then(|extension| extension.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase()
+            .as_str(),
+        "png" | "jpg" | "jpeg" | "svg" | "webp"
+    )
 }
 
 fn api_project(state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
@@ -1048,6 +1104,33 @@ fn query_value<'a>(path: &'a str, key: &str) -> Option<&'a str> {
     })
 }
 
+fn percent_decode(value: &str) -> Result<String, String> {
+    let bytes = value.as_bytes();
+    let mut output = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'%' if index + 2 < bytes.len() => {
+                let hex = std::str::from_utf8(&bytes[index + 1..index + 3])
+                    .map_err(|_| "invalid percent encoding".to_string())?;
+                let byte = u8::from_str_radix(hex, 16)
+                    .map_err(|_| "invalid percent encoding".to_string())?;
+                output.push(byte);
+                index += 3;
+            }
+            b'+' => {
+                output.push(b' ');
+                index += 1;
+            }
+            byte => {
+                output.push(byte);
+                index += 1;
+            }
+        }
+    }
+    String::from_utf8(output).map_err(|_| "invalid utf-8 in query value".to_string())
+}
+
 fn html(content: &str) -> Vec<u8> {
     response(200, "text/html; charset=utf-8", content.as_bytes())
 }
@@ -1447,6 +1530,87 @@ const INDEX_HTML: &str = r#"<!doctype html>
       color: var(--text);
       background: white;
     }
+    .asset-panel {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+    .asset-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      background: #f0f3f6;
+      font-weight: 650;
+    }
+    .asset-body {
+      display: grid;
+      grid-template-columns: minmax(360px, 1fr) 360px;
+      gap: 12px;
+      padding: 10px;
+    }
+    .asset-browser {
+      border: 1px solid var(--line);
+      min-height: 260px;
+      max-height: 360px;
+      overflow: auto;
+    }
+    .asset-browser button {
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 84px;
+      gap: 8px;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      border-radius: 0;
+      text-align: left;
+    }
+    .asset-browser small {
+      color: var(--muted);
+    }
+    .asset-form {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      align-content: start;
+    }
+    .asset-form label {
+      display: grid;
+      gap: 3px;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .asset-form input,
+    .asset-form select {
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 8px;
+      font: inherit;
+      font-size: 13px;
+      color: var(--text);
+      background: white;
+    }
+    .asset-form .wide {
+      grid-column: 1 / -1;
+    }
+    .asset-preview {
+      grid-column: 1 / -1;
+      height: 170px;
+      border: 1px solid var(--line);
+      background: #202832;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+    .asset-preview img {
+      max-width: 100%;
+      max-height: 100%;
+      image-rendering: pixelated;
+    }
     .animation-head {
       display: flex;
       align-items: center;
@@ -1711,7 +1875,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
     </main>
   </div>
   <script>
-    let state = { project: null, mode: 'schema', selected: null, backStack: [], visual: { key: null, state: 'idle', started: 0 }, images: {} };
+    let state = { project: null, assets: [], mode: 'schema', selected: null, backStack: [], visual: { key: null, state: 'idle', started: 0 }, images: {} };
     const $ = id => document.getElementById(id);
 
     async function api(path, options) {
@@ -2046,6 +2210,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
             <div id="visualStates" class="visual-states"></div>
           </div>
         </div>
+        ${renderAssetBrowser()}
         ${renderStateMachineEditor(selected)}
         ${renderAnimationEditor(selected)}
         ${renderSpriteSlicer()}`;
@@ -2081,6 +2246,154 @@ const INDEX_HTML: &str = r#"<!doctype html>
         await loadProject(false);
       } catch (error) {
         log(`error: ${error.message}`);
+      }
+    }
+
+    function renderAssetBrowser() {
+      const textures = tableDataByKey('texture_asset').rows;
+      const selectedTexture = textures.find(row => row.id === Number(state.visual.textureId)) || textures[0] || null;
+      const selectedPath = state.visual.assetPath || cellStringByKey('texture_asset', selectedTexture, 'path', state.assets[0]?.path || '');
+      const textureOptions = textures.map(row => `<option value="${row.id}" ${selectedTexture?.id === row.id ? 'selected' : ''}>${escapeHtml(cellStringByKey('texture_asset', row, 'name', row.key))}</option>`).join('');
+      const asset = state.assets.find(item => item.path === selectedPath);
+      return `
+        <div class="asset-panel">
+          <div class="asset-head">
+            <span>Project Assets</span>
+            <span>${state.assets.length} image files / ${textures.length} texture assets</span>
+          </div>
+          <div class="asset-body">
+            <div class="asset-browser">
+              ${state.assets.map(item => `
+                <button onclick="selectAssetPath(${JSON.stringify(item.path)})">
+                  <span>${escapeHtml(item.path)}<br><small>${escapeHtml(item.content_type)}</small></span>
+                  <span>${formatBytes(item.bytes)}</span>
+                </button>`).join('') || `<button disabled><span>No image assets under project assets</span><span></span></button>`}
+            </div>
+            <div class="asset-form">
+              <label class="wide">Texture Row
+                <select id="textureEditRow" onchange="selectTextureRow(this.value)">
+                  ${textureOptions || '<option value="">new texture</option>'}
+                </select>
+              </label>
+              <label class="wide">Path
+                <input id="texturePath" value="${escapeAttr(selectedPath)}" oninput="previewTexturePath(this.value)">
+              </label>
+              <label class="wide">Name
+                <input id="textureName" value="${escapeAttr(cellStringByKey('texture_asset', selectedTexture, 'name', assetNameFromPath(selectedPath)))}">
+              </label>
+              <label>Width
+                <input id="textureWidth" type="number" min="0" value="${escapeAttr(cellNumberByKey('texture_asset', selectedTexture, 'width', 0))}">
+              </label>
+              <label>Height
+                <input id="textureHeight" type="number" min="0" value="${escapeAttr(cellNumberByKey('texture_asset', selectedTexture, 'height', 0))}">
+              </label>
+              <div class="asset-preview">
+                ${selectedPath ? `<img id="texturePreview" src="/asset?path=${encodeURIComponent(selectedPath)}" onload="syncTextureDimensions(this)">` : ''}
+              </div>
+              <button class="primary" onclick="createTextureAsset()">Create Texture</button>
+              <button onclick="updateTextureAsset()">Update Texture</button>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function formatBytes(bytes) {
+      const value = Number(bytes || 0);
+      if (value >= 1024 * 1024) return `${formatFloat(value / (1024 * 1024))} MB`;
+      if (value >= 1024) return `${formatFloat(value / 1024)} KB`;
+      return `${value} B`;
+    }
+
+    function assetNameFromPath(path) {
+      const file = String(path || '').split('/').pop() || 'texture';
+      return displayNameFromKey(file.replace(/\.[^.]+$/, '').replaceAll('-', '_'));
+    }
+
+    function keyFromPath(path) {
+      return normalizedDataKey(String(path || '').split('/').pop()?.replace(/\.[^.]+$/, '') || 'texture', 'texture');
+    }
+
+    function uniqueTextureKey(base) {
+      const existing = new Set(tableDataByKey('texture_asset').rows.map(row => row.key));
+      if (!existing.has(base)) return base;
+      for (let index = 2; ; index++) {
+        const candidate = `${base}_${index}`;
+        if (!existing.has(candidate)) return candidate;
+      }
+    }
+
+    function selectAssetPath(path) {
+      state.visual.assetPath = path;
+      renderVisualDashboard();
+    }
+
+    function selectTextureRow(rowId) {
+      state.visual.textureId = Number(rowId || 0);
+      const texture = rowByKey('texture_asset', state.visual.textureId);
+      state.visual.assetPath = cellStringByKey('texture_asset', texture, 'path', state.visual.assetPath || '');
+      renderVisualDashboard();
+    }
+
+    function previewTexturePath(path) {
+      const img = $('texturePreview');
+      if (img) img.src = `/asset?path=${encodeURIComponent(path)}`;
+    }
+
+    function syncTextureDimensions(image) {
+      const width = $('textureWidth');
+      const height = $('textureHeight');
+      if (width && Number(width.value || 0) === 0) width.value = image.naturalWidth || 0;
+      if (height && Number(height.value || 0) === 0) height.value = image.naturalHeight || 0;
+    }
+
+    async function createTextureAsset() {
+      const path = $('texturePath')?.value.trim();
+      if (!path) return;
+      const key = uniqueTextureKey(keyFromPath(path));
+      try {
+        const created = await api('/api/row', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table_id: 6, key })
+        });
+        await saveTextureFields(created.row_id);
+        state.visual.textureId = created.row_id;
+        state.visual.assetPath = path;
+        log(`created texture ${key}`);
+        await loadProject(false);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
+    async function updateTextureAsset() {
+      const rowId = Number($('textureEditRow')?.value || 0);
+      if (!rowId) return;
+      try {
+        await saveTextureFields(rowId);
+        state.visual.textureId = rowId;
+        state.visual.assetPath = $('texturePath')?.value.trim();
+        state.images = {};
+        log(`updated texture #${rowId}`);
+        await loadProject(false);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
+    async function saveTextureFields(rowId) {
+      const fields = [
+        [44, $('textureName')?.value.trim() || assetNameFromPath($('texturePath')?.value)],
+        [45, $('texturePath')?.value.trim()],
+        [46, String(Math.trunc(Number($('textureWidth')?.value || 0)))],
+        [47, String(Math.trunc(Number($('textureHeight')?.value || 0)))]
+      ];
+      for (const [fieldId, value] of fields) {
+        await api('/api/cell', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table_id: 6, row_id: rowId, field_id: fieldId, value: String(value) })
+        });
       }
     }
 
@@ -2897,7 +3210,9 @@ const INDEX_HTML: &str = r#"<!doctype html>
 
     async function loadProject(selectFirst = true) {
       const data = await api('/api/project');
+      const assets = await api('/api/assets');
       state.project = data.project;
+      state.assets = assets.assets || [];
       $('projectPath').textContent = data.project_path;
       renderStatus(data.status);
       renderNav();

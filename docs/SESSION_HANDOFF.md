@@ -65,6 +65,7 @@ Implemented:
 - Visual tab sprite sheet grid slicer for bulk `sprite_frame` creation from texture assets
 - Visual tab animation frame list editor for active state `sprite_animation` rows
 - Visual tab state machine editor for active `visual_state_machine` rows
+- `/api/assets` project image browser and Visual tab texture asset create/update UI
 
 ## Important Commands
 
@@ -224,6 +225,7 @@ Implemented UI/API surface:
 - Visual tab sprite sheet grid slicer with canvas overlay preview
 - Visual tab animation editor for frame add/remove/reorder plus fps/looping edits
 - Visual tab state machine editor for state add/delete, default state, and animation assignment
+- Visual tab project asset browser and texture asset create/update form
 - project asset serving through `/asset?path=...`
 - sprite frame data with texture rect, pivot, and duration fields
 
@@ -240,6 +242,7 @@ Validated endpoints:
 - `POST /api/simulate`
 - `POST /api/import/aseprite`
 - `POST /api/visual/slice-grid`
+- `GET /api/assets`
 
 ## Current Playable Preview
 
@@ -263,6 +266,7 @@ Implemented preview surface:
 - Sprite frame rows can be generated from texture assets through the Visual tab grid slicer.
 - Active state animations can be edited in Visual tab without opening raw Data tab tables.
 - Active state machines can be edited in Visual tab without opening raw Data tab tables.
+- Project image assets can be browsed and registered as `texture_asset` rows from Visual tab.
 
 Validated endpoints:
 
@@ -275,10 +279,10 @@ Improve sprite asset editing and visual preview authoring.
 
 Recommended order:
 
-1. Add a real file picker/recent file workflow around the current asset path inputs.
-2. Add row preview thumbnails for sprite frame lists and palettes.
-3. Add pagination/search to relation picker for large target tables.
-4. Connect battle simulation states to visual state machine keys.
+1. Add row preview thumbnails for sprite frame lists and palettes.
+2. Add pagination/search to relation picker for large target tables.
+3. Connect battle simulation states to visual state machine keys.
+4. Add asset import/copy workflow for files outside the project assets directory.
 5. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats

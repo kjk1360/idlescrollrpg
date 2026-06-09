@@ -56,6 +56,7 @@
 - Added Visual tab sprite sheet grid slicer preview and `POST /api/visual/slice-grid` for bulk `sprite_frame` creation.
 - Added Visual tab animation frame list editor for active state animations.
 - Added Visual tab state machine editor for state add/delete, default state, and animation assignment.
+- Added `/api/assets` project asset browser and Visual tab texture asset create/update UI.
 
 ## Current Stable CLI Flow
 
@@ -145,12 +146,12 @@ The first playable preview is available through `belt_tools play`:
 - Visual tab can now generate `sprite_frame` rows from a selected texture through a grid slicer.
 - Visual tab can edit the active `sprite_animation.frames` order, add/remove frames, and update fps/looping.
 - Visual tab can edit the active `visual_state_machine` states, default state, and state animation references.
+- Visual tab can browse project image files and create/update `texture_asset` rows.
 
 ## Immediate Next Milestone: Sprite Asset Editing
 
 The UI can edit visual data as tables, preview sprite frames, and `play` consumes it. Next, make sprite authoring comfortable:
 
-- texture file browser/import path workflow beyond the current Aseprite path input
 - row preview thumbnails for sprite frame lists and palettes
 - connect battle simulation states to visual state machine keys
 - relation picker pagination/search for large tables
