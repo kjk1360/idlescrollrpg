@@ -63,6 +63,7 @@ Implemented:
 - visual data tables for texture assets, sprite animations, visual states, state machines, and unit visuals
 - Aseprite import through CLI/API into texture, sprite frame, and sprite animation data
 - Visual tab sprite sheet grid slicer for bulk `sprite_frame` creation from texture assets
+- Visual tab animation frame list editor for active state `sprite_animation` rows
 
 ## Important Commands
 
@@ -220,6 +221,7 @@ Implemented UI/API surface:
 - Visual tab for `unit_visual` and sprite animation preview
 - Visual tab Aseprite import path input with dropdown hints from known texture paths
 - Visual tab sprite sheet grid slicer with canvas overlay preview
+- Visual tab animation editor for frame add/remove/reorder plus fps/looping edits
 - project asset serving through `/asset?path=...`
 - sprite frame data with texture rect, pivot, and duration fields
 
@@ -257,6 +259,7 @@ Implemented preview surface:
 - Data Studio Visual tab previews unit visual states with placeholder sprite playback.
 - Aseprite JSON/frame tags can be imported into visual asset tables from the Visual tab or `belt_tools import-aseprite`.
 - Sprite frame rows can be generated from texture assets through the Visual tab grid slicer.
+- Active state animations can be edited in Visual tab without opening raw Data tab tables.
 
 Validated endpoints:
 
@@ -269,10 +272,10 @@ Improve sprite asset editing and visual preview authoring.
 
 Recommended order:
 
-1. Add animation frame list editor with playback preview.
-2. Add visual state machine editor focused on states and animation references.
-3. Add a real file picker/recent file workflow around the current asset path inputs.
-4. Add pagination/search to relation picker for large target tables.
+1. Add visual state machine editor focused on states and animation references.
+2. Add a real file picker/recent file workflow around the current asset path inputs.
+3. Add pagination/search to relation picker for large target tables.
+4. Add row preview thumbnails for sprite frame lists and palettes.
 5. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats

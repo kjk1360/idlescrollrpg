@@ -1359,6 +1359,95 @@ const INDEX_HTML: &str = r#"<!doctype html>
       border: 1px solid var(--line);
       background: var(--panel);
     }
+    .animation-panel {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+    .animation-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      background: #f0f3f6;
+      font-weight: 650;
+    }
+    .animation-body {
+      display: grid;
+      grid-template-columns: minmax(360px, 1fr) minmax(280px, 420px);
+      gap: 12px;
+      padding: 10px;
+    }
+    .animation-controls {
+      display: grid;
+      grid-template-columns: 1fr 110px 110px;
+      gap: 8px;
+      align-items: end;
+      margin-bottom: 8px;
+    }
+    .animation-controls label {
+      display: grid;
+      gap: 3px;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .animation-controls input,
+    .animation-controls select {
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 8px;
+      font: inherit;
+      font-size: 13px;
+      color: var(--text);
+      background: white;
+    }
+    .animation-list {
+      border: 1px solid var(--line);
+      min-height: 220px;
+      max-height: 320px;
+      overflow: auto;
+    }
+    .animation-row {
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr) 122px;
+      gap: 8px;
+      align-items: center;
+      min-height: 38px;
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--line);
+    }
+    .animation-row small {
+      color: var(--muted);
+    }
+    .animation-row-actions {
+      display: flex;
+      gap: 4px;
+      justify-content: flex-end;
+    }
+    .animation-row-actions button {
+      width: 34px;
+      padding: 0;
+    }
+    .frame-palette {
+      border: 1px solid var(--line);
+      min-height: 260px;
+      max-height: 360px;
+      overflow: auto;
+    }
+    .frame-palette button {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 72px minmax(0, 1fr);
+      gap: 8px;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      border-radius: 0;
+      text-align: left;
+    }
     .slicer-head {
       display: flex;
       align-items: center;
@@ -1874,6 +1963,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
             <div id="visualStates" class="visual-states"></div>
           </div>
         </div>
+        ${renderAnimationEditor(selected)}
         ${renderSpriteSlicer()}`;
       renderVisualStateButtons(selected);
       setTimeout(updateSlicePreview, 0);
@@ -1948,6 +2038,137 @@ const INDEX_HTML: &str = r#"<!doctype html>
             </div>
           </div>
         </div>`;
+    }
+
+    function renderAnimationEditor(visualRow) {
+      const animation = selectedVisualAnimation(visualRow);
+      if (!animation) {
+        return `
+          <div class="animation-panel">
+            <div class="animation-head">
+              <span>Animation Frames</span>
+              <span>no animation for state ${escapeHtml(state.visual.state)}</span>
+            </div>
+          </div>`;
+      }
+      const frames = animationFrames(animation);
+      const textureId = cellRowByKey('sprite_animation', animation, 'texture');
+      const texture = textureId ? rowByKey('texture_asset', textureId) : null;
+      const available = tableDataByKey('sprite_frame').rows
+        .filter(frame => !textureId || cellRowByKey('sprite_frame', frame, 'texture') === textureId);
+      return `
+        <div class="animation-panel">
+          <div class="animation-head">
+            <span>Animation Frames</span>
+            <span>${escapeHtml(cellStringByKey('sprite_animation', animation, 'name', animation.key))} / ${frames.length} frames</span>
+          </div>
+          <div class="animation-body">
+            <div>
+              <div class="animation-controls">
+                <label>Texture
+                  <select onchange="setAnimationTexture(${animation.id}, this.value)">
+                    ${tableDataByKey('texture_asset').rows.map(row => `<option value="${row.id}" ${row.id === textureId ? 'selected' : ''}>${escapeHtml(cellStringByKey('texture_asset', row, 'name', row.key))}</option>`).join('')}
+                  </select>
+                </label>
+                <label>FPS
+                  <input type="number" step="0.1" value="${escapeAttr(cellNumberByKey('sprite_animation', animation, 'fps', 6))}" onchange="setAnimationField(${animation.id}, 53, this.value)">
+                </label>
+                <label>Looping
+                  <select onchange="setAnimationField(${animation.id}, 54, this.value)">
+                    <option value="true" ${cellBoolByKey('sprite_animation', animation, 'looping', true) ? 'selected' : ''}>true</option>
+                    <option value="false" ${cellBoolByKey('sprite_animation', animation, 'looping', true) ? '' : 'selected'}>false</option>
+                  </select>
+                </label>
+              </div>
+              <div class="animation-list">
+                ${frames.map((frame, index) => renderAnimationFrameRow(animation, frame, index, frames.length)).join('') || `<div class="animation-row"><span></span><span>No frames</span><span></span></div>`}
+              </div>
+            </div>
+            <div>
+              <div class="animation-controls">
+                <label>Available Frames
+                  <input readonly value="${escapeAttr(texture ? cellStringByKey('texture_asset', texture, 'name', texture.key) : 'all textures')}">
+                </label>
+              </div>
+              <div class="frame-palette">
+                ${available.map(frame => `
+                  <button onclick="addAnimationFrame(${animation.id}, ${frame.id})">
+                    <span>#${frame.id}</span>
+                    <span>${escapeHtml(rowTitle(11, frame.id))}<br><small>${cellNumberByKey('sprite_frame', frame, 'x', 0)}, ${cellNumberByKey('sprite_frame', frame, 'y', 0)} / ${cellNumberByKey('sprite_frame', frame, 'w', 0)}x${cellNumberByKey('sprite_frame', frame, 'h', 0)}</small></span>
+                  </button>`).join('') || `<button disabled><span></span><span>No sprite frames</span></button>`}
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function renderAnimationFrameRow(animation, frame, index, total) {
+      return `
+        <div class="animation-row">
+          <span>${index + 1}</span>
+          <span>${escapeHtml(rowTitle(11, frame.id))}<br><small>${cellNumberByKey('sprite_frame', frame, 'x', 0)}, ${cellNumberByKey('sprite_frame', frame, 'y', 0)} / ${cellNumberByKey('sprite_frame', frame, 'w', 0)}x${cellNumberByKey('sprite_frame', frame, 'h', 0)}</small></span>
+          <span class="animation-row-actions">
+            <button ${index === 0 ? 'disabled' : ''} onclick="moveAnimationFrame(${animation.id}, ${index}, -1)">Up</button>
+            <button ${index === total - 1 ? 'disabled' : ''} onclick="moveAnimationFrame(${animation.id}, ${index}, 1)">Dn</button>
+            <button class="danger" onclick="removeAnimationFrame(${animation.id}, ${index})">Del</button>
+          </span>
+        </div>`;
+    }
+
+    function animationFrameIds(animation) {
+      return cellRowsByKey('sprite_animation', animation, 'frames');
+    }
+
+    async function saveAnimationFrameIds(animationId, frameIds) {
+      await api('/api/cell', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table_id: 7, row_id: animationId, field_id: 55, value: frameIds.join(',') })
+      });
+      await api('/api/cell', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table_id: 7, row_id: animationId, field_id: 52, value: String(frameIds.length) })
+      });
+      state.visual.started = performance.now();
+      await loadProject(false);
+    }
+
+    async function addAnimationFrame(animationId, frameId) {
+      const animation = rowByKey('sprite_animation', animationId);
+      if (!animation) return;
+      await saveAnimationFrameIds(animationId, [...animationFrameIds(animation), frameId]);
+    }
+
+    async function removeAnimationFrame(animationId, index) {
+      const animation = rowByKey('sprite_animation', animationId);
+      if (!animation) return;
+      const frameIds = animationFrameIds(animation).filter((_, frameIndex) => frameIndex !== index);
+      await saveAnimationFrameIds(animationId, frameIds);
+    }
+
+    async function moveAnimationFrame(animationId, index, direction) {
+      const animation = rowByKey('sprite_animation', animationId);
+      if (!animation) return;
+      const frameIds = [...animationFrameIds(animation)];
+      const next = index + direction;
+      if (next < 0 || next >= frameIds.length) return;
+      [frameIds[index], frameIds[next]] = [frameIds[next], frameIds[index]];
+      await saveAnimationFrameIds(animationId, frameIds);
+    }
+
+    async function setAnimationField(animationId, fieldId, value) {
+      await api('/api/cell', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table_id: 7, row_id: animationId, field_id: fieldId, value: String(value) })
+      });
+      state.visual.started = performance.now();
+      await loadProject(false);
+    }
+
+    async function setAnimationTexture(animationId, textureId) {
+      await setAnimationField(animationId, 51, textureId);
     }
 
     function selectedSliceTexture() {
