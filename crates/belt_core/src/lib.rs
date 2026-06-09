@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnitDefId(pub u32);
@@ -29,6 +29,21 @@ impl BeltPosition {
         let dx = self.x - other.x;
         let dl = self.lane - other.lane;
         (dx * dx + dl * dl).sqrt()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct GridPosition {
+    pub x: i32,
+    pub lane: i32,
+}
+
+impl GridPosition {
+    pub fn to_belt(self) -> BeltPosition {
+        BeltPosition {
+            x: self.x as f32,
+            lane: self.lane as f32,
+        }
     }
 }
 
@@ -81,6 +96,8 @@ pub struct UnitState {
     pub attack_cooldown: f32,
     pub move_speed: f32,
     pub position: BeltPosition,
+    pub grid: GridPosition,
+    pub home_grid: GridPosition,
 }
 
 impl UnitState {
@@ -115,6 +132,9 @@ pub enum BattleEvent {
     WaveCleared {
         wave_id: String,
     },
+    MapCleared {
+        map_id: String,
+    },
     MapLooped {
         map_id: String,
         loop_count: u64,
@@ -128,6 +148,16 @@ pub struct BattleConfig {
     pub unit_defs: Vec<UnitDef>,
     pub left_scroll_speed: f32,
     pub wave_spawn_x: f32,
+    pub tick_duration: f32,
+    pub prepare_ticks: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BattlePhase {
+    Prepare,
+    Engage,
+    Clear,
+    Defeat,
 }
 
 #[derive(Debug)]
@@ -138,7 +168,9 @@ pub struct BattleWorld {
     active_wave_id: Option<String>,
     pending_waves: VecDeque<WaveDef>,
     next_unit_id: u64,
-    map_loop_count: u64,
+    phase: BattlePhase,
+    tick_accumulator: f32,
+    prepare_ticks_remaining: u32,
 }
 
 impl BattleWorld {
@@ -150,12 +182,14 @@ impl BattleWorld {
             events: Vec::new(),
             active_wave_id: None,
             next_unit_id: 1,
-            map_loop_count: 0,
+            phase: BattlePhase::Prepare,
+            tick_accumulator: 0.0,
+            prepare_ticks_remaining: 0,
         };
 
         let party = world.config.party.clone();
         world.spawn_group(&party, Team::Player, 0.0);
-        world.start_next_wave();
+        world.prepare_next_wave();
         world
     }
 
@@ -168,13 +202,36 @@ impl BattleWorld {
     }
 
     pub fn tick(&mut self, dt: f32) {
+        if matches!(self.phase, BattlePhase::Clear | BattlePhase::Defeat) {
+            return;
+        }
+        self.tick_accumulator += dt;
+        let step = self.config.tick_duration.max(0.01);
+        while self.tick_accumulator >= step {
+            self.tick_accumulator -= step;
+            self.tick_grid(step);
+        }
+    }
+
+    fn tick_grid(&mut self, dt: f32) {
         self.cleanup_dead();
+
+        if !self.any_alive(Team::Player) {
+            self.phase = BattlePhase::Defeat;
+            return;
+        }
+
+        if self.phase == BattlePhase::Prepare {
+            self.tick_prepare();
+            return;
+        }
 
         if !self.any_alive(Team::Enemy) {
             if let Some(wave_id) = self.active_wave_id.take() {
                 self.events.push(BattleEvent::WaveCleared { wave_id });
             }
-            self.start_next_wave();
+            self.prepare_next_wave();
+            return;
         }
 
         let snapshot = self.units.clone();
@@ -191,8 +248,11 @@ impl BattleWorld {
             let in_range = target
                 .as_ref()
                 .map(|target| {
-                    self.units[index].position.distance_to(target.position)
-                        <= self.units[index].attack_range
+                    grid_in_range(
+                        self.units[index].grid,
+                        target.grid,
+                        self.units[index].attack_range,
+                    )
                 })
                 .unwrap_or(false);
 
@@ -201,25 +261,8 @@ impl BattleWorld {
                     attacks.push((self.units[index].id, target.id, self.units[index].attack));
                     self.units[index].attack_cooldown = self.units[index].attack_interval;
                 } else if !in_range {
-                    let direction = if self.units[index].team == Team::Player {
-                        -1.0
-                    } else {
-                        1.0
-                    };
-                    self.units[index].position.x += direction * self.units[index].move_speed * dt;
-                    self.events.push(BattleEvent::UnitMoved {
-                        unit_id: self.units[index].id,
-                        x: self.units[index].position.x,
-                        lane: self.units[index].position.lane,
-                    });
+                    self.move_toward(index, target.grid);
                 }
-            } else if self.units[index].team == Team::Player {
-                self.units[index].position.x -= self.config.left_scroll_speed * dt;
-                self.events.push(BattleEvent::UnitMoved {
-                    unit_id: self.units[index].id,
-                    x: self.units[index].position.x,
-                    lane: self.units[index].position.lane,
-                });
             }
         }
 
@@ -251,24 +294,77 @@ impl BattleWorld {
         self.units.retain(UnitState::is_alive);
     }
 
-    fn start_next_wave(&mut self) {
+    fn tick_prepare(&mut self) {
+        let occupied = self.occupied_cells();
+        for index in 0..self.units.len() {
+            if !self.units[index].is_alive() {
+                continue;
+            }
+            let target = self.units[index].home_grid;
+            if self.units[index].grid != target {
+                self.move_toward_with_occupied(index, target, &occupied);
+            } else {
+                self.emit_move(index);
+            }
+        }
+
+        if self.prepare_ticks_remaining > 0 {
+            self.prepare_ticks_remaining -= 1;
+        }
+
+        let ready = self
+            .units
+            .iter()
+            .filter(|unit| unit.is_alive())
+            .all(|unit| unit.grid == unit.home_grid);
+        if ready && self.prepare_ticks_remaining == 0 {
+            self.phase = BattlePhase::Engage;
+            if let Some(wave_id) = &self.active_wave_id {
+                self.events.push(BattleEvent::WaveStarted {
+                    wave_id: wave_id.clone(),
+                });
+            }
+        }
+    }
+
+    fn prepare_next_wave(&mut self) {
         if self.pending_waves.is_empty() {
-            self.map_loop_count += 1;
-            self.events.push(BattleEvent::MapLooped {
+            self.phase = BattlePhase::Clear;
+            self.events.push(BattleEvent::MapCleared {
                 map_id: self.config.map.id.clone(),
-                loop_count: self.map_loop_count,
             });
-            self.pending_waves = VecDeque::from(self.config.map.waves.clone());
+            return;
         }
 
         if let Some(wave) = self.pending_waves.pop_front() {
             self.active_wave_id = Some(wave.id.clone());
-            self.events.push(BattleEvent::WaveStarted {
-                wave_id: wave.id.clone(),
-            });
+            self.phase = BattlePhase::Prepare;
+            self.prepare_ticks_remaining = self.config.prepare_ticks;
+            self.reset_party_home_grids();
             for group in &wave.enemy_groups {
                 self.spawn_group(group, Team::Enemy, self.config.wave_spawn_x);
             }
+        }
+    }
+
+    fn reset_party_home_grids(&mut self) {
+        let homes = self
+            .config
+            .party
+            .spawns
+            .iter()
+            .map(|spawn| grid_from_belt(spawn.position, 0.0))
+            .collect::<Vec<_>>();
+        let mut player_index = 0;
+        for unit in self
+            .units
+            .iter_mut()
+            .filter(|unit| unit.team == Team::Player && unit.is_alive())
+        {
+            if let Some(home) = homes.get(player_index).copied() {
+                unit.home_grid = home;
+            }
+            player_index += 1;
         }
     }
 
@@ -283,6 +379,7 @@ impl BattleWorld {
 
             let unit_id = UnitId(self.next_unit_id);
             self.next_unit_id += 1;
+            let home_grid = grid_from_belt(spawn.position, x_offset);
             let state = UnitState {
                 id: unit_id,
                 def_id: def.id,
@@ -295,10 +392,9 @@ impl BattleWorld {
                 attack_interval: def.attack_interval,
                 attack_cooldown: 0.0,
                 move_speed: def.move_speed,
-                position: BeltPosition {
-                    x: spawn.position.x + x_offset,
-                    lane: spawn.position.lane,
-                },
+                position: home_grid.to_belt(),
+                grid: home_grid,
+                home_grid,
             };
             self.events.push(BattleEvent::UnitSpawned {
                 unit_id,
@@ -308,6 +404,56 @@ impl BattleWorld {
             self.units.push(state);
         }
     }
+
+    fn occupied_cells(&self) -> HashMap<GridPosition, UnitId> {
+        self.units
+            .iter()
+            .filter(|unit| unit.is_alive())
+            .map(|unit| (unit.grid, unit.id))
+            .collect()
+    }
+
+    fn move_toward(&mut self, index: usize, target: GridPosition) {
+        let occupied = self.occupied_cells();
+        self.move_toward_with_occupied(index, target, &occupied);
+    }
+
+    fn move_toward_with_occupied(
+        &mut self,
+        index: usize,
+        target: GridPosition,
+        occupied: &HashMap<GridPosition, UnitId>,
+    ) {
+        let steps = self.units[index].move_speed.floor().max(1.0) as i32;
+        let unit_id = self.units[index].id;
+        let mut blocked = occupied
+            .iter()
+            .filter_map(|(position, occupant)| (*occupant != unit_id).then_some(*position))
+            .collect::<HashSet<_>>();
+
+        for _ in 0..steps {
+            let current = self.units[index].grid;
+            if current == target {
+                break;
+            }
+            let Some(next) = next_step_toward(current, target, &blocked) else {
+                break;
+            };
+            blocked.remove(&current);
+            blocked.insert(next);
+            self.units[index].grid = next;
+            self.units[index].position = next.to_belt();
+        }
+        self.emit_move(index);
+    }
+
+    fn emit_move(&mut self, index: usize) {
+        self.events.push(BattleEvent::UnitMoved {
+            unit_id: self.units[index].id,
+            x: self.units[index].position.x,
+            lane: self.units[index].position.lane,
+        });
+    }
 }
 
 fn closest_target(units: &[UnitState], actor: &UnitState) -> Option<UnitState> {
@@ -316,11 +462,69 @@ fn closest_target(units: &[UnitState], actor: &UnitState) -> Option<UnitState> {
         .filter(|unit| unit.is_alive() && actor.team.is_enemy_of(unit.team))
         .min_by(|a, b| {
             actor
-                .position
-                .distance_to(a.position)
-                .total_cmp(&actor.position.distance_to(b.position))
+                .grid
+                .x
+                .abs_diff(a.grid.x)
+                .cmp(&actor.grid.x.abs_diff(b.grid.x))
+                .then_with(|| {
+                    actor
+                        .grid
+                        .lane
+                        .abs_diff(a.grid.lane)
+                        .cmp(&actor.grid.lane.abs_diff(b.grid.lane))
+                })
         })
         .cloned()
+}
+
+fn grid_from_belt(position: BeltPosition, x_offset: f32) -> GridPosition {
+    GridPosition {
+        x: (position.x + x_offset).round() as i32,
+        lane: lane_to_grid(position.lane),
+    }
+}
+
+fn lane_to_grid(lane: f32) -> i32 {
+    if lane < -0.33 {
+        -1
+    } else if lane > 0.33 {
+        1
+    } else {
+        0
+    }
+}
+
+fn grid_in_range(actor: GridPosition, target: GridPosition, range: f32) -> bool {
+    let range = range.ceil().max(1.0) as i32;
+    (actor.x - target.x).abs() <= range && (actor.lane - target.lane).abs() <= range
+}
+
+fn next_step_toward(
+    current: GridPosition,
+    target: GridPosition,
+    blocked: &HashSet<GridPosition>,
+) -> Option<GridPosition> {
+    let x_dir = (target.x - current.x).signum();
+    let lane_dir = (target.lane - current.lane).signum();
+    let candidates = [
+        GridPosition {
+            x: current.x + x_dir,
+            lane: current.lane,
+        },
+        GridPosition {
+            x: current.x,
+            lane: (current.lane + lane_dir).clamp(-1, 1),
+        },
+        GridPosition {
+            x: current.x + x_dir,
+            lane: (current.lane + lane_dir).clamp(-1, 1),
+        },
+    ];
+    candidates
+        .into_iter()
+        .filter(|position| *position != current)
+        .filter(|position| position.lane >= -1 && position.lane <= 1)
+        .find(|position| !blocked.contains(position))
 }
 
 pub fn sample_battle_config() -> BattleConfig {
@@ -410,6 +614,8 @@ pub fn sample_battle_config() -> BattleConfig {
         unit_defs: vec![knight, archer, slime],
         left_scroll_speed: 1.8,
         wave_spawn_x: -8.0,
+        tick_duration: 0.2,
+        prepare_ticks: 5,
     }
 }
 
@@ -421,8 +627,8 @@ mod tests {
     fn sample_battle_clears_at_least_one_wave() {
         let mut world = BattleWorld::new(sample_battle_config());
 
-        for _ in 0..300 {
-            world.tick(0.1);
+        for _ in 0..80 {
+            world.tick(0.2);
         }
 
         let events = world.drain_events();
@@ -430,5 +636,11 @@ mod tests {
             |event| matches!(event, BattleEvent::WaveCleared { wave_id } if wave_id == "wave_001")
         ));
         assert!(world.units().iter().any(|unit| unit.team == Team::Player));
+        let occupied = world
+            .units()
+            .iter()
+            .map(|unit| unit.grid)
+            .collect::<HashSet<_>>();
+        assert_eq!(occupied.len(), world.units().len());
     }
 }

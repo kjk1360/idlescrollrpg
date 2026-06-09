@@ -66,6 +66,43 @@ Implemented:
 - Visual tab animation frame list editor for active state `sprite_animation` rows
 - Visual tab state machine editor for active `visual_state_machine` rows
 - `/api/assets` project image browser and Visual tab texture asset create/update UI
+- tick/grid-based `belt_core` wave combat with prepare/engage phases and map clear
+
+## Locked Design Direction
+
+Combat and operation are the two main cores.
+
+Operation:
+
+- offline-first farm/crafting simulation
+- account-level energy
+- resource harvesting, crafting, synthesis, equipment, consumable growth items, delivery/sink flows
+- production time uses `effective_duration = base_duration * 10000 / time_multiplier`
+- default `time_multiplier` is `10000`
+- server/db usage is limited to auction, mail, guild, ranking, and similar non-realtime systems
+
+Combat:
+
+- automatic tick/grid belt-scroll dungeon combat
+- advancing-axis grid with 3 lanes
+- one unit per grid cell
+- occupied cells cannot be entered or crossed
+- no normal collision/pushing
+- knockback is forced grid movement
+- no basic attacks; every action is a skill
+- skill judgment/effects use directional grid AABB/range shapes
+- cast directions are up/down/left/right only
+- wave flow is `Prepare -> Engage -> Resolve -> NextWave/Clear/Defeat`
+- visual scrolling is presentation; systemically, waves align units to start grids, fight, then prepare the next wave
+
+Growth:
+
+- unit rarity does not exist directly
+- skills, traits, and stats can have rarity
+- consumable growth costs increase as a unit grows
+- reincarnation resets growth costs while preserving selected/random skill, trait, or stat elements
+- extra reincarnation consumables can increase preserved element count or control random/fixed preservation
+- equipment is freely swappable and can be destroyed on combat defeat
 
 ## Important Commands
 
@@ -255,7 +292,8 @@ cargo run -p belt_tools -- play --project projects\sample --map endless_left_roa
 Implemented preview surface:
 
 - Rust `BattleWorld` produces playback frames.
-- Browser canvas renders endless-left belt-scroll movement.
+- Browser canvas renders endless-left belt-scroll presentation over tick/grid combat data.
+- `BattleWorld` uses grid occupancy, 3 lanes, fixed tick stepping, prepare/engage wave phases, and map clear.
 - `unit_def.visual` connects battle units to `unit_visual`.
 - `unit_visual` references a visual state machine and placeholder body color.
 - visual states reference sprite animations.
@@ -279,10 +317,11 @@ Improve sprite asset editing and visual preview authoring.
 
 Recommended order:
 
-1. Add row preview thumbnails for sprite frame lists and palettes.
-2. Add pagination/search to relation picker for large target tables.
-3. Connect battle simulation states to visual state machine keys.
-4. Add asset import/copy workflow for files outside the project assets directory.
+1. Add explicit skill, skill effect, behavior, and target rule data models.
+2. Connect battle simulation states to visual state machine keys.
+3. Add knockback forced movement effect.
+4. Add row preview thumbnails for sprite frame lists and palettes.
+5. Add pagination/search to relation picker for large target tables.
 5. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats

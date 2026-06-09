@@ -52,6 +52,8 @@ pub fn battle_config_from_generated(
         unit_defs,
         left_scroll_speed: map.left_scroll_speed,
         wave_spawn_x: map.wave_spawn_x,
+        tick_duration: 0.2,
+        prepare_ticks: 5,
     })
 }
 

@@ -91,6 +91,9 @@ fn simulate(args: &[String]) -> Result<(), String> {
                     wave_clears += 1;
                     println!("[{frame:03}] wave cleared: {wave_id}");
                 }
+                BattleEvent::MapCleared { map_id } => {
+                    println!("[{frame:03}] map cleared: {map_id}");
+                }
                 BattleEvent::MapLooped { map_id, loop_count } => {
                     println!("[{frame:03}] map looped: {map_id} loop={loop_count}");
                 }
@@ -141,6 +144,9 @@ fn simulate_to_string(project: &DataProject, map_key: &str) -> Result<String, St
                 BattleEvent::WaveCleared { wave_id } => {
                     wave_clears += 1;
                     lines.push(format!("[{frame:03}] wave cleared: {wave_id}"));
+                }
+                BattleEvent::MapCleared { map_id } => {
+                    lines.push(format!("[{frame:03}] map cleared: {map_id}"));
                 }
                 BattleEvent::MapLooped { map_id, loop_count } => {
                     lines.push(format!(

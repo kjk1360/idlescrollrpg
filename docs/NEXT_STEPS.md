@@ -57,6 +57,8 @@
 - Added Visual tab animation frame list editor for active state animations.
 - Added Visual tab state machine editor for state add/delete, default state, and animation assignment.
 - Added `/api/assets` project asset browser and Visual tab texture asset create/update UI.
+- Converted `belt_core` battle runtime to tick/grid-based wave combat.
+- Changed maps to clear after their final wave instead of looping indefinitely.
 
 ## Current Stable CLI Flow
 
@@ -135,7 +137,8 @@ The first focused local UI is available through `belt_tools serve`:
 The first playable preview is available through `belt_tools play`:
 
 - Rust `BattleWorld` produces simulation frames from project data.
-- Browser canvas renders endless-left belt-scroll movement.
+- Browser canvas renders endless-left belt-scroll presentation over tick/grid combat data.
+- Battle runtime uses grid occupancy, 3 lanes, fixed tick stepping, prepare/engage wave phases, and map clear.
 - Unit visuals are driven by `unit_def.visual`.
 - Visual data supports texture asset references, sprite animation settings, visual states, state machines, and unit visual settings.
 - Placeholder sprite rendering uses `unit_visual.body_color` until real texture loading/slicing is added.
@@ -148,12 +151,33 @@ The first playable preview is available through `belt_tools play`:
 - Visual tab can edit the active `visual_state_machine` states, default state, and state animation references.
 - Visual tab can browse project image files and create/update `texture_asset` rows.
 
-## Immediate Next Milestone: Sprite Asset Editing
+## Locked Design Direction
 
-The UI can edit visual data as tables, preview sprite frames, and `play` consumes it. Next, make sprite authoring comfortable:
+- Combat and operation are the two core loops.
+- Operation is offline-first farm/crafting simulation with account energy, resource harvesting, crafting, synthesis, equipment, consumable growth items, and delivery/sink flows.
+- Operation time uses `effective_duration = base_duration * 10000 / time_multiplier`; default multiplier is `10000`.
+- Combat is automatic tick/grid belt-scroll dungeon combat.
+- Combat grid is an advancing-axis grid with 3 lanes.
+- One unit occupies one grid cell; occupied cells cannot be entered or crossed.
+- Collision/pushing is not part of normal movement; knockback is a forced grid movement effect.
+- There is no basic attack concept; every action is a skill.
+- Skill judgment and effects use directional grid AABB/range shapes with four cast directions.
+- A map runs waves as `Prepare -> Engage -> Resolve -> NextWave/Clear/Defeat`.
+- Visual scrolling is presentation; systemically, waves align units to start grids, fight, then prepare the next wave.
+- Unit rarity does not exist directly; skills, traits, and stats can have rarity.
+- Unit growth consumes items with increasing costs, and reincarnation resets growth costs while preserving selected/random skill, trait, or stat elements.
+- Equipment is freely swappable and can be destroyed on combat defeat.
 
+## Immediate Next Milestone: Combat Data Model
+
+The runtime is now grid/tick based, but it still maps old unit attack fields into a simple default skill. Next, make combat data explicit:
+
+- skill table
+- skill range/effect model
+- behavior/target rule model
+- battle simulation states to visual state machine keys
+- knockback forced movement effect
 - row preview thumbnails for sprite frame lists and palettes
-- connect battle simulation states to visual state machine keys
 - relation picker pagination/search for large tables
 - richer row display labels beyond id/key/name fallback
 - inline nested row editing from the parent cell without manually opening the child table

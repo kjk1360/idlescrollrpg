@@ -151,6 +151,9 @@ fn build_playback(project: &DataProject, map_key: &str) -> Result<Value, String>
                 BattleEvent::UnitAttacked { attacker, .. } => {
                     last_actions.insert(attacker.0, ("attack".to_string(), index));
                 }
+                BattleEvent::UnitKilled { unit_id } => {
+                    last_actions.insert(unit_id.0, ("dead".to_string(), index));
+                }
                 _ => {}
             }
         }
