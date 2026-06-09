@@ -14,6 +14,7 @@ pub struct UnitDef {
     pub move_speed: f32,
     pub visual: RowId,
     pub skills: Vec<RowId>,
+    pub behavior_rules: Vec<RowId>,
 }
 
 #[derive(Debug, Clone)]

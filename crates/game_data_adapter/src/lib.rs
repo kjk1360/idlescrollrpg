@@ -1,7 +1,7 @@
 use belt_core::{
-    BattleConfig, BeltPosition, CellOffset, CellPattern, FacingMode, MapDef, SkillDef, SkillDefId,
-    SkillEffect, SkillEffectKind, SkillStep, SkillStepOrigin, UnitDef, UnitDefId, UnitGroup,
-    UnitSpawn, WaveDef,
+    BattleConfig, BehaviorCondition, BehaviorRule, BeltPosition, CellOffset, CellPattern,
+    FacingMode, MapDef, SkillDef, SkillDefId, SkillEffect, SkillEffectKind, SkillStep,
+    SkillStepOrigin, UnitDef, UnitDefId, UnitGroup, UnitSpawn, WaveDef,
 };
 use data_studio_core::{DataProject, RowId};
 use generated_data::relation_cache::GeneratedRelationCache;
@@ -27,7 +27,7 @@ pub fn battle_config_from_generated(
         .rows
         .iter()
         .map(|row| unit_def_from_data(db, row))
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
     let skill_defs = db
         .skill_def
         .rows
@@ -166,13 +166,22 @@ fn cell_pattern_from_data(db: &GeneratedDatabase, row_id: RowId) -> Result<CellP
     })
 }
 
-fn unit_def_from_data(db: &GeneratedDatabase, row: &data_types::UnitDef) -> UnitDef {
+fn unit_def_from_data(
+    db: &GeneratedDatabase,
+    row: &data_types::UnitDef,
+) -> Result<UnitDef, String> {
     let primary_skill = row.skills.first().copied();
     let skill_cooldown_ticks = primary_skill
         .and_then(|skill_id| db.skill_def.get_by_id(skill_id))
         .map(|skill| skill.cooldown_ticks.max(1) as u32)
         .unwrap_or_else(|| (row.attack_interval / 0.2).ceil().max(1.0) as u32);
-    UnitDef {
+    let behavior_rules = row
+        .behavior_rules
+        .iter()
+        .map(|rule_id| behavior_rule_from_data(db, *rule_id))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(UnitDef {
         id: UnitDefId(row.id.0 as u32),
         name: row.name.clone(),
         max_hp: row.max_hp,
@@ -181,8 +190,25 @@ fn unit_def_from_data(db: &GeneratedDatabase, row: &data_types::UnitDef) -> Unit
         attack_interval: row.attack_interval,
         move_speed: row.move_speed,
         primary_skill: primary_skill.map(|skill_id| SkillDefId(skill_id.0 as u32)),
+        behavior_rules,
         skill_cooldown_ticks,
-    }
+    })
+}
+
+fn behavior_rule_from_data(db: &GeneratedDatabase, row_id: RowId) -> Result<BehaviorRule, String> {
+    let row = db
+        .behavior_rule
+        .get_by_id(row_id)
+        .ok_or_else(|| format!("missing behavior rule {:?}", row_id))?;
+    Ok(BehaviorRule {
+        priority: row.priority,
+        skill: SkillDefId(row.skill.0 as u32),
+        condition: match row.condition.as_str() {
+            "always" => BehaviorCondition::Always,
+            "nearest_enemy_in_cast_pattern" => BehaviorCondition::NearestEnemyInCastPattern,
+            other => return Err(format!("unsupported behavior condition {other}")),
+        },
+    })
 }
 
 fn wave_from_data(

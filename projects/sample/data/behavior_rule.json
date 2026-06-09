@@ -1,11 +1,11 @@
 [
   {
     "id": 22001,
-    "key": "use_nearest_skill",
+    "key": "knight_use_slash",
     "cells": {
       "200": {
         "kind": "string",
-        "value": "Use Nearest Skill"
+        "value": "Knight Use Slash"
       },
       "201": {
         "kind": "i32",
@@ -14,6 +14,50 @@
       "202": {
         "kind": "row",
         "value": 17001
+      },
+      "203": {
+        "kind": "string",
+        "value": "nearest_enemy_in_cast_pattern"
+      }
+    }
+  },
+  {
+    "id": 22002,
+    "key": "archer_use_arrow",
+    "cells": {
+      "200": {
+        "kind": "string",
+        "value": "Archer Use Arrow"
+      },
+      "201": {
+        "kind": "i32",
+        "value": 100
+      },
+      "202": {
+        "kind": "row",
+        "value": 17002
+      },
+      "203": {
+        "kind": "string",
+        "value": "nearest_enemy_in_cast_pattern"
+      }
+    }
+  },
+  {
+    "id": 22003,
+    "key": "slime_use_tackle",
+    "cells": {
+      "200": {
+        "kind": "string",
+        "value": "Slime Use Tackle"
+      },
+      "201": {
+        "kind": "i32",
+        "value": 100
+      },
+      "202": {
+        "kind": "row",
+        "value": 17003
       },
       "203": {
         "kind": "string",

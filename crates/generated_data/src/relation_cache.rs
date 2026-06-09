@@ -10,6 +10,7 @@ use crate::table_accessors::GeneratedDatabase;
 pub struct GeneratedRelationCache {
     pub unit_def_visual: HashMap<RowId, RowId>,
     pub unit_def_skills: HashMap<RowId, Vec<RowId>>,
+    pub unit_def_behavior_rules: HashMap<RowId, Vec<RowId>>,
     pub unit_group_members: HashMap<RowId, Vec<RowId>>,
     pub wave_def_enemy_groups: HashMap<RowId, Vec<RowId>>,
     pub map_def_party: HashMap<RowId, RowId>,
@@ -58,6 +59,19 @@ impl GeneratedRelationCache {
                 }
             }
             cache.unit_def_skills.insert(row.id, row.skills.clone());
+        }
+        for row in &db.unit_def.rows {
+            for target_id in &row.behavior_rules {
+                if db.behavior_rule.get_by_id(*target_id).is_none() {
+                    return Err(format!(
+                        "missing relation target for unit_def.behavior_rules from {:?} to {:?}",
+                        row.id, target_id
+                    ));
+                }
+            }
+            cache
+                .unit_def_behavior_rules
+                .insert(row.id, row.behavior_rules.clone());
         }
         for row in &db.unit_group.rows {
             for target_id in &row.members {
@@ -318,6 +332,10 @@ impl GeneratedRelationCache {
 
     pub fn get_unit_def_skills(&self, source: RowId) -> Option<&[RowId]> {
         self.unit_def_skills.get(&source).map(Vec::as_slice)
+    }
+
+    pub fn get_unit_def_behavior_rules(&self, source: RowId) -> Option<&[RowId]> {
+        self.unit_def_behavior_rules.get(&source).map(Vec::as_slice)
     }
 
     pub fn get_unit_group_members(&self, source: RowId) -> Option<&[RowId]> {

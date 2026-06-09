@@ -60,7 +60,21 @@ pub struct UnitDef {
     pub attack_interval: f32,
     pub move_speed: f32,
     pub primary_skill: Option<SkillDefId>,
+    pub behavior_rules: Vec<BehaviorRule>,
     pub skill_cooldown_ticks: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct BehaviorRule {
+    pub priority: i32,
+    pub skill: SkillDefId,
+    pub condition: BehaviorCondition,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BehaviorCondition {
+    NearestEnemyInCastPattern,
+    Always,
 }
 
 #[derive(Debug, Clone)]
@@ -170,6 +184,7 @@ pub struct UnitState {
     pub attack_cooldown: f32,
     pub move_speed: f32,
     pub primary_skill: Option<SkillDefId>,
+    pub behavior_rules: Vec<BehaviorRule>,
     pub skill_cooldown_ticks: u32,
     pub position: BeltPosition,
     pub grid: GridPosition,
@@ -378,7 +393,7 @@ impl BattleWorld {
             let Some(target) = closest_target(&snapshot, &self.units[index]) else {
                 continue;
             };
-            let Some(skill) = self.primary_skill_for(&self.units[index]) else {
+            let Some(skill) = self.select_skill_for(&self.units[index], &target) else {
                 if !grid_in_range(
                     self.units[index].grid,
                     target.grid,
@@ -522,6 +537,7 @@ impl BattleWorld {
                 attack_cooldown: 0.0,
                 move_speed: def.move_speed,
                 primary_skill: def.primary_skill,
+                behavior_rules: def.behavior_rules.clone(),
                 skill_cooldown_ticks: def.skill_cooldown_ticks,
                 position: home_grid.to_belt(),
                 grid: home_grid,
@@ -588,6 +604,30 @@ impl BattleWorld {
 
     fn primary_skill_for(&self, unit: &UnitState) -> Option<&SkillDef> {
         let skill_id = unit.primary_skill?;
+        self.config
+            .skill_defs
+            .iter()
+            .find(|skill| skill.id == skill_id)
+    }
+
+    fn select_skill_for(&self, unit: &UnitState, target: &UnitState) -> Option<&SkillDef> {
+        let facing = direction_toward(unit.grid, target.grid);
+        let mut rules = unit.behavior_rules.iter().collect::<Vec<_>>();
+        rules.sort_by(|a, b| b.priority.cmp(&a.priority));
+
+        for rule in rules {
+            let Some(skill) = self.skill_by_id(rule.skill) else {
+                continue;
+            };
+            if behavior_condition_matches(rule.condition, unit.grid, target.grid, facing, skill) {
+                return Some(skill);
+            }
+        }
+
+        self.primary_skill_for(unit)
+    }
+
+    fn skill_by_id(&self, skill_id: SkillDefId) -> Option<&SkillDef> {
         self.config
             .skill_defs
             .iter()
@@ -840,6 +880,21 @@ fn grid_in_range(actor: GridPosition, target: GridPosition, range: f32) -> bool 
     (actor.x - target.x).abs() <= range && (actor.lane - target.lane).abs() <= range
 }
 
+fn behavior_condition_matches(
+    condition: BehaviorCondition,
+    actor: GridPosition,
+    target: GridPosition,
+    facing: Direction,
+    skill: &SkillDef,
+) -> bool {
+    match condition {
+        BehaviorCondition::NearestEnemyInCastPattern => {
+            pattern_contains(&skill.cast_pattern, actor, facing, target)
+        }
+        BehaviorCondition::Always => true,
+    }
+}
+
 fn direction_toward(actor: GridPosition, target: GridPosition) -> Direction {
     let dx = target.x - actor.x;
     let dl = target.lane - actor.lane;
@@ -1073,6 +1128,11 @@ pub fn sample_battle_config() -> BattleConfig {
         attack_interval: 1.0,
         move_speed: 2.4,
         primary_skill: Some(SkillDefId(17001)),
+        behavior_rules: vec![BehaviorRule {
+            priority: 100,
+            skill: SkillDefId(17001),
+            condition: BehaviorCondition::NearestEnemyInCastPattern,
+        }],
         skill_cooldown_ticks: 5,
     };
     let archer = UnitDef {
@@ -1084,6 +1144,11 @@ pub fn sample_battle_config() -> BattleConfig {
         attack_interval: 0.8,
         move_speed: 2.1,
         primary_skill: Some(SkillDefId(17002)),
+        behavior_rules: vec![BehaviorRule {
+            priority: 100,
+            skill: SkillDefId(17002),
+            condition: BehaviorCondition::NearestEnemyInCastPattern,
+        }],
         skill_cooldown_ticks: 4,
     };
     let slime = UnitDef {
@@ -1095,6 +1160,11 @@ pub fn sample_battle_config() -> BattleConfig {
         attack_interval: 1.2,
         move_speed: 1.5,
         primary_skill: Some(SkillDefId(17003)),
+        behavior_rules: vec![BehaviorRule {
+            priority: 100,
+            skill: SkillDefId(17003),
+            condition: BehaviorCondition::NearestEnemyInCastPattern,
+        }],
         skill_cooldown_ticks: 6,
     };
 
@@ -1270,5 +1340,39 @@ mod tests {
         }
 
         assert!(saw_delayed_area);
+    }
+
+    #[test]
+    fn behavior_rules_choose_highest_priority_matching_skill() {
+        let mut config = sample_battle_config();
+        let knight = config
+            .unit_defs
+            .iter_mut()
+            .find(|def| def.id == UnitDefId(1))
+            .expect("knight exists");
+        knight.behavior_rules = vec![BehaviorRule {
+            priority: 200,
+            skill: SkillDefId(17002),
+            condition: BehaviorCondition::NearestEnemyInCastPattern,
+        }];
+
+        let mut world = BattleWorld::new(config);
+        let mut saw_knight_projectile = false;
+        for _ in 0..120 {
+            world.tick(0.2);
+            for event in world.drain_events() {
+                if matches!(
+                    event,
+                    BattleEvent::ProjectileLaunched {
+                        caster: UnitId(1),
+                        ..
+                    }
+                ) {
+                    saw_knight_projectile = true;
+                }
+            }
+        }
+
+        assert!(saw_knight_projectile);
     }
 }

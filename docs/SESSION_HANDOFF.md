@@ -78,6 +78,8 @@ Implemented:
 - sample archer projectile uses `impact_3x3`
 - `tick_offset > 0` skill steps are queued and executed after their tick delay
 - sample knight slash has a one-tick delayed 3x3 aftershock step
+- `unit_def.behavior_rules` selects skills by descending priority
+- supported behavior conditions are `nearest_enemy_in_cast_pattern` and `always`
 - Play Preview renders area flashes as translucent animated red grid squares
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -284,6 +286,7 @@ Implemented:
 - skill cooldown from `skill_def.cooldown_ticks`
 - immediate `skill_step` execution when `tick_offset == 0`
 - queued `skill_step` execution when `tick_offset > 0`
+- behavior rule skill selection by priority
 - effect cells from `CellPattern` relative `forward/side` offsets rotated by up/down/left/right facing
 - damage effects
 - `projectile_damage` effects with delayed impact damage
@@ -296,7 +299,7 @@ Not implemented yet:
 
 - explicit projectile authoring fields such as speed, visual type, pierce/block rules, and collision policy
 - trigger timing and conditional skill activation
-- multi-skill behavior rule selection
+- richer behavior conditions such as hp thresholds, ally/enemy counts, cooldown availability, and lane checks
 - skill authoring presets that generate `CellPattern` rows
 - dungeon reward settlement from `drop_table`
 - account energy spending/recovery simulation

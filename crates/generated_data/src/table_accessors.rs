@@ -115,6 +115,7 @@ fn load_unit_def(project: &DataProject) -> Result<GeneratedTable<UnitDef>, Strin
             move_speed: read_f32(row, FieldId(6), "unit_def.move_speed")?,
             visual: read_row(row, FieldId(7), "unit_def.visual")?,
             skills: read_rows(row, FieldId(8), "unit_def.skills")?,
+            behavior_rules: read_rows(row, FieldId(9), "unit_def.behavior_rules")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());

@@ -165,6 +165,8 @@ The first playable preview is available through `belt_tools play`:
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows.
 - Added queued `skill_step` execution for `tick_offset > 0`.
 - Added a sample knight aftershock step that fires one tick after the initial slash.
+- Added `unit_def.behavior_rules` and runtime behavior rule selection by priority.
+- Added `nearest_enemy_in_cast_pattern` and `always` behavior conditions.
 
 ## Locked Design Direction
 
@@ -199,11 +201,11 @@ The first playable preview is available through `belt_tools play`:
 
 ## Immediate Next Milestone: Combat Skill Runtime v1
 
-The runtime is grid/tick based, primary skills execute immediate and delayed `skill_step` entries through generated `CellPattern` data, and projectile impacts can resolve a destination-centered `CellPattern`. Next, extend this into the full skill execution model:
+The runtime is grid/tick based, primary skills execute immediate and delayed `skill_step` entries through generated `CellPattern` data, projectile impacts can resolve a destination-centered `CellPattern`, and units can choose skills from priority behavior rules. Next, extend this into the full skill execution model:
 
 - explicit projectile authoring fields such as speed, visual type, pierce/block rules, and collision policy
 - trigger timing runtime for conditional skill activation
-- behavior/target rule runtime
+- richer behavior conditions such as hp thresholds, ally/enemy counts, cooldown availability, and lane checks
 - dungeon reward result generation from `drop_table`
 - account energy spending/recovery simulation
 - battle simulation states to visual state machine keys
