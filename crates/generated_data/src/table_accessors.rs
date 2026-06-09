@@ -21,6 +21,11 @@ pub struct GeneratedDatabase {
     pub visual_state: GeneratedTable<VisualState>,
     pub unit_visual: GeneratedTable<UnitVisual>,
     pub sprite_frame: GeneratedTable<SpriteFrame>,
+    pub item_def: GeneratedTable<ItemDef>,
+    pub drop_table: GeneratedTable<DropTable>,
+    pub drop_entry: GeneratedTable<DropEntry>,
+    pub account_energy_config: GeneratedTable<AccountEnergyConfig>,
+    pub storage_tab_config: GeneratedTable<StorageTabConfig>,
 }
 
 #[derive(Debug, Clone)]
@@ -32,21 +37,9 @@ pub struct GeneratedTable<T> {
 
 impl<T> GeneratedTable<T> {
     fn new(rows: Vec<T>, ids: Vec<RowId>, keys: Vec<String>) -> Self {
-        let by_id = ids
-            .into_iter()
-            .enumerate()
-            .map(|(index, id)| (id, index))
-            .collect();
-        let by_key = keys
-            .into_iter()
-            .enumerate()
-            .map(|(index, key)| (key, index))
-            .collect();
-        Self {
-            rows,
-            by_id,
-            by_key,
-        }
+        let by_id = ids.into_iter().enumerate().map(|(index, id)| (id, index)).collect();
+        let by_key = keys.into_iter().enumerate().map(|(index, key)| (key, index)).collect();
+        Self { rows, by_id, by_key }
     }
 
     pub fn get_by_id(&self, id: RowId) -> Option<&T> {
@@ -72,6 +65,11 @@ impl GeneratedDatabase {
             visual_state: load_visual_state(project)?,
             unit_visual: load_unit_visual(project)?,
             sprite_frame: load_sprite_frame(project)?,
+            item_def: load_item_def(project)?,
+            drop_table: load_drop_table(project)?,
+            drop_entry: load_drop_entry(project)?,
+            account_energy_config: load_account_energy_config(project)?,
+            storage_tab_config: load_storage_tab_config(project)?,
         })
     }
 }
@@ -149,6 +147,8 @@ fn load_map_def(project: &DataProject) -> Result<GeneratedTable<MapDef>, String>
             waves: read_rows(row, FieldId(32), "map_def.waves")?,
             left_scroll_speed: read_f32(row, FieldId(33), "map_def.left_scroll_speed")?,
             wave_spawn_x: read_f32(row, FieldId(34), "map_def.wave_spawn_x")?,
+            energy_cost: read_i32(row, FieldId(35), "map_def.energy_cost")?,
+            drop_table: read_row(row, FieldId(36), "map_def.drop_table")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());
@@ -156,9 +156,7 @@ fn load_map_def(project: &DataProject) -> Result<GeneratedTable<MapDef>, String>
     Ok(GeneratedTable::new(typed_rows, ids, keys))
 }
 
-fn load_unit_group_member(
-    project: &DataProject,
-) -> Result<GeneratedTable<UnitGroupMember>, String> {
+fn load_unit_group_member(project: &DataProject) -> Result<GeneratedTable<UnitGroupMember>, String> {
     let rows = table_rows(project, TableId(5))?;
     let mut typed_rows = Vec::new();
     let mut ids = Vec::new();
@@ -220,9 +218,7 @@ fn load_sprite_animation(project: &DataProject) -> Result<GeneratedTable<SpriteA
     Ok(GeneratedTable::new(typed_rows, ids, keys))
 }
 
-fn load_visual_state_machine(
-    project: &DataProject,
-) -> Result<GeneratedTable<VisualStateMachine>, String> {
+fn load_visual_state_machine(project: &DataProject) -> Result<GeneratedTable<VisualStateMachine>, String> {
     let rows = table_rows(project, TableId(8))?;
     let mut typed_rows = Vec::new();
     let mut ids = Vec::new();
@@ -306,66 +302,140 @@ fn load_sprite_frame(project: &DataProject) -> Result<GeneratedTable<SpriteFrame
     Ok(GeneratedTable::new(typed_rows, ids, keys))
 }
 
+fn load_item_def(project: &DataProject) -> Result<GeneratedTable<ItemDef>, String> {
+    let rows = table_rows(project, TableId(12))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(ItemDef {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(100), "item_def.name")?,
+            category: read_string(row, FieldId(101), "item_def.category")?,
+            rarity: read_string(row, FieldId(102), "item_def.rarity")?,
+            stack_size: read_i32(row, FieldId(103), "item_def.stack_size")?,
+            description: read_string(row, FieldId(104), "item_def.description")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_drop_table(project: &DataProject) -> Result<GeneratedTable<DropTable>, String> {
+    let rows = table_rows(project, TableId(13))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(DropTable {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(110), "drop_table.name")?,
+            entries: read_rows(row, FieldId(111), "drop_table.entries")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_drop_entry(project: &DataProject) -> Result<GeneratedTable<DropEntry>, String> {
+    let rows = table_rows(project, TableId(14))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(DropEntry {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(120), "drop_entry.name")?,
+            item: read_row(row, FieldId(121), "drop_entry.item")?,
+            min_quantity: read_i32(row, FieldId(122), "drop_entry.min_quantity")?,
+            max_quantity: read_i32(row, FieldId(123), "drop_entry.max_quantity")?,
+            chance_per_10000: read_i32(row, FieldId(124), "drop_entry.chance_per_10000")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_account_energy_config(project: &DataProject) -> Result<GeneratedTable<AccountEnergyConfig>, String> {
+    let rows = table_rows(project, TableId(15))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(AccountEnergyConfig {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(130), "account_energy_config.name")?,
+            max_energy: read_i32(row, FieldId(131), "account_energy_config.max_energy")?,
+            recover_seconds: read_i32(row, FieldId(132), "account_energy_config.recover_seconds")?,
+            recover_amount: read_i32(row, FieldId(133), "account_energy_config.recover_amount")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_storage_tab_config(project: &DataProject) -> Result<GeneratedTable<StorageTabConfig>, String> {
+    let rows = table_rows(project, TableId(16))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(StorageTabConfig {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(140), "storage_tab_config.name")?,
+            tab_key: read_string(row, FieldId(141), "storage_tab_config.tab_key")?,
+            item_category: read_string(row, FieldId(142), "storage_tab_config.item_category")?,
+            base_capacity: read_i32(row, FieldId(143), "storage_tab_config.base_capacity")?,
+            upgrade_currency: read_row(row, FieldId(144), "storage_tab_config.upgrade_currency")?,
+            upgrade_cost_base: read_i32(row, FieldId(145), "storage_tab_config.upgrade_cost_base")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
 fn table_rows(project: &DataProject, table_id: TableId) -> Result<&[RowData], String> {
-    project
-        .data
-        .iter()
-        .find(|table| table.table_id == table_id)
-        .map(|table| table.rows.as_slice())
-        .ok_or_else(|| format!("missing table data {:?}", table_id))
+    project.data.iter().find(|table| table.table_id == table_id).map(|table| table.rows.as_slice()).ok_or_else(|| format!("missing table data {:?}", table_id))
 }
 
 fn cell<'a>(row: &'a RowData, field_id: FieldId, label: &str) -> Result<&'a CellValue, String> {
-    row.cells
-        .get(&field_id)
-        .ok_or_else(|| format!("missing cell {label} in row {}", row.key))
+    row.cells.get(&field_id).ok_or_else(|| format!("missing cell {label} in row {}", row.key))
 }
 
 fn read_bool(row: &RowData, field_id: FieldId, label: &str) -> Result<bool, String> {
-    match cell(row, field_id, label)? {
-        CellValue::Bool(value) => Ok(*value),
-        value => Err(format!("expected bool for {label}, got {value:?}")),
-    }
+    match cell(row, field_id, label)? { CellValue::Bool(value) => Ok(*value), value => Err(format!("expected bool for {label}, got {value:?}")) }
 }
 
 fn read_i32(row: &RowData, field_id: FieldId, label: &str) -> Result<i32, String> {
-    match cell(row, field_id, label)? {
-        CellValue::I32(value) => Ok(*value),
-        value => Err(format!("expected i32 for {label}, got {value:?}")),
-    }
+    match cell(row, field_id, label)? { CellValue::I32(value) => Ok(*value), value => Err(format!("expected i32 for {label}, got {value:?}")) }
 }
 
 fn read_i64(row: &RowData, field_id: FieldId, label: &str) -> Result<i64, String> {
-    match cell(row, field_id, label)? {
-        CellValue::I64(value) => Ok(*value),
-        value => Err(format!("expected i64 for {label}, got {value:?}")),
-    }
+    match cell(row, field_id, label)? { CellValue::I64(value) => Ok(*value), value => Err(format!("expected i64 for {label}, got {value:?}")) }
 }
 
 fn read_f32(row: &RowData, field_id: FieldId, label: &str) -> Result<f32, String> {
-    match cell(row, field_id, label)? {
-        CellValue::F32(value) => Ok(*value),
-        value => Err(format!("expected f32 for {label}, got {value:?}")),
-    }
+    match cell(row, field_id, label)? { CellValue::F32(value) => Ok(*value), value => Err(format!("expected f32 for {label}, got {value:?}")) }
 }
 
 fn read_string(row: &RowData, field_id: FieldId, label: &str) -> Result<String, String> {
-    match cell(row, field_id, label)? {
-        CellValue::String(value) => Ok(value.clone()),
-        value => Err(format!("expected string for {label}, got {value:?}")),
-    }
+    match cell(row, field_id, label)? { CellValue::String(value) => Ok(value.clone()), value => Err(format!("expected string for {label}, got {value:?}")) }
 }
 
 fn read_row(row: &RowData, field_id: FieldId, label: &str) -> Result<RowId, String> {
-    match cell(row, field_id, label)? {
-        CellValue::Row(value) => Ok(*value),
-        value => Err(format!("expected row id for {label}, got {value:?}")),
-    }
+    match cell(row, field_id, label)? { CellValue::Row(value) => Ok(*value), value => Err(format!("expected row id for {label}, got {value:?}")) }
 }
 
 fn read_rows(row: &RowData, field_id: FieldId, label: &str) -> Result<Vec<RowId>, String> {
-    match cell(row, field_id, label)? {
-        CellValue::Rows(value) => Ok(value.clone()),
-        value => Err(format!("expected row id list for {label}, got {value:?}")),
-    }
+    match cell(row, field_id, label)? { CellValue::Rows(value) => Ok(value.clone()), value => Err(format!("expected row id list for {label}, got {value:?}")) }
 }

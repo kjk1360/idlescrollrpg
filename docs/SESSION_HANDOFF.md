@@ -67,6 +67,7 @@ Implemented:
 - Visual tab state machine editor for active `visual_state_machine` rows
 - `/api/assets` project image browser and Visual tab texture asset create/update UI
 - tick/grid-based `belt_core` wave combat with prepare/engage phases and map clear
+- initial item/drop/energy/storage data tables for dungeon reward and operation UI foundations
 
 ## Locked Design Direction
 
@@ -74,11 +75,13 @@ Combat and operation are the two main cores.
 
 Operation:
 
-- offline-first farm/crafting simulation
-- account-level energy
-- resource harvesting, crafting, synthesis, equipment, consumable growth items, delivery/sink flows
-- production time uses `effective_duration = base_duration * 10000 / time_multiplier`
-- default `time_multiplier` is `10000`
+- UI-driven crafting, enhancement, storage, hero management, and reincarnation hub
+- no harvest node loop, offline production job loop, production time, or production energy cost
+- combat/dungeon dispatch is the source of base materials and part of advanced materials
+- account-level energy is a dungeon dispatch/fatigue resource
+- account energy recovers by real elapsed time
+- energy can later be sold through web shop flows
+- some consumable items can restore energy
 - server/db usage is limited to auction, mail, guild, ranking, and similar non-realtime systems
 
 Combat:
@@ -103,6 +106,20 @@ Growth:
 - reincarnation resets growth costs while preserving selected/random skill, trait, or stat elements
 - extra reincarnation consumables can increase preserved element count or control random/fixed preservation
 - equipment is freely swappable and can be destroyed on combat defeat
+
+Operation UI:
+
+- top-level sections are Warehouse, Hero, and Operation
+- Warehouse tabs are material, equipment, and consumable
+- each warehouse tab has separate capacity and upgrade rules
+- material items stack up to their item stack size, currently defaulting to 10
+- equipment and consumables are unique/non-stacking inventory items
+- overflow inventory goes to client-local mail for one real day before deletion
+- Hero UI manages owned heroes, equipment, consumable use, release, and reincarnation
+- Operation tabs are Alchemy Furnace, Forge, and Refinement Workbench
+- Alchemy Furnace registers one recipe per output item and crafts non-equipment items instantly
+- Forge crafts equipment from a consumable equipment recipe plus required material slots
+- Refinement Workbench cubing uses one equipment slot and one material slot for option rerolls/mutation
 
 ## Important Commands
 
@@ -171,6 +188,11 @@ projects/sample/
     unit_group_member.json
     wave_def.json
     map_def.json
+    item_def.json
+    drop_table.json
+    drop_entry.json
+    account_energy_config.json
+    storage_tab_config.json
     texture_asset.json
     sprite_frame.json
     sprite_animation.json
@@ -318,11 +340,12 @@ Improve sprite asset editing and visual preview authoring.
 Recommended order:
 
 1. Add explicit skill, skill effect, behavior, and target rule data models.
-2. Connect battle simulation states to visual state machine keys.
-3. Add knockback forced movement effect.
-4. Add row preview thumbnails for sprite frame lists and palettes.
-5. Add pagination/search to relation picker for large target tables.
-5. Package and verify the updated `belt_tools.exe` again.
+2. Add dungeon reward result generation from `drop_table`.
+3. Add account energy spending/recovery simulation.
+4. Connect battle simulation states to visual state machine keys.
+5. Add knockback forced movement effect.
+6. Add row preview thumbnails for sprite frame lists and palettes.
+7. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats
 

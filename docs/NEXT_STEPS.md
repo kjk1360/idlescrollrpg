@@ -59,6 +59,8 @@
 - Added `/api/assets` project asset browser and Visual tab texture asset create/update UI.
 - Converted `belt_core` battle runtime to tick/grid-based wave combat.
 - Changed maps to clear after their final wave instead of looping indefinitely.
+- Removed the operation harvesting/production premise from the locked design direction.
+- Added initial item, drop table, account energy, and storage tab data tables.
 
 ## Current Stable CLI Flow
 
@@ -154,8 +156,11 @@ The first playable preview is available through `belt_tools play`:
 ## Locked Design Direction
 
 - Combat and operation are the two core loops.
-- Operation is offline-first farm/crafting simulation with account energy, resource harvesting, crafting, synthesis, equipment, consumable growth items, and delivery/sink flows.
-- Operation time uses `effective_duration = base_duration * 10000 / time_multiplier`; default multiplier is `10000`.
+- Operation is a UI-driven crafting, enhancement, storage, hero management, and reincarnation hub.
+- Operation has no harvest node loop, no offline production job loop, no production time, and no production energy cost.
+- Combat/dungeon dispatch is the source of base materials and part of advanced materials.
+- Account energy is a dungeon dispatch/fatigue resource.
+- Account energy recovers by real elapsed time, can later be sold through web shop flows, and can be restored by consumable items.
 - Combat is automatic tick/grid belt-scroll dungeon combat.
 - Combat grid is an advancing-axis grid with 3 lanes.
 - One unit occupies one grid cell; occupied cells cannot be entered or crossed.
@@ -167,6 +172,13 @@ The first playable preview is available through `belt_tools play`:
 - Unit rarity does not exist directly; skills, traits, and stats can have rarity.
 - Unit growth consumes items with increasing costs, and reincarnation resets growth costs while preserving selected/random skill, trait, or stat elements.
 - Equipment is freely swappable and can be destroyed on combat defeat.
+- Storage has material/equipment/consumable tabs with separate capacities and upgrades.
+- Overflow inventory goes to client-local mail for one real day before deletion.
+- Operation UI has Warehouse, Hero, and Operation sections.
+- Operation section has Alchemy Furnace, Forge, and Refinement Workbench tabs.
+- Alchemy Furnace registers one recipe per output item and crafts non-equipment items instantly.
+- Forge crafts equipment from a consumable equipment recipe plus required material slots.
+- Refinement Workbench cubing uses one equipment slot and one material slot for option rerolls/mutation.
 
 ## Immediate Next Milestone: Combat Data Model
 
@@ -175,6 +187,8 @@ The runtime is now grid/tick based, but it still maps old unit attack fields int
 - skill table
 - skill range/effect model
 - behavior/target rule model
+- dungeon reward result generation from `drop_table`
+- account energy spending/recovery simulation
 - battle simulation states to visual state machine keys
 - knockback forced movement effect
 - row preview thumbnails for sprite frame lists and palettes

@@ -1,0 +1,92 @@
+[
+  {
+    "id": 16001,
+    "key": "material_storage",
+    "cells": {
+      "140": {
+        "kind": "string",
+        "value": "Material Storage"
+      },
+      "141": {
+        "kind": "string",
+        "value": "material"
+      },
+      "142": {
+        "kind": "string",
+        "value": "material"
+      },
+      "143": {
+        "kind": "i32",
+        "value": 40
+      },
+      "144": {
+        "kind": "row",
+        "value": 12001
+      },
+      "145": {
+        "kind": "i32",
+        "value": 100
+      }
+    }
+  },
+  {
+    "id": 16002,
+    "key": "equipment_storage",
+    "cells": {
+      "140": {
+        "kind": "string",
+        "value": "Equipment Storage"
+      },
+      "141": {
+        "kind": "string",
+        "value": "equipment"
+      },
+      "142": {
+        "kind": "string",
+        "value": "equipment"
+      },
+      "143": {
+        "kind": "i32",
+        "value": 40
+      },
+      "144": {
+        "kind": "row",
+        "value": 12001
+      },
+      "145": {
+        "kind": "i32",
+        "value": 100
+      }
+    }
+  },
+  {
+    "id": 16003,
+    "key": "consumable_storage",
+    "cells": {
+      "140": {
+        "kind": "string",
+        "value": "Consumable Storage"
+      },
+      "141": {
+        "kind": "string",
+        "value": "consumable"
+      },
+      "142": {
+        "kind": "string",
+        "value": "consumable"
+      },
+      "143": {
+        "kind": "i32",
+        "value": 40
+      },
+      "144": {
+        "kind": "row",
+        "value": 12001
+      },
+      "145": {
+        "kind": "i32",
+        "value": 100
+      }
+    }
+  }
+]

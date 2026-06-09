@@ -13,6 +13,7 @@ pub struct GeneratedRelationCache {
     pub wave_def_enemy_groups: HashMap<RowId, Vec<RowId>>,
     pub map_def_party: HashMap<RowId, RowId>,
     pub map_def_waves: HashMap<RowId, Vec<RowId>>,
+    pub map_def_drop_table: HashMap<RowId, RowId>,
     pub unit_group_member_unit: HashMap<RowId, RowId>,
     pub sprite_animation_texture: HashMap<RowId, RowId>,
     pub sprite_animation_frames: HashMap<RowId, Vec<RowId>>,
@@ -21,6 +22,9 @@ pub struct GeneratedRelationCache {
     pub visual_state_animation: HashMap<RowId, RowId>,
     pub unit_visual_state_machine: HashMap<RowId, RowId>,
     pub sprite_frame_texture: HashMap<RowId, RowId>,
+    pub drop_table_entries: HashMap<RowId, Vec<RowId>>,
+    pub drop_entry_item: HashMap<RowId, RowId>,
+    pub storage_tab_config_upgrade_currency: HashMap<RowId, RowId>,
 }
 
 impl GeneratedRelationCache {
@@ -28,20 +32,14 @@ impl GeneratedRelationCache {
         let mut cache = Self::default();
         for row in &db.unit_def.rows {
             if db.unit_visual.get_by_id(row.visual).is_none() {
-                return Err(format!(
-                    "missing relation target for unit_def.visual from {:?} to {:?}",
-                    row.id, row.visual
-                ));
+                return Err(format!("missing relation target for unit_def.visual from {:?} to {:?}", row.id, row.visual));
             }
             cache.unit_def_visual.insert(row.id, row.visual);
         }
         for row in &db.unit_group.rows {
             for target_id in &row.members {
                 if db.unit_group_member.get_by_id(*target_id).is_none() {
-                    return Err(format!(
-                        "missing relation target for unit_group.members from {:?} to {:?}",
-                        row.id, target_id
-                    ));
+                    return Err(format!("missing relation target for unit_group.members from {:?} to {:?}", row.id, target_id));
                 }
             }
             cache.unit_group_members.insert(row.id, row.members.clone());
@@ -49,120 +47,102 @@ impl GeneratedRelationCache {
         for row in &db.wave_def.rows {
             for target_id in &row.enemy_groups {
                 if db.unit_group.get_by_id(*target_id).is_none() {
-                    return Err(format!(
-                        "missing relation target for wave_def.enemy_groups from {:?} to {:?}",
-                        row.id, target_id
-                    ));
+                    return Err(format!("missing relation target for wave_def.enemy_groups from {:?} to {:?}", row.id, target_id));
                 }
             }
-            cache
-                .wave_def_enemy_groups
-                .insert(row.id, row.enemy_groups.clone());
+            cache.wave_def_enemy_groups.insert(row.id, row.enemy_groups.clone());
         }
         for row in &db.map_def.rows {
             if db.unit_group.get_by_id(row.party).is_none() {
-                return Err(format!(
-                    "missing relation target for map_def.party from {:?} to {:?}",
-                    row.id, row.party
-                ));
+                return Err(format!("missing relation target for map_def.party from {:?} to {:?}", row.id, row.party));
             }
             cache.map_def_party.insert(row.id, row.party);
         }
         for row in &db.map_def.rows {
             for target_id in &row.waves {
                 if db.wave_def.get_by_id(*target_id).is_none() {
-                    return Err(format!(
-                        "missing relation target for map_def.waves from {:?} to {:?}",
-                        row.id, target_id
-                    ));
+                    return Err(format!("missing relation target for map_def.waves from {:?} to {:?}", row.id, target_id));
                 }
             }
             cache.map_def_waves.insert(row.id, row.waves.clone());
         }
+        for row in &db.map_def.rows {
+            if db.drop_table.get_by_id(row.drop_table).is_none() {
+                return Err(format!("missing relation target for map_def.drop_table from {:?} to {:?}", row.id, row.drop_table));
+            }
+            cache.map_def_drop_table.insert(row.id, row.drop_table);
+        }
         for row in &db.unit_group_member.rows {
             if db.unit_def.get_by_id(row.unit).is_none() {
-                return Err(format!(
-                    "missing relation target for unit_group_member.unit from {:?} to {:?}",
-                    row.id, row.unit
-                ));
+                return Err(format!("missing relation target for unit_group_member.unit from {:?} to {:?}", row.id, row.unit));
             }
             cache.unit_group_member_unit.insert(row.id, row.unit);
         }
         for row in &db.sprite_animation.rows {
             if db.texture_asset.get_by_id(row.texture).is_none() {
-                return Err(format!(
-                    "missing relation target for sprite_animation.texture from {:?} to {:?}",
-                    row.id, row.texture
-                ));
+                return Err(format!("missing relation target for sprite_animation.texture from {:?} to {:?}", row.id, row.texture));
             }
             cache.sprite_animation_texture.insert(row.id, row.texture);
         }
         for row in &db.sprite_animation.rows {
             for target_id in &row.frames {
                 if db.sprite_frame.get_by_id(*target_id).is_none() {
-                    return Err(format!(
-                        "missing relation target for sprite_animation.frames from {:?} to {:?}",
-                        row.id, target_id
-                    ));
+                    return Err(format!("missing relation target for sprite_animation.frames from {:?} to {:?}", row.id, target_id));
                 }
             }
-            cache
-                .sprite_animation_frames
-                .insert(row.id, row.frames.clone());
+            cache.sprite_animation_frames.insert(row.id, row.frames.clone());
         }
         for row in &db.visual_state_machine.rows {
             if db.visual_state.get_by_id(row.default_state).is_none() {
                 return Err(format!("missing relation target for visual_state_machine.default_state from {:?} to {:?}", row.id, row.default_state));
             }
-            cache
-                .visual_state_machine_default_state
-                .insert(row.id, row.default_state);
+            cache.visual_state_machine_default_state.insert(row.id, row.default_state);
         }
         for row in &db.visual_state_machine.rows {
             for target_id in &row.states {
                 if db.visual_state.get_by_id(*target_id).is_none() {
-                    return Err(format!(
-                        "missing relation target for visual_state_machine.states from {:?} to {:?}",
-                        row.id, target_id
-                    ));
+                    return Err(format!("missing relation target for visual_state_machine.states from {:?} to {:?}", row.id, target_id));
                 }
             }
-            cache
-                .visual_state_machine_states
-                .insert(row.id, row.states.clone());
+            cache.visual_state_machine_states.insert(row.id, row.states.clone());
         }
         for row in &db.visual_state.rows {
             if db.sprite_animation.get_by_id(row.animation).is_none() {
-                return Err(format!(
-                    "missing relation target for visual_state.animation from {:?} to {:?}",
-                    row.id, row.animation
-                ));
+                return Err(format!("missing relation target for visual_state.animation from {:?} to {:?}", row.id, row.animation));
             }
             cache.visual_state_animation.insert(row.id, row.animation);
         }
         for row in &db.unit_visual.rows {
-            if db
-                .visual_state_machine
-                .get_by_id(row.state_machine)
-                .is_none()
-            {
-                return Err(format!(
-                    "missing relation target for unit_visual.state_machine from {:?} to {:?}",
-                    row.id, row.state_machine
-                ));
+            if db.visual_state_machine.get_by_id(row.state_machine).is_none() {
+                return Err(format!("missing relation target for unit_visual.state_machine from {:?} to {:?}", row.id, row.state_machine));
             }
-            cache
-                .unit_visual_state_machine
-                .insert(row.id, row.state_machine);
+            cache.unit_visual_state_machine.insert(row.id, row.state_machine);
         }
         for row in &db.sprite_frame.rows {
             if db.texture_asset.get_by_id(row.texture).is_none() {
-                return Err(format!(
-                    "missing relation target for sprite_frame.texture from {:?} to {:?}",
-                    row.id, row.texture
-                ));
+                return Err(format!("missing relation target for sprite_frame.texture from {:?} to {:?}", row.id, row.texture));
             }
             cache.sprite_frame_texture.insert(row.id, row.texture);
+        }
+        for row in &db.drop_table.rows {
+            for target_id in &row.entries {
+                if db.drop_entry.get_by_id(*target_id).is_none() {
+                    return Err(format!("missing relation target for drop_table.entries from {:?} to {:?}", row.id, target_id));
+                }
+            }
+            cache.drop_table_entries.insert(row.id, row.entries.clone());
+        }
+        for row in &db.drop_entry.rows {
+            if db.item_def.get_by_id(row.item).is_none() {
+                return Err(format!("missing relation target for drop_entry.item from {:?} to {:?}", row.id, row.item));
+            }
+            cache.drop_entry_item.insert(row.id, row.item);
+        }
+        for row in &db.storage_tab_config.rows {
+            if db.item_def.get_by_id(row.upgrade_currency).is_none() {
+                return Err(format!("missing relation target for storage_tab_config.upgrade_currency from {:?} to {:?}", row.id, row.upgrade_currency));
+            }
+            cache.storage_tab_config_upgrade_currency.insert(row.id, row.upgrade_currency);
         }
         Ok(cache)
     }
@@ -187,6 +167,10 @@ impl GeneratedRelationCache {
         self.map_def_waves.get(&source).map(Vec::as_slice)
     }
 
+    pub fn get_map_def_drop_table(&self, source: RowId) -> Option<RowId> {
+        self.map_def_drop_table.get(&source).copied()
+    }
+
     pub fn get_unit_group_member_unit(&self, source: RowId) -> Option<RowId> {
         self.unit_group_member_unit.get(&source).copied()
     }
@@ -200,15 +184,11 @@ impl GeneratedRelationCache {
     }
 
     pub fn get_visual_state_machine_default_state(&self, source: RowId) -> Option<RowId> {
-        self.visual_state_machine_default_state
-            .get(&source)
-            .copied()
+        self.visual_state_machine_default_state.get(&source).copied()
     }
 
     pub fn get_visual_state_machine_states(&self, source: RowId) -> Option<&[RowId]> {
-        self.visual_state_machine_states
-            .get(&source)
-            .map(Vec::as_slice)
+        self.visual_state_machine_states.get(&source).map(Vec::as_slice)
     }
 
     pub fn get_visual_state_animation(&self, source: RowId) -> Option<RowId> {
@@ -221,5 +201,17 @@ impl GeneratedRelationCache {
 
     pub fn get_sprite_frame_texture(&self, source: RowId) -> Option<RowId> {
         self.sprite_frame_texture.get(&source).copied()
+    }
+
+    pub fn get_drop_table_entries(&self, source: RowId) -> Option<&[RowId]> {
+        self.drop_table_entries.get(&source).map(Vec::as_slice)
+    }
+
+    pub fn get_drop_entry_item(&self, source: RowId) -> Option<RowId> {
+        self.drop_entry_item.get(&source).copied()
+    }
+
+    pub fn get_storage_tab_config_upgrade_currency(&self, source: RowId) -> Option<RowId> {
+        self.storage_tab_config_upgrade_currency.get(&source).copied()
     }
 }

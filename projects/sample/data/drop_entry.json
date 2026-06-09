@@ -1,0 +1,80 @@
+[
+  {
+    "id": 14001,
+    "key": "slime_gel_common",
+    "cells": {
+      "120": {
+        "kind": "string",
+        "value": "Slime Gel Common"
+      },
+      "121": {
+        "kind": "row",
+        "value": 12001
+      },
+      "122": {
+        "kind": "i32",
+        "value": 2
+      },
+      "123": {
+        "kind": "i32",
+        "value": 5
+      },
+      "124": {
+        "kind": "i32",
+        "value": 10000
+      }
+    }
+  },
+  {
+    "id": 14002,
+    "key": "iron_ore_uncommon",
+    "cells": {
+      "120": {
+        "kind": "string",
+        "value": "Iron Ore Uncommon"
+      },
+      "121": {
+        "kind": "row",
+        "value": 12002
+      },
+      "122": {
+        "kind": "i32",
+        "value": 1
+      },
+      "123": {
+        "kind": "i32",
+        "value": 3
+      },
+      "124": {
+        "kind": "i32",
+        "value": 4500
+      }
+    }
+  },
+  {
+    "id": 14003,
+    "key": "energy_tonic_rare",
+    "cells": {
+      "120": {
+        "kind": "string",
+        "value": "Energy Tonic Rare"
+      },
+      "121": {
+        "kind": "row",
+        "value": 12003
+      },
+      "122": {
+        "kind": "i32",
+        "value": 1
+      },
+      "123": {
+        "kind": "i32",
+        "value": 1
+      },
+      "124": {
+        "kind": "i32",
+        "value": 700
+      }
+    }
+  }
+]

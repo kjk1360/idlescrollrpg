@@ -40,6 +40,8 @@ pub struct MapDef {
     pub waves: Vec<RowId>,
     pub left_scroll_speed: f32,
     pub wave_spawn_x: f32,
+    pub energy_cost: i32,
+    pub drop_table: RowId,
 }
 
 #[derive(Debug, Clone)]
@@ -117,3 +119,56 @@ pub struct SpriteFrame {
     pub pivot_y: f32,
     pub duration: f32,
 }
+
+#[derive(Debug, Clone)]
+pub struct ItemDef {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub category: String,
+    pub rarity: String,
+    pub stack_size: i32,
+    pub description: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct DropTable {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub entries: Vec<RowId>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DropEntry {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub item: RowId,
+    pub min_quantity: i32,
+    pub max_quantity: i32,
+    pub chance_per_10000: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct AccountEnergyConfig {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub max_energy: i32,
+    pub recover_seconds: i32,
+    pub recover_amount: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct StorageTabConfig {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub tab_key: String,
+    pub item_category: String,
+    pub base_capacity: i32,
+    pub upgrade_currency: RowId,
+    pub upgrade_cost_base: i32,
+}
+

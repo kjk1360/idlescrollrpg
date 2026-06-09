@@ -1,0 +1,20 @@
+[
+  {
+    "id": 13001,
+    "key": "endless_left_road_rewards",
+    "cells": {
+      "110": {
+        "kind": "string",
+        "value": "Endless Left Road Rewards"
+      },
+      "111": {
+        "kind": "rows",
+        "value": [
+          14001,
+          14002,
+          14003
+        ]
+      }
+    }
+  }
+]

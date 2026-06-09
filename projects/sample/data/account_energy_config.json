@@ -1,0 +1,24 @@
+[
+  {
+    "id": 15001,
+    "key": "default_energy",
+    "cells": {
+      "130": {
+        "kind": "string",
+        "value": "Default Energy"
+      },
+      "131": {
+        "kind": "i32",
+        "value": 120
+      },
+      "132": {
+        "kind": "i32",
+        "value": 300
+      },
+      "133": {
+        "kind": "i32",
+        "value": 1
+      }
+    }
+  }
+]

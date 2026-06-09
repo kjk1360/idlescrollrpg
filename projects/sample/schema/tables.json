@@ -173,6 +173,25 @@
           "kind": "f32"
         },
         "required": true
+      },
+      {
+        "id": 35,
+        "key": "energy_cost",
+        "display_name": "Energy Cost",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 36,
+        "key": "drop_table",
+        "display_name": "Drop Table",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 13
+        },
+        "required": true
       }
     ]
   },
@@ -536,6 +555,242 @@
           "kind": "f32"
         },
         "required": false
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "key": "item_def",
+    "display_name": "Item Def",
+    "fields": [
+      {
+        "id": 100,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 101,
+        "key": "category",
+        "display_name": "Category",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 102,
+        "key": "rarity",
+        "display_name": "Rarity",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 103,
+        "key": "stack_size",
+        "display_name": "Stack Size",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 104,
+        "key": "description",
+        "display_name": "Description",
+        "kind": {
+          "kind": "text"
+        },
+        "required": false
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "key": "drop_table",
+    "display_name": "Drop Table",
+    "fields": [
+      {
+        "id": 110,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 111,
+        "key": "entries",
+        "display_name": "Entries",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 14
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 14,
+    "key": "drop_entry",
+    "display_name": "Drop Entry",
+    "fields": [
+      {
+        "id": 120,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 121,
+        "key": "item",
+        "display_name": "Item",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 12
+        },
+        "required": true
+      },
+      {
+        "id": 122,
+        "key": "min_quantity",
+        "display_name": "Min Quantity",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 123,
+        "key": "max_quantity",
+        "display_name": "Max Quantity",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 124,
+        "key": "chance_per_10000",
+        "display_name": "Chance Per 10000",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 15,
+    "key": "account_energy_config",
+    "display_name": "Account Energy Config",
+    "fields": [
+      {
+        "id": 130,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 131,
+        "key": "max_energy",
+        "display_name": "Max Energy",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 132,
+        "key": "recover_seconds",
+        "display_name": "Recover Seconds",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 133,
+        "key": "recover_amount",
+        "display_name": "Recover Amount",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 16,
+    "key": "storage_tab_config",
+    "display_name": "Storage Tab Config",
+    "fields": [
+      {
+        "id": 140,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 141,
+        "key": "tab_key",
+        "display_name": "Tab Key",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 142,
+        "key": "item_category",
+        "display_name": "Item Category",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 143,
+        "key": "base_capacity",
+        "display_name": "Base Capacity",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 144,
+        "key": "upgrade_currency",
+        "display_name": "Upgrade Currency",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 12
+        },
+        "required": false
+      },
+      {
+        "id": 145,
+        "key": "upgrade_cost_base",
+        "display_name": "Upgrade Cost Base",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
       }
     ]
   }
