@@ -34,6 +34,18 @@
       "177": {
         "kind": "row",
         "value": 20001
+      },
+      "310": {
+        "kind": "string",
+        "value": "target"
+      },
+      "311": {
+        "kind": "row",
+        "value": 23002
+      },
+      "312": {
+        "kind": "f32",
+        "value": 0.0
       }
     }
   },
@@ -72,6 +84,18 @@
       "177": {
         "kind": "row",
         "value": 20003
+      },
+      "310": {
+        "kind": "string",
+        "value": "target"
+      },
+      "311": {
+        "kind": "row",
+        "value": 23002
+      },
+      "312": {
+        "kind": "f32",
+        "value": 0.0
       }
     }
   },
@@ -110,6 +134,18 @@
       "177": {
         "kind": "row",
         "value": 20001
+      },
+      "310": {
+        "kind": "string",
+        "value": "target"
+      },
+      "311": {
+        "kind": "row",
+        "value": 23002
+      },
+      "312": {
+        "kind": "f32",
+        "value": 0.0
       }
     }
   },
@@ -148,6 +184,68 @@
       "177": {
         "kind": "row",
         "value": 20003
+      },
+      "310": {
+        "kind": "string",
+        "value": "target"
+      },
+      "311": {
+        "kind": "row",
+        "value": 23002
+      },
+      "312": {
+        "kind": "f32",
+        "value": 0.0
+      }
+    }
+  },
+  {
+    "id": 19005,
+    "key": "slime_tackle_bleed",
+    "cells": {
+      "170": {
+        "kind": "string",
+        "value": "Slime Tackle Bleed"
+      },
+      "171": {
+        "kind": "string",
+        "value": "stat_delta"
+      },
+      "172": {
+        "kind": "i32",
+        "value": 0
+      },
+      "173": {
+        "kind": "f32",
+        "value": 0.0
+      },
+      "174": {
+        "kind": "i32",
+        "value": 0
+      },
+      "175": {
+        "kind": "row",
+        "value": 17003
+      },
+      "176": {
+        "kind": "string",
+        "value": ""
+      },
+      "177": {
+        "kind": "row",
+        "value": 20001
+      },
+      "310": {
+        "kind": "string",
+        "value": "target"
+      },
+      "311": {
+        "kind": "row",
+        "value": 23005
+      },
+      "312": {
+        "kind": "f32",
+        "value": 1.0
       }
     }
   }

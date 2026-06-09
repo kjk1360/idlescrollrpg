@@ -34,6 +34,7 @@ pub struct GeneratedRelationCache {
     pub skill_step_effects: HashMap<RowId, Vec<RowId>>,
     pub skill_effect_trigger_skill: HashMap<RowId, RowId>,
     pub skill_effect_impact_pattern: HashMap<RowId, RowId>,
+    pub skill_effect_stat: HashMap<RowId, RowId>,
     pub cell_pattern_cells: HashMap<RowId, Vec<RowId>>,
     pub behavior_rule_skill: HashMap<RowId, RowId>,
     pub behavior_rule_conditions: HashMap<RowId, Vec<RowId>>,
@@ -321,6 +322,15 @@ impl GeneratedRelationCache {
                 .skill_effect_impact_pattern
                 .insert(row.id, row.impact_pattern);
         }
+        for row in &db.skill_effect.rows {
+            if db.stat_def.get_by_id(row.stat).is_none() {
+                return Err(format!(
+                    "missing relation target for skill_effect.stat from {:?} to {:?}",
+                    row.id, row.stat
+                ));
+            }
+            cache.skill_effect_stat.insert(row.id, row.stat);
+        }
         for row in &db.cell_pattern.rows {
             for target_id in &row.cells {
                 if db.cell_offset.get_by_id(*target_id).is_none() {
@@ -494,6 +504,10 @@ impl GeneratedRelationCache {
 
     pub fn get_skill_effect_impact_pattern(&self, source: RowId) -> Option<RowId> {
         self.skill_effect_impact_pattern.get(&source).copied()
+    }
+
+    pub fn get_skill_effect_stat(&self, source: RowId) -> Option<RowId> {
+        self.skill_effect_stat.get(&source).copied()
     }
 
     pub fn get_cell_pattern_cells(&self, source: RowId) -> Option<&[RowId]> {

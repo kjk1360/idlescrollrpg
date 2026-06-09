@@ -83,6 +83,8 @@ Implemented:
 - `stat_def`, `unit_base_stat`, and `condition_def` tables exist
 - runtime `StatBlock` exists on unit definitions and spawned unit states
 - behavior rules can evaluate structured conditions against `self` or `target` stats
+- `stat_delta` skill effects can add to `self` or `target` stats
+- sample slime tackle applies `bleed_stack +1`
 - Play Preview renders area flashes as translucent animated red grid squares
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -291,6 +293,7 @@ Implemented:
 - queued `skill_step` execution when `tick_offset > 0`
 - behavior rule skill selection by priority
 - stat-based behavior conditions using value, stat, and stat-ratio comparisons
+- stat-delta skill effects for stack/resource changes
 - effect cells from `CellPattern` relative `forward/side` offsets rotated by up/down/left/right facing
 - damage effects
 - `projectile_damage` effects with delayed impact damage
@@ -304,7 +307,8 @@ Not implemented yet:
 - explicit projectile authoring fields such as speed, visual type, pierce/block rules, and collision policy
 - trigger timing and conditional skill activation
 - richer behavior conditions such as ally/enemy counts, cooldown availability, lane checks, and enemies in pattern with stat filters
-- stat-modifying skill effects for mana gain/spend, stack application, shields, buffs, and debuffs
+- stat cost/payment rules for mana spend and other resources
+- stat duration/decay rules for temporary stacks, shields, buffs, and debuffs
 - skill authoring presets that generate `CellPattern` rows
 - dungeon reward settlement from `drop_table`
 - account energy spending/recovery simulation

@@ -504,6 +504,9 @@ fn load_skill_effect(project: &DataProject) -> Result<GeneratedTable<SkillEffect
             trigger_skill: read_row(row, FieldId(175), "skill_effect.trigger_skill")?,
             trigger_timing: read_string(row, FieldId(176), "skill_effect.trigger_timing")?,
             impact_pattern: read_row(row, FieldId(177), "skill_effect.impact_pattern")?,
+            stat_target: read_string(row, FieldId(310), "skill_effect.stat_target")?,
+            stat: read_row(row, FieldId(311), "skill_effect.stat")?,
+            stat_delta: read_f32(row, FieldId(312), "skill_effect.stat_delta")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());

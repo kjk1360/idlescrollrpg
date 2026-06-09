@@ -121,12 +121,20 @@ fn skill_effect_from_data(db: &GeneratedDatabase, row_id: RowId) -> Result<Skill
         kind: match row.effect_kind.as_str() {
             "damage" => SkillEffectKind::Damage,
             "projectile_damage" => SkillEffectKind::ProjectileDamage,
+            "stat_delta" => SkillEffectKind::StatDelta,
             other => return Err(format!("unsupported skill effect kind {other}")),
         },
         power: row.power,
         scaling: row.scaling,
         knockback_cells: row.knockback_cells.max(0),
         impact_pattern: Some(cell_pattern_from_data(db, row.impact_pattern)?),
+        stat_target: match row.stat_target.as_str() {
+            "self" => ConditionSubject::SelfUnit,
+            "target" => ConditionSubject::Target,
+            other => return Err(format!("unsupported stat target {other}")),
+        },
+        stat: StatDefId(row.stat.0 as u32),
+        stat_delta: row.stat_delta,
         trigger_skill: if row.trigger_timing.is_empty() {
             None
         } else {

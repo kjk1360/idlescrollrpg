@@ -12,6 +12,7 @@ pub struct StatDefId(pub u32);
 pub const STAT_MAX_HP: StatDefId = StatDefId(23001);
 pub const STAT_CURRENT_HP: StatDefId = StatDefId(23002);
 pub const STAT_ATTACK: StatDefId = StatDefId(23003);
+pub const STAT_BLEED_STACK: StatDefId = StatDefId(23005);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnitId(pub u64);
@@ -176,6 +177,9 @@ pub struct SkillEffect {
     pub scaling: f32,
     pub knockback_cells: i32,
     pub impact_pattern: Option<CellPattern>,
+    pub stat_target: ConditionSubject,
+    pub stat: StatDefId,
+    pub stat_delta: f32,
     pub trigger_skill: Option<SkillDefId>,
     pub trigger_timing: Option<String>,
 }
@@ -184,6 +188,7 @@ pub struct SkillEffect {
 pub enum SkillEffectKind {
     Damage,
     ProjectileDamage,
+    StatDelta,
 }
 
 #[derive(Debug, Clone)]
@@ -837,6 +842,28 @@ impl BattleWorld {
                     ticks_remaining: travel_ticks,
                 });
             }
+            SkillEffectKind::StatDelta => {
+                self.events.push(BattleEvent::SkillAreaEffect {
+                    cells: cells.iter().copied().collect(),
+                });
+                match effect.stat_target {
+                    ConditionSubject::SelfUnit => {
+                        self.apply_stat_delta(caster.id, effect.stat, effect.stat_delta);
+                    }
+                    ConditionSubject::Target => {
+                        let targets = self
+                            .units
+                            .iter()
+                            .filter(|unit| unit.is_alive() && caster.team.is_enemy_of(unit.team))
+                            .filter(|unit| cells.contains(&unit.grid))
+                            .map(|unit| unit.id)
+                            .collect::<Vec<_>>();
+                        for target in targets {
+                            self.apply_stat_delta(target, effect.stat, effect.stat_delta);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -910,6 +937,14 @@ impl BattleWorld {
                         .push(BattleEvent::UnitKilled { unit_id: target });
                 }
             }
+        }
+    }
+
+    fn apply_stat_delta(&mut self, target: UnitId, stat: StatDefId, delta: f32) {
+        if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == target) {
+            let value = unit.stats.get(stat) + delta;
+            unit.stats.set(stat, value);
+            sync_legacy_fields_from_stats(unit);
         }
     }
 
@@ -1024,6 +1059,19 @@ fn condition_matches(
             compare_values(left, condition.operator, right)
         }
     }
+}
+
+fn sync_legacy_fields_from_stats(unit: &mut UnitState) {
+    unit.max_hp = unit.stats.get(STAT_MAX_HP).round().max(1.0) as i32;
+    unit.hp = unit
+        .stats
+        .get(STAT_CURRENT_HP)
+        .round()
+        .clamp(0.0, unit.max_hp as f32) as i32;
+    unit.attack = unit.stats.get(STAT_ATTACK).round().max(0.0) as i32;
+    unit.stats.set(STAT_CURRENT_HP, unit.hp as f32);
+    unit.stats.set(STAT_MAX_HP, unit.max_hp as f32);
+    unit.stats.set(STAT_ATTACK, unit.attack as f32);
 }
 
 fn compare_values(left: f32, operator: CompareOperator, right: f32) -> bool {
@@ -1204,6 +1252,9 @@ pub fn sample_battle_config() -> BattleConfig {
                     scaling: 1.0,
                     knockback_cells: 0,
                     impact_pattern: Some(melee_pattern.clone()),
+                    stat_target: ConditionSubject::Target,
+                    stat: STAT_CURRENT_HP,
+                    stat_delta: 0.0,
                     trigger_skill: None,
                     trigger_timing: None,
                 }],
@@ -1218,6 +1269,9 @@ pub fn sample_battle_config() -> BattleConfig {
                     scaling: 0.0,
                     knockback_cells: 0,
                     impact_pattern: Some(impact_pattern.clone()),
+                    stat_target: ConditionSubject::Target,
+                    stat: STAT_CURRENT_HP,
+                    stat_delta: 0.0,
                     trigger_skill: None,
                     trigger_timing: None,
                 }],
@@ -1240,6 +1294,9 @@ pub fn sample_battle_config() -> BattleConfig {
                 scaling: 1.0,
                 knockback_cells: 0,
                 impact_pattern: Some(impact_pattern.clone()),
+                stat_target: ConditionSubject::Target,
+                stat: STAT_CURRENT_HP,
+                stat_delta: 0.0,
                 trigger_skill: None,
                 trigger_timing: None,
             }],
@@ -1255,15 +1312,32 @@ pub fn sample_battle_config() -> BattleConfig {
             tick_offset: 0,
             origin: SkillStepOrigin::Caster,
             pattern: melee_pattern.clone(),
-            effects: vec![SkillEffect {
-                kind: SkillEffectKind::Damage,
-                power: 8,
-                scaling: 1.0,
-                knockback_cells: 0,
-                impact_pattern: Some(melee_pattern.clone()),
-                trigger_skill: None,
-                trigger_timing: None,
-            }],
+            effects: vec![
+                SkillEffect {
+                    kind: SkillEffectKind::Damage,
+                    power: 8,
+                    scaling: 1.0,
+                    knockback_cells: 0,
+                    impact_pattern: Some(melee_pattern.clone()),
+                    stat_target: ConditionSubject::Target,
+                    stat: STAT_CURRENT_HP,
+                    stat_delta: 0.0,
+                    trigger_skill: None,
+                    trigger_timing: None,
+                },
+                SkillEffect {
+                    kind: SkillEffectKind::StatDelta,
+                    power: 0,
+                    scaling: 0.0,
+                    knockback_cells: 0,
+                    impact_pattern: Some(melee_pattern.clone()),
+                    stat_target: ConditionSubject::Target,
+                    stat: STAT_BLEED_STACK,
+                    stat_delta: 1.0,
+                    trigger_skill: None,
+                    trigger_timing: None,
+                },
+            ],
         }],
         target_rule: "nearest_enemy".to_string(),
     };
@@ -1599,5 +1673,26 @@ mod tests {
         }
 
         assert!(saw_knight_projectile);
+    }
+
+    #[test]
+    fn stat_delta_effect_changes_target_stat() {
+        let mut world = BattleWorld::new(sample_battle_config());
+        let mut saw_bleed_stack = false;
+
+        for _ in 0..160 {
+            world.tick(0.2);
+            world.drain_events();
+            saw_bleed_stack = world
+                .units()
+                .iter()
+                .filter(|unit| unit.team == Team::Player)
+                .any(|unit| unit.stats.get(STAT_BLEED_STACK) >= 1.0);
+            if saw_bleed_stack {
+                break;
+            }
+        }
+
+        assert!(saw_bleed_stack);
     }
 }

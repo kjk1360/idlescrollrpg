@@ -1010,6 +1010,34 @@
           "target_table": 20
         },
         "required": false
+      },
+      {
+        "id": 310,
+        "key": "stat_target",
+        "display_name": "Stat Target",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 311,
+        "key": "stat",
+        "display_name": "Stat",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 23
+        },
+        "required": true
+      },
+      {
+        "id": 312,
+        "key": "stat_delta",
+        "display_name": "Stat Delta",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
       }
     ]
   },

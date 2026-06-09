@@ -209,6 +209,9 @@ pub struct SkillEffect {
     pub trigger_skill: RowId,
     pub trigger_timing: String,
     pub impact_pattern: RowId,
+    pub stat_target: String,
+    pub stat: RowId,
+    pub stat_delta: f32,
 }
 
 #[derive(Debug, Clone)]
