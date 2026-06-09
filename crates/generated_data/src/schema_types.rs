@@ -171,4 +171,3 @@ pub struct StorageTabConfig {
     pub upgrade_currency: RowId,
     pub upgrade_cost_base: i32,
 }
-

@@ -477,9 +477,32 @@ const PLAY_HTML: &str = r#"<!doctype html>
     function loop(now) {
       if (!playback) return;
       const elapsed = ((now - start) / 1000) % playback.frames.at(-1).t;
-      const frame = playback.frames.reduce((prev, next) => next.t <= elapsed ? next : prev, playback.frames[0]);
-      draw(frame, elapsed);
+      const sample = samplePlayback(elapsed);
+      draw(sample, elapsed);
       requestAnimationFrame(loop);
+    }
+
+    function samplePlayback(elapsed) {
+      let index = 0;
+      while (index + 1 < playback.frames.length && playback.frames[index + 1].t <= elapsed) index++;
+      const current = playback.frames[index] || playback.frames[0];
+      const next = playback.frames[index + 1] || current;
+      const span = Math.max(0.001, next.t - current.t);
+      const alpha = Math.max(0, Math.min(1, (elapsed - current.t) / span));
+      const previousById = new Map((current.units || []).map(unit => [unit.id, unit]));
+      const units = (next.units || current.units || []).map(unit => {
+        const previous = previousById.get(unit.id) || unit;
+        return {
+          ...unit,
+          render_x: lerp(previous.x, unit.x, alpha),
+          render_lane: lerp(previous.lane, unit.lane, alpha)
+        };
+      });
+      return { ...next, units };
+    }
+
+    function lerp(a, b, t) {
+      return Number(a || 0) + (Number(b || 0) - Number(a || 0)) * t;
     }
 
     function draw(frame, elapsed) {
@@ -487,7 +510,7 @@ const PLAY_HTML: &str = r#"<!doctype html>
       const h = canvas.clientHeight;
       ctx.clearRect(0, 0, w, h);
       drawBackground(w, h, elapsed);
-      const sorted = [...frame.units].sort((a, b) => a.lane - b.lane);
+      const sorted = [...frame.units].sort((a, b) => a.render_lane - b.render_lane);
       for (const unit of sorted) drawUnit(unit, elapsed, w, h);
       document.getElementById('time').textContent = `${elapsed.toFixed(1)}s / units ${frame.units.length}`;
     }
@@ -525,8 +548,8 @@ const PLAY_HTML: &str = r#"<!doctype html>
     }
 
     function drawUnit(unit, t, w, h) {
-      const x = w * 0.5 - unit.x * 42;
-      const y = laneY(unit.lane, h);
+      const x = w * 0.5 - unit.render_x * 42;
+      const y = laneY(unit.render_lane, h);
       const scale = Number(unit.visual.scale || 1);
       const radius = Number(unit.visual.shadow_radius || 16) * scale;
       const state = visualState(unit.visual, unit.state);
