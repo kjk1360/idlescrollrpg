@@ -4,6 +4,9 @@ use std::collections::{HashMap, HashSet, VecDeque};
 pub struct UnitDefId(pub u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SkillDefId(pub u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnitId(pub u64);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,6 +59,8 @@ pub struct UnitDef {
     pub attack_range: f32,
     pub attack_interval: f32,
     pub move_speed: f32,
+    pub primary_skill: Option<SkillDefId>,
+    pub skill_cooldown_ticks: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -95,6 +100,8 @@ pub struct UnitState {
     pub attack_interval: f32,
     pub attack_cooldown: f32,
     pub move_speed: f32,
+    pub primary_skill: Option<SkillDefId>,
+    pub skill_cooldown_ticks: u32,
     pub position: BeltPosition,
     pub grid: GridPosition,
     pub home_grid: GridPosition,
@@ -259,7 +266,8 @@ impl BattleWorld {
             if let Some(target) = target {
                 if in_range && self.units[index].attack_cooldown <= 0.0 {
                     attacks.push((self.units[index].id, target.id, self.units[index].attack));
-                    self.units[index].attack_cooldown = self.units[index].attack_interval;
+                    self.units[index].attack_cooldown =
+                        self.units[index].skill_cooldown_ticks as f32 * self.config.tick_duration;
                 } else if !in_range {
                     self.move_toward(index, target.grid);
                 }
@@ -392,6 +400,8 @@ impl BattleWorld {
                 attack_interval: def.attack_interval,
                 attack_cooldown: 0.0,
                 move_speed: def.move_speed,
+                primary_skill: def.primary_skill,
+                skill_cooldown_ticks: def.skill_cooldown_ticks,
                 position: home_grid.to_belt(),
                 grid: home_grid,
                 home_grid,
@@ -536,6 +546,8 @@ pub fn sample_battle_config() -> BattleConfig {
         attack_range: 1.3,
         attack_interval: 1.0,
         move_speed: 2.4,
+        primary_skill: Some(SkillDefId(17001)),
+        skill_cooldown_ticks: 5,
     };
     let archer = UnitDef {
         id: UnitDefId(2),
@@ -545,6 +557,8 @@ pub fn sample_battle_config() -> BattleConfig {
         attack_range: 5.0,
         attack_interval: 0.8,
         move_speed: 2.1,
+        primary_skill: Some(SkillDefId(17002)),
+        skill_cooldown_ticks: 4,
     };
     let slime = UnitDef {
         id: UnitDefId(100),
@@ -554,6 +568,8 @@ pub fn sample_battle_config() -> BattleConfig {
         attack_range: 1.0,
         attack_interval: 1.2,
         move_speed: 1.5,
+        primary_skill: Some(SkillDefId(17003)),
+        skill_cooldown_ticks: 6,
     };
 
     BattleConfig {

@@ -9,6 +9,7 @@ use crate::table_accessors::GeneratedDatabase;
 #[derive(Debug, Clone, Default)]
 pub struct GeneratedRelationCache {
     pub unit_def_visual: HashMap<RowId, RowId>,
+    pub unit_def_skills: HashMap<RowId, Vec<RowId>>,
     pub unit_group_members: HashMap<RowId, Vec<RowId>>,
     pub wave_def_enemy_groups: HashMap<RowId, Vec<RowId>>,
     pub map_def_party: HashMap<RowId, RowId>,
@@ -25,6 +26,13 @@ pub struct GeneratedRelationCache {
     pub drop_table_entries: HashMap<RowId, Vec<RowId>>,
     pub drop_entry_item: HashMap<RowId, RowId>,
     pub storage_tab_config_upgrade_currency: HashMap<RowId, RowId>,
+    pub skill_def_cast_pattern: HashMap<RowId, RowId>,
+    pub skill_def_steps: HashMap<RowId, Vec<RowId>>,
+    pub skill_step_pattern: HashMap<RowId, RowId>,
+    pub skill_step_effects: HashMap<RowId, Vec<RowId>>,
+    pub skill_effect_trigger_skill: HashMap<RowId, RowId>,
+    pub cell_pattern_cells: HashMap<RowId, Vec<RowId>>,
+    pub behavior_rule_skill: HashMap<RowId, RowId>,
 }
 
 impl GeneratedRelationCache {
@@ -38,6 +46,17 @@ impl GeneratedRelationCache {
                 ));
             }
             cache.unit_def_visual.insert(row.id, row.visual);
+        }
+        for row in &db.unit_def.rows {
+            for target_id in &row.skills {
+                if db.skill_def.get_by_id(*target_id).is_none() {
+                    return Err(format!(
+                        "missing relation target for unit_def.skills from {:?} to {:?}",
+                        row.id, target_id
+                    ));
+                }
+            }
+            cache.unit_def_skills.insert(row.id, row.skills.clone());
         }
         for row in &db.unit_group.rows {
             for target_id in &row.members {
@@ -205,11 +224,88 @@ impl GeneratedRelationCache {
                 .storage_tab_config_upgrade_currency
                 .insert(row.id, row.upgrade_currency);
         }
+        for row in &db.skill_def.rows {
+            if db.cell_pattern.get_by_id(row.cast_pattern).is_none() {
+                return Err(format!(
+                    "missing relation target for skill_def.cast_pattern from {:?} to {:?}",
+                    row.id, row.cast_pattern
+                ));
+            }
+            cache
+                .skill_def_cast_pattern
+                .insert(row.id, row.cast_pattern);
+        }
+        for row in &db.skill_def.rows {
+            for target_id in &row.steps {
+                if db.skill_step.get_by_id(*target_id).is_none() {
+                    return Err(format!(
+                        "missing relation target for skill_def.steps from {:?} to {:?}",
+                        row.id, target_id
+                    ));
+                }
+            }
+            cache.skill_def_steps.insert(row.id, row.steps.clone());
+        }
+        for row in &db.skill_step.rows {
+            if db.cell_pattern.get_by_id(row.pattern).is_none() {
+                return Err(format!(
+                    "missing relation target for skill_step.pattern from {:?} to {:?}",
+                    row.id, row.pattern
+                ));
+            }
+            cache.skill_step_pattern.insert(row.id, row.pattern);
+        }
+        for row in &db.skill_step.rows {
+            for target_id in &row.effects {
+                if db.skill_effect.get_by_id(*target_id).is_none() {
+                    return Err(format!(
+                        "missing relation target for skill_step.effects from {:?} to {:?}",
+                        row.id, target_id
+                    ));
+                }
+            }
+            cache.skill_step_effects.insert(row.id, row.effects.clone());
+        }
+        for row in &db.skill_effect.rows {
+            if db.skill_def.get_by_id(row.trigger_skill).is_none() {
+                return Err(format!(
+                    "missing relation target for skill_effect.trigger_skill from {:?} to {:?}",
+                    row.id, row.trigger_skill
+                ));
+            }
+            cache
+                .skill_effect_trigger_skill
+                .insert(row.id, row.trigger_skill);
+        }
+        for row in &db.cell_pattern.rows {
+            for target_id in &row.cells {
+                if db.cell_offset.get_by_id(*target_id).is_none() {
+                    return Err(format!(
+                        "missing relation target for cell_pattern.cells from {:?} to {:?}",
+                        row.id, target_id
+                    ));
+                }
+            }
+            cache.cell_pattern_cells.insert(row.id, row.cells.clone());
+        }
+        for row in &db.behavior_rule.rows {
+            if db.skill_def.get_by_id(row.skill).is_none() {
+                return Err(format!(
+                    "missing relation target for behavior_rule.skill from {:?} to {:?}",
+                    row.id, row.skill
+                ));
+            }
+            cache.behavior_rule_skill.insert(row.id, row.skill);
+        }
         Ok(cache)
     }
 
     pub fn get_unit_def_visual(&self, source: RowId) -> Option<RowId> {
         self.unit_def_visual.get(&source).copied()
+    }
+
+    pub fn get_unit_def_skills(&self, source: RowId) -> Option<&[RowId]> {
+        self.unit_def_skills.get(&source).map(Vec::as_slice)
     }
 
     pub fn get_unit_group_members(&self, source: RowId) -> Option<&[RowId]> {
@@ -280,5 +376,33 @@ impl GeneratedRelationCache {
         self.storage_tab_config_upgrade_currency
             .get(&source)
             .copied()
+    }
+
+    pub fn get_skill_def_cast_pattern(&self, source: RowId) -> Option<RowId> {
+        self.skill_def_cast_pattern.get(&source).copied()
+    }
+
+    pub fn get_skill_def_steps(&self, source: RowId) -> Option<&[RowId]> {
+        self.skill_def_steps.get(&source).map(Vec::as_slice)
+    }
+
+    pub fn get_skill_step_pattern(&self, source: RowId) -> Option<RowId> {
+        self.skill_step_pattern.get(&source).copied()
+    }
+
+    pub fn get_skill_step_effects(&self, source: RowId) -> Option<&[RowId]> {
+        self.skill_step_effects.get(&source).map(Vec::as_slice)
+    }
+
+    pub fn get_skill_effect_trigger_skill(&self, source: RowId) -> Option<RowId> {
+        self.skill_effect_trigger_skill.get(&source).copied()
+    }
+
+    pub fn get_cell_pattern_cells(&self, source: RowId) -> Option<&[RowId]> {
+        self.cell_pattern_cells.get(&source).map(Vec::as_slice)
+    }
+
+    pub fn get_behavior_rule_skill(&self, source: RowId) -> Option<RowId> {
+        self.behavior_rule_skill.get(&source).copied()
     }
 }

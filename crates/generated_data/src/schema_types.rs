@@ -13,6 +13,7 @@ pub struct UnitDef {
     pub attack_interval: f32,
     pub move_speed: f32,
     pub visual: RowId,
+    pub skills: Vec<RowId>,
 }
 
 #[derive(Debug, Clone)]
@@ -170,4 +171,67 @@ pub struct StorageTabConfig {
     pub base_capacity: i32,
     pub upgrade_currency: RowId,
     pub upgrade_cost_base: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct SkillDef {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub cooldown_ticks: i32,
+    pub cast_pattern: RowId,
+    pub steps: Vec<RowId>,
+    pub target_rule: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SkillStep {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub tick_offset: i32,
+    pub origin: String,
+    pub pattern: RowId,
+    pub effects: Vec<RowId>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SkillEffect {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub effect_kind: String,
+    pub power: i32,
+    pub scaling: f32,
+    pub knockback_cells: i32,
+    pub trigger_skill: RowId,
+    pub trigger_timing: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct CellPattern {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub facing_mode: String,
+    pub cells: Vec<RowId>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CellOffset {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub forward: i32,
+    pub side: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct BehaviorRule {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub priority: i32,
+    pub skill: RowId,
+    pub condition: String,
 }

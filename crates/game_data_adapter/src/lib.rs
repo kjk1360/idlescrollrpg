@@ -1,5 +1,6 @@
 use belt_core::{
-    BattleConfig, BeltPosition, MapDef, UnitDef, UnitDefId, UnitGroup, UnitSpawn, WaveDef,
+    BattleConfig, BeltPosition, MapDef, SkillDefId, UnitDef, UnitDefId, UnitGroup, UnitSpawn,
+    WaveDef,
 };
 use data_studio_core::{DataProject, RowId};
 use generated_data::relation_cache::GeneratedRelationCache;
@@ -24,7 +25,7 @@ pub fn battle_config_from_generated(
         .unit_def
         .rows
         .iter()
-        .map(unit_def_from_data)
+        .map(|row| unit_def_from_data(db, row))
         .collect::<Vec<_>>();
 
     let map = db
@@ -57,7 +58,12 @@ pub fn battle_config_from_generated(
     })
 }
 
-fn unit_def_from_data(row: &data_types::UnitDef) -> UnitDef {
+fn unit_def_from_data(db: &GeneratedDatabase, row: &data_types::UnitDef) -> UnitDef {
+    let primary_skill = row.skills.first().copied();
+    let skill_cooldown_ticks = primary_skill
+        .and_then(|skill_id| db.skill_def.get_by_id(skill_id))
+        .map(|skill| skill.cooldown_ticks.max(1) as u32)
+        .unwrap_or_else(|| (row.attack_interval / 0.2).ceil().max(1.0) as u32);
     UnitDef {
         id: UnitDefId(row.id.0 as u32),
         name: row.name.clone(),
@@ -66,6 +72,8 @@ fn unit_def_from_data(row: &data_types::UnitDef) -> UnitDef {
         attack_range: row.attack_range,
         attack_interval: row.attack_interval,
         move_speed: row.move_speed,
+        primary_skill: primary_skill.map(|skill_id| SkillDefId(skill_id.0 as u32)),
+        skill_cooldown_ticks,
     }
 }
 

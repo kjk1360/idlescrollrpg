@@ -1,0 +1,104 @@
+[
+  {
+    "id": 19001,
+    "key": "knight_slash_damage",
+    "cells": {
+      "170": {
+        "kind": "string",
+        "value": "Knight Slash Damage"
+      },
+      "171": {
+        "kind": "string",
+        "value": "damage"
+      },
+      "172": {
+        "kind": "i32",
+        "value": 18
+      },
+      "173": {
+        "kind": "f32",
+        "value": 1.0
+      },
+      "174": {
+        "kind": "i32",
+        "value": 0
+      },
+      "175": {
+        "kind": "row",
+        "value": 17001
+      },
+      "176": {
+        "kind": "string",
+        "value": ""
+      }
+    }
+  },
+  {
+    "id": 19002,
+    "key": "arrow_shot_damage",
+    "cells": {
+      "170": {
+        "kind": "string",
+        "value": "Arrow Shot Damage"
+      },
+      "171": {
+        "kind": "string",
+        "value": "damage"
+      },
+      "172": {
+        "kind": "i32",
+        "value": 12
+      },
+      "173": {
+        "kind": "f32",
+        "value": 1.0
+      },
+      "174": {
+        "kind": "i32",
+        "value": 0
+      },
+      "175": {
+        "kind": "row",
+        "value": 17002
+      },
+      "176": {
+        "kind": "string",
+        "value": ""
+      }
+    }
+  },
+  {
+    "id": 19003,
+    "key": "slime_tackle_damage",
+    "cells": {
+      "170": {
+        "kind": "string",
+        "value": "Slime Tackle Damage"
+      },
+      "171": {
+        "kind": "string",
+        "value": "damage"
+      },
+      "172": {
+        "kind": "i32",
+        "value": 8
+      },
+      "173": {
+        "kind": "f32",
+        "value": 1.0
+      },
+      "174": {
+        "kind": "i32",
+        "value": 0
+      },
+      "175": {
+        "kind": "row",
+        "value": 17003
+      },
+      "176": {
+        "kind": "string",
+        "value": ""
+      }
+    }
+  }
+]

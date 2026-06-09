@@ -61,6 +61,8 @@
 - Changed maps to clear after their final wave instead of looping indefinitely.
 - Removed the operation harvesting/production premise from the locked design direction.
 - Added initial item, drop table, account energy, and storage tab data tables.
+- Added initial CellPattern-based skill, skill step, skill effect, and behavior rule data tables.
+- Linked `unit_def.skills` to sample unit skills and wired primary skill cooldown into battle config conversion.
 
 ## Current Stable CLI Flow
 
@@ -167,6 +169,8 @@ The first playable preview is available through `belt_tools play`:
 - Collision/pushing is not part of normal movement; knockback is a forced grid movement effect.
 - There is no basic attack concept; every action is a skill.
 - Skill judgment and effects use directional grid AABB/range shapes with four cast directions.
+- Skill ranges should use `CellPattern` as the primary internal model: a collection of relative `forward/side` grid offsets rotated by the four cast directions.
+- AABB, line, cross, and 3x3 are authoring presets that generate `CellPattern` data, not the core runtime representation.
 - A map runs waves as `Prepare -> Engage -> Resolve -> NextWave/Clear/Defeat`.
 - Visual scrolling is presentation; systemically, waves align units to start grids, fight, then prepare the next wave.
 - Unit rarity does not exist directly; skills, traits, and stats can have rarity.
@@ -182,11 +186,12 @@ The first playable preview is available through `belt_tools play`:
 
 ## Immediate Next Milestone: Combat Data Model
 
-The runtime is now grid/tick based, but it still maps old unit attack fields into a simple default skill. Next, make combat data explicit:
+The runtime is now grid/tick based and skill data exists, but effect execution still maps to old damage/range fields. Next, make combat use skill steps directly:
 
-- skill table
-- skill range/effect model
-- behavior/target rule model
+- execute `skill_step` by tick offset
+- resolve effect cells through `cell_pattern`
+- apply `skill_effect` damage/knockback
+- behavior/target rule runtime
 - dungeon reward result generation from `drop_table`
 - account energy spending/recovery simulation
 - battle simulation states to visual state machine keys

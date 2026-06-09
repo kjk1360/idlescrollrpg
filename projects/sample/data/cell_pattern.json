@@ -1,0 +1,46 @@
+[
+  {
+    "id": 20001,
+    "key": "melee_forward_1",
+    "cells": {
+      "180": {
+        "kind": "string",
+        "value": "Melee Forward 1"
+      },
+      "181": {
+        "kind": "string",
+        "value": "rotate_by_facing"
+      },
+      "182": {
+        "kind": "rows",
+        "value": [
+          21001
+        ]
+      }
+    }
+  },
+  {
+    "id": 20002,
+    "key": "line_forward_5",
+    "cells": {
+      "180": {
+        "kind": "string",
+        "value": "Line Forward 5"
+      },
+      "181": {
+        "kind": "string",
+        "value": "rotate_by_facing"
+      },
+      "182": {
+        "kind": "rows",
+        "value": [
+          21001,
+          21002,
+          21003,
+          21004,
+          21005
+        ]
+      }
+    }
+  }
+]

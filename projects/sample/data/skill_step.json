@@ -1,0 +1,86 @@
+[
+  {
+    "id": 18001,
+    "key": "knight_slash_hit",
+    "cells": {
+      "160": {
+        "kind": "string",
+        "value": "Knight Slash Hit"
+      },
+      "161": {
+        "kind": "i32",
+        "value": 0
+      },
+      "162": {
+        "kind": "string",
+        "value": "caster"
+      },
+      "163": {
+        "kind": "row",
+        "value": 20001
+      },
+      "164": {
+        "kind": "rows",
+        "value": [
+          19001
+        ]
+      }
+    }
+  },
+  {
+    "id": 18002,
+    "key": "arrow_shot_hit",
+    "cells": {
+      "160": {
+        "kind": "string",
+        "value": "Arrow Shot Hit"
+      },
+      "161": {
+        "kind": "i32",
+        "value": 0
+      },
+      "162": {
+        "kind": "string",
+        "value": "caster"
+      },
+      "163": {
+        "kind": "row",
+        "value": 20002
+      },
+      "164": {
+        "kind": "rows",
+        "value": [
+          19002
+        ]
+      }
+    }
+  },
+  {
+    "id": 18003,
+    "key": "slime_tackle_hit",
+    "cells": {
+      "160": {
+        "kind": "string",
+        "value": "Slime Tackle Hit"
+      },
+      "161": {
+        "kind": "i32",
+        "value": 0
+      },
+      "162": {
+        "kind": "string",
+        "value": "caster"
+      },
+      "163": {
+        "kind": "row",
+        "value": 20001
+      },
+      "164": {
+        "kind": "rows",
+        "value": [
+          19003
+        ]
+      }
+    }
+  }
+]

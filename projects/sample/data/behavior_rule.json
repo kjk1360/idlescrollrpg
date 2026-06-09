@@ -1,0 +1,24 @@
+[
+  {
+    "id": 22001,
+    "key": "use_nearest_skill",
+    "cells": {
+      "200": {
+        "kind": "string",
+        "value": "Use Nearest Skill"
+      },
+      "201": {
+        "kind": "i32",
+        "value": 100
+      },
+      "202": {
+        "kind": "row",
+        "value": 17001
+      },
+      "203": {
+        "kind": "string",
+        "value": "nearest_enemy_in_cast_pattern"
+      }
+    }
+  }
+]

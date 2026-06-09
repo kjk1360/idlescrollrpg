@@ -26,6 +26,12 @@ pub struct GeneratedDatabase {
     pub drop_entry: GeneratedTable<DropEntry>,
     pub account_energy_config: GeneratedTable<AccountEnergyConfig>,
     pub storage_tab_config: GeneratedTable<StorageTabConfig>,
+    pub skill_def: GeneratedTable<SkillDef>,
+    pub skill_step: GeneratedTable<SkillStep>,
+    pub skill_effect: GeneratedTable<SkillEffect>,
+    pub cell_pattern: GeneratedTable<CellPattern>,
+    pub cell_offset: GeneratedTable<CellOffset>,
+    pub behavior_rule: GeneratedTable<BehaviorRule>,
 }
 
 #[derive(Debug, Clone)]
@@ -82,6 +88,12 @@ impl GeneratedDatabase {
             drop_entry: load_drop_entry(project)?,
             account_energy_config: load_account_energy_config(project)?,
             storage_tab_config: load_storage_tab_config(project)?,
+            skill_def: load_skill_def(project)?,
+            skill_step: load_skill_step(project)?,
+            skill_effect: load_skill_effect(project)?,
+            cell_pattern: load_cell_pattern(project)?,
+            cell_offset: load_cell_offset(project)?,
+            behavior_rule: load_behavior_rule(project)?,
         })
     }
 }
@@ -102,6 +114,7 @@ fn load_unit_def(project: &DataProject) -> Result<GeneratedTable<UnitDef>, Strin
             attack_interval: read_f32(row, FieldId(5), "unit_def.attack_interval")?,
             move_speed: read_f32(row, FieldId(6), "unit_def.move_speed")?,
             visual: read_row(row, FieldId(7), "unit_def.visual")?,
+            skills: read_rows(row, FieldId(8), "unit_def.skills")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());
@@ -417,6 +430,129 @@ fn load_storage_tab_config(
             base_capacity: read_i32(row, FieldId(143), "storage_tab_config.base_capacity")?,
             upgrade_currency: read_row(row, FieldId(144), "storage_tab_config.upgrade_currency")?,
             upgrade_cost_base: read_i32(row, FieldId(145), "storage_tab_config.upgrade_cost_base")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_skill_def(project: &DataProject) -> Result<GeneratedTable<SkillDef>, String> {
+    let rows = table_rows(project, TableId(17))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(SkillDef {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(150), "skill_def.name")?,
+            cooldown_ticks: read_i32(row, FieldId(151), "skill_def.cooldown_ticks")?,
+            cast_pattern: read_row(row, FieldId(152), "skill_def.cast_pattern")?,
+            steps: read_rows(row, FieldId(153), "skill_def.steps")?,
+            target_rule: read_string(row, FieldId(154), "skill_def.target_rule")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_skill_step(project: &DataProject) -> Result<GeneratedTable<SkillStep>, String> {
+    let rows = table_rows(project, TableId(18))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(SkillStep {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(160), "skill_step.name")?,
+            tick_offset: read_i32(row, FieldId(161), "skill_step.tick_offset")?,
+            origin: read_string(row, FieldId(162), "skill_step.origin")?,
+            pattern: read_row(row, FieldId(163), "skill_step.pattern")?,
+            effects: read_rows(row, FieldId(164), "skill_step.effects")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_skill_effect(project: &DataProject) -> Result<GeneratedTable<SkillEffect>, String> {
+    let rows = table_rows(project, TableId(19))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(SkillEffect {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(170), "skill_effect.name")?,
+            effect_kind: read_string(row, FieldId(171), "skill_effect.effect_kind")?,
+            power: read_i32(row, FieldId(172), "skill_effect.power")?,
+            scaling: read_f32(row, FieldId(173), "skill_effect.scaling")?,
+            knockback_cells: read_i32(row, FieldId(174), "skill_effect.knockback_cells")?,
+            trigger_skill: read_row(row, FieldId(175), "skill_effect.trigger_skill")?,
+            trigger_timing: read_string(row, FieldId(176), "skill_effect.trigger_timing")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_cell_pattern(project: &DataProject) -> Result<GeneratedTable<CellPattern>, String> {
+    let rows = table_rows(project, TableId(20))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(CellPattern {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(180), "cell_pattern.name")?,
+            facing_mode: read_string(row, FieldId(181), "cell_pattern.facing_mode")?,
+            cells: read_rows(row, FieldId(182), "cell_pattern.cells")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_cell_offset(project: &DataProject) -> Result<GeneratedTable<CellOffset>, String> {
+    let rows = table_rows(project, TableId(21))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(CellOffset {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(190), "cell_offset.name")?,
+            forward: read_i32(row, FieldId(191), "cell_offset.forward")?,
+            side: read_i32(row, FieldId(192), "cell_offset.side")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_behavior_rule(project: &DataProject) -> Result<GeneratedTable<BehaviorRule>, String> {
+    let rows = table_rows(project, TableId(22))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(BehaviorRule {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(200), "behavior_rule.name")?,
+            priority: read_i32(row, FieldId(201), "behavior_rule.priority")?,
+            skill: read_row(row, FieldId(202), "behavior_rule.skill")?,
+            condition: read_string(row, FieldId(203), "behavior_rule.condition")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());

@@ -1,0 +1,86 @@
+[
+  {
+    "id": 17001,
+    "key": "knight_slash",
+    "cells": {
+      "150": {
+        "kind": "string",
+        "value": "Knight Slash"
+      },
+      "151": {
+        "kind": "i32",
+        "value": 5
+      },
+      "152": {
+        "kind": "row",
+        "value": 20001
+      },
+      "153": {
+        "kind": "rows",
+        "value": [
+          18001
+        ]
+      },
+      "154": {
+        "kind": "string",
+        "value": "nearest_enemy"
+      }
+    }
+  },
+  {
+    "id": 17002,
+    "key": "arrow_shot",
+    "cells": {
+      "150": {
+        "kind": "string",
+        "value": "Arrow Shot"
+      },
+      "151": {
+        "kind": "i32",
+        "value": 4
+      },
+      "152": {
+        "kind": "row",
+        "value": 20002
+      },
+      "153": {
+        "kind": "rows",
+        "value": [
+          18002
+        ]
+      },
+      "154": {
+        "kind": "string",
+        "value": "nearest_enemy"
+      }
+    }
+  },
+  {
+    "id": 17003,
+    "key": "slime_tackle",
+    "cells": {
+      "150": {
+        "kind": "string",
+        "value": "Slime Tackle"
+      },
+      "151": {
+        "kind": "i32",
+        "value": 6
+      },
+      "152": {
+        "kind": "row",
+        "value": 20001
+      },
+      "153": {
+        "kind": "rows",
+        "value": [
+          18003
+        ]
+      },
+      "154": {
+        "kind": "string",
+        "value": "nearest_enemy"
+      }
+    }
+  }
+]

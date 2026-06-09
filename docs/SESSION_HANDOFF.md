@@ -68,6 +68,8 @@ Implemented:
 - `/api/assets` project image browser and Visual tab texture asset create/update UI
 - tick/grid-based `belt_core` wave combat with prepare/engage phases and map clear
 - initial item/drop/energy/storage data tables for dungeon reward and operation UI foundations
+- initial CellPattern-based skill, skill step, skill effect, and behavior rule data tables
+- `unit_def.skills` linked to sample unit skills; adapter reads primary skill cooldown
 
 ## Locked Design Direction
 
@@ -93,7 +95,9 @@ Combat:
 - no normal collision/pushing
 - knockback is forced grid movement
 - no basic attacks; every action is a skill
-- skill judgment/effects use directional grid AABB/range shapes
+- skill judgment/effects use directional grid cell patterns
+- `CellPattern` is the primary internal range model: a collection of relative `forward/side` grid offsets rotated by cast direction
+- AABB, line, cross, and 3x3 should be authoring presets that generate `CellPattern` data
 - cast directions are up/down/left/right only
 - wave flow is `Prepare -> Engage -> Resolve -> NextWave/Clear/Defeat`
 - visual scrolling is presentation; systemically, waves align units to start grids, fight, then prepare the next wave
@@ -193,6 +197,12 @@ projects/sample/
     drop_entry.json
     account_energy_config.json
     storage_tab_config.json
+    skill_def.json
+    skill_step.json
+    skill_effect.json
+    cell_pattern.json
+    cell_offset.json
+    behavior_rule.json
     texture_asset.json
     sprite_frame.json
     sprite_animation.json
@@ -339,12 +349,12 @@ Improve sprite asset editing and visual preview authoring.
 
 Recommended order:
 
-1. Add explicit skill, skill effect, behavior, and target rule data models.
-2. Add dungeon reward result generation from `drop_table`.
-3. Add account energy spending/recovery simulation.
-4. Connect battle simulation states to visual state machine keys.
-5. Add knockback forced movement effect.
-6. Add row preview thumbnails for sprite frame lists and palettes.
+1. Execute `skill_step` by tick offset using `cell_pattern`.
+2. Apply `skill_effect` damage and knockback.
+3. Add behavior/target rule runtime.
+4. Add dungeon reward result generation from `drop_table`.
+5. Add account energy spending/recovery simulation.
+6. Connect battle simulation states to visual state machine keys.
 7. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats

@@ -67,6 +67,16 @@
           "target_table": 10
         },
         "required": true
+      },
+      {
+        "id": 8,
+        "key": "skills",
+        "display_name": "Skills",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 17
+        },
+        "required": true
       }
     ]
   },
@@ -789,6 +799,298 @@
         "display_name": "Upgrade Cost Base",
         "kind": {
           "kind": "i32"
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 17,
+    "key": "skill_def",
+    "display_name": "Skill Def",
+    "fields": [
+      {
+        "id": 150,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 151,
+        "key": "cooldown_ticks",
+        "display_name": "Cooldown Ticks",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 152,
+        "key": "cast_pattern",
+        "display_name": "Cast Pattern",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 20
+        },
+        "required": true
+      },
+      {
+        "id": 153,
+        "key": "steps",
+        "display_name": "Steps",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 18
+        },
+        "required": true
+      },
+      {
+        "id": 154,
+        "key": "target_rule",
+        "display_name": "Target Rule",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 18,
+    "key": "skill_step",
+    "display_name": "Skill Step",
+    "fields": [
+      {
+        "id": 160,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 161,
+        "key": "tick_offset",
+        "display_name": "Tick Offset",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 162,
+        "key": "origin",
+        "display_name": "Origin",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 163,
+        "key": "pattern",
+        "display_name": "Pattern",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 20
+        },
+        "required": true
+      },
+      {
+        "id": 164,
+        "key": "effects",
+        "display_name": "Effects",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 19
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 19,
+    "key": "skill_effect",
+    "display_name": "Skill Effect",
+    "fields": [
+      {
+        "id": 170,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 171,
+        "key": "effect_kind",
+        "display_name": "Effect Kind",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 172,
+        "key": "power",
+        "display_name": "Power",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 173,
+        "key": "scaling",
+        "display_name": "Scaling",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 174,
+        "key": "knockback_cells",
+        "display_name": "Knockback Cells",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": false
+      },
+      {
+        "id": 175,
+        "key": "trigger_skill",
+        "display_name": "Trigger Skill",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 17
+        },
+        "required": false
+      },
+      {
+        "id": 176,
+        "key": "trigger_timing",
+        "display_name": "Trigger Timing",
+        "kind": {
+          "kind": "string"
+        },
+        "required": false
+      }
+    ]
+  },
+  {
+    "id": 20,
+    "key": "cell_pattern",
+    "display_name": "Cell Pattern",
+    "fields": [
+      {
+        "id": 180,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 181,
+        "key": "facing_mode",
+        "display_name": "Facing Mode",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 182,
+        "key": "cells",
+        "display_name": "Cells",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 21
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 21,
+    "key": "cell_offset",
+    "display_name": "Cell Offset",
+    "fields": [
+      {
+        "id": 190,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 191,
+        "key": "forward",
+        "display_name": "Forward",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 192,
+        "key": "side",
+        "display_name": "Side",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 22,
+    "key": "behavior_rule",
+    "display_name": "Behavior Rule",
+    "fields": [
+      {
+        "id": 200,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 201,
+        "key": "priority",
+        "display_name": "Priority",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 202,
+        "key": "skill",
+        "display_name": "Skill",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 17
+        },
+        "required": true
+      },
+      {
+        "id": 203,
+        "key": "condition",
+        "display_name": "Condition",
+        "kind": {
+          "kind": "string"
         },
         "required": true
       }
