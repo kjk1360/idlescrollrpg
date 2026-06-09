@@ -64,6 +64,7 @@ Implemented:
 - Aseprite import through CLI/API into texture, sprite frame, and sprite animation data
 - Visual tab sprite sheet grid slicer for bulk `sprite_frame` creation from texture assets
 - Visual tab animation frame list editor for active state `sprite_animation` rows
+- Visual tab state machine editor for active `visual_state_machine` rows
 
 ## Important Commands
 
@@ -222,6 +223,7 @@ Implemented UI/API surface:
 - Visual tab Aseprite import path input with dropdown hints from known texture paths
 - Visual tab sprite sheet grid slicer with canvas overlay preview
 - Visual tab animation editor for frame add/remove/reorder plus fps/looping edits
+- Visual tab state machine editor for state add/delete, default state, and animation assignment
 - project asset serving through `/asset?path=...`
 - sprite frame data with texture rect, pivot, and duration fields
 
@@ -260,6 +262,7 @@ Implemented preview surface:
 - Aseprite JSON/frame tags can be imported into visual asset tables from the Visual tab or `belt_tools import-aseprite`.
 - Sprite frame rows can be generated from texture assets through the Visual tab grid slicer.
 - Active state animations can be edited in Visual tab without opening raw Data tab tables.
+- Active state machines can be edited in Visual tab without opening raw Data tab tables.
 
 Validated endpoints:
 
@@ -272,10 +275,10 @@ Improve sprite asset editing and visual preview authoring.
 
 Recommended order:
 
-1. Add visual state machine editor focused on states and animation references.
-2. Add a real file picker/recent file workflow around the current asset path inputs.
+1. Add a real file picker/recent file workflow around the current asset path inputs.
+2. Add row preview thumbnails for sprite frame lists and palettes.
 3. Add pagination/search to relation picker for large target tables.
-4. Add row preview thumbnails for sprite frame lists and palettes.
+4. Connect battle simulation states to visual state machine keys.
 5. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats

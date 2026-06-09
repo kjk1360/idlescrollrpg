@@ -55,6 +55,7 @@
 - Added `POST /api/import/aseprite` and a Visual tab import control for Aseprite assets.
 - Added Visual tab sprite sheet grid slicer preview and `POST /api/visual/slice-grid` for bulk `sprite_frame` creation.
 - Added Visual tab animation frame list editor for active state animations.
+- Added Visual tab state machine editor for state add/delete, default state, and animation assignment.
 
 ## Current Stable CLI Flow
 
@@ -143,13 +144,15 @@ The first playable preview is available through `belt_tools play`:
 - Aseprite imports create `texture_asset`, `sprite_frame`, and `sprite_animation` rows from spritesheet JSON and frame tags.
 - Visual tab can now generate `sprite_frame` rows from a selected texture through a grid slicer.
 - Visual tab can edit the active `sprite_animation.frames` order, add/remove frames, and update fps/looping.
+- Visual tab can edit the active `visual_state_machine` states, default state, and state animation references.
 
 ## Immediate Next Milestone: Sprite Asset Editing
 
 The UI can edit visual data as tables, preview sprite frames, and `play` consumes it. Next, make sprite authoring comfortable:
 
 - texture file browser/import path workflow beyond the current Aseprite path input
-- visual state machine editor focused on states and animation references
+- row preview thumbnails for sprite frame lists and palettes
+- connect battle simulation states to visual state machine keys
 - relation picker pagination/search for large tables
 - richer row display labels beyond id/key/name fallback
 - inline nested row editing from the parent cell without manually opening the child table

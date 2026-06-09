@@ -1364,6 +1364,89 @@ const INDEX_HTML: &str = r#"<!doctype html>
       border: 1px solid var(--line);
       background: var(--panel);
     }
+    .state-machine-panel {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+    .state-machine-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      background: #f0f3f6;
+      font-weight: 650;
+    }
+    .state-machine-body {
+      display: grid;
+      grid-template-columns: minmax(360px, 1fr) 340px;
+      gap: 12px;
+      padding: 10px;
+    }
+    .state-list {
+      border: 1px solid var(--line);
+      min-height: 170px;
+      max-height: 300px;
+      overflow: auto;
+    }
+    .state-row {
+      display: grid;
+      grid-template-columns: 96px minmax(0, 1fr) 170px;
+      gap: 8px;
+      align-items: center;
+      min-height: 40px;
+      padding: 5px 6px;
+      border-bottom: 1px solid var(--line);
+    }
+    .state-row.active {
+      background: #eef7f5;
+    }
+    .state-row small {
+      color: var(--muted);
+    }
+    .state-row select {
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 8px;
+      font: inherit;
+      font-size: 13px;
+      background: white;
+    }
+    .state-row-actions {
+      display: flex;
+      gap: 4px;
+      justify-content: flex-end;
+    }
+    .state-row-actions button {
+      padding: 0 8px;
+    }
+    .state-form {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      align-content: start;
+    }
+    .state-form label {
+      display: grid;
+      gap: 3px;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .state-form input,
+    .state-form select {
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 8px;
+      font: inherit;
+      font-size: 13px;
+      color: var(--text);
+      background: white;
+    }
     .animation-head {
       display: flex;
       align-items: center;
@@ -1963,6 +2046,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
             <div id="visualStates" class="visual-states"></div>
           </div>
         </div>
+        ${renderStateMachineEditor(selected)}
         ${renderAnimationEditor(selected)}
         ${renderSpriteSlicer()}`;
       renderVisualStateButtons(selected);
@@ -1994,6 +2078,174 @@ const INDEX_HTML: &str = r#"<!doctype html>
         });
         log(`imported ${result.texture_key}: ${result.frame_count} frames, ${result.animation_count} animations`);
         state.images = {};
+        await loadProject(false);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
+    function visualStateMachine(visualRow) {
+      const machineId = cellRowByKey('unit_visual', visualRow, 'state_machine');
+      return machineId ? rowByKey('visual_state_machine', machineId) : null;
+    }
+
+    function renderStateMachineEditor(visualRow) {
+      const machine = visualStateMachine(visualRow);
+      if (!machine) {
+        return `
+          <div class="state-machine-panel">
+            <div class="state-machine-head">
+              <span>State Machine</span>
+              <span>no state machine</span>
+            </div>
+          </div>`;
+      }
+      const states = visualStateRows(visualRow);
+      const defaultId = cellRowByKey('visual_state_machine', machine, 'default_state');
+      const animations = tableDataByKey('sprite_animation').rows;
+      const animationOptions = animationId => animations
+        .map(row => `<option value="${row.id}" ${row.id === animationId ? 'selected' : ''}>${escapeHtml(cellStringByKey('sprite_animation', row, 'name', row.key))}</option>`)
+        .join('');
+      return `
+        <div class="state-machine-panel">
+          <div class="state-machine-head">
+            <span>State Machine</span>
+            <span>${escapeHtml(cellStringByKey('visual_state_machine', machine, 'name', machine.key))} / ${states.length} states</span>
+          </div>
+          <div class="state-machine-body">
+            <div class="state-list">
+              ${states.map(row => {
+                const key = cellStringByKey('visual_state', row, 'state_key', row.key);
+                const animationId = cellRowByKey('visual_state', row, 'animation');
+                return `
+                  <div class="state-row ${key === state.visual.state ? 'active' : ''}">
+                    <span>${escapeHtml(key)}<br><small>${row.id === defaultId ? 'default' : row.key}</small></span>
+                    <select onchange="setVisualStateAnimation(${row.id}, this.value)">
+                      ${animationOptions(animationId)}
+                    </select>
+                    <span class="state-row-actions">
+                      <button onclick="selectVisualState('${escapeAttr(key)}')">View</button>
+                      <button ${row.id === defaultId ? 'disabled' : ''} onclick="setDefaultVisualState(${machine.id}, ${row.id})">Default</button>
+                      <button class="danger" ${states.length <= 1 ? 'disabled' : ''} onclick="deleteVisualState(${machine.id}, ${row.id})">Del</button>
+                    </span>
+                  </div>`;
+              }).join('') || `<div class="state-row"><span></span><span>No states</span><span></span></div>`}
+            </div>
+            <div class="state-form">
+              <label>State Key
+                <input id="newStateKey" placeholder="attack">
+              </label>
+              <label>Name
+                <input id="newStateName" placeholder="Attack">
+              </label>
+              <label>Animation
+                <select id="newStateAnimation">${animationOptions(animations[0]?.id)}</select>
+              </label>
+              <button class="primary" onclick="addVisualState(${machine.id})">Add State</button>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function normalizedDataKey(value, fallback = 'state') {
+      const key = String(value || '')
+        .trim()
+        .toLowerCase()
+        .replaceAll(/[^a-z0-9_]+/g, '_')
+        .replaceAll(/_+/g, '_')
+        .replaceAll(/^_+|_+$/g, '');
+      return /^[a-z]/.test(key) ? key : fallback;
+    }
+
+    async function saveMachineStateIds(machineId, stateIds) {
+      await api('/api/cell', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table_id: 8, row_id: machineId, field_id: 62, value: stateIds.join(',') })
+      });
+    }
+
+    async function addVisualState(machineId) {
+      const machine = rowByKey('visual_state_machine', machineId);
+      const stateKey = normalizedDataKey($('newStateKey')?.value, 'state');
+      const name = $('newStateName')?.value.trim() || displayNameFromKey(stateKey);
+      const animationId = Number($('newStateAnimation')?.value || 0);
+      if (!machine || !animationId) return;
+      const rowKey = normalizedDataKey(`${machine.key}_${stateKey}`, 'visual_state');
+      try {
+        const created = await api('/api/row', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table_id: 9, key: rowKey })
+        });
+        await api('/api/cell', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table_id: 9, row_id: created.row_id, field_id: 70, value: name })
+        });
+        await api('/api/cell', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table_id: 9, row_id: created.row_id, field_id: 71, value: stateKey })
+        });
+        await api('/api/cell', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table_id: 9, row_id: created.row_id, field_id: 72, value: String(animationId) })
+        });
+        const stateIds = [...cellRowsByKey('visual_state_machine', machine, 'states'), created.row_id];
+        await saveMachineStateIds(machineId, stateIds);
+        if (!cellRowByKey('visual_state_machine', machine, 'default_state')) {
+          await setDefaultVisualState(machineId, created.row_id, false);
+        }
+        state.visual.state = stateKey;
+        state.visual.started = performance.now();
+        log(`added visual state ${stateKey}`);
+        await loadProject(false);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
+    async function setVisualStateAnimation(stateId, animationId) {
+      await api('/api/cell', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table_id: 9, row_id: stateId, field_id: 72, value: String(animationId) })
+      });
+      state.visual.started = performance.now();
+      await loadProject(false);
+    }
+
+    async function setDefaultVisualState(machineId, stateId, reload = true) {
+      await api('/api/cell', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table_id: 8, row_id: machineId, field_id: 61, value: String(stateId) })
+      });
+      if (reload) await loadProject(false);
+    }
+
+    async function deleteVisualState(machineId, stateId) {
+      const machine = rowByKey('visual_state_machine', machineId);
+      const stateRow = rowByKey('visual_state', stateId);
+      if (!machine || !stateRow || !confirm(`Delete visual state ${stateRow.key}?`)) return;
+      const stateIds = cellRowsByKey('visual_state_machine', machine, 'states').filter(id => id !== stateId);
+      if (stateIds.length === 0) return;
+      try {
+        await saveMachineStateIds(machineId, stateIds);
+        if (cellRowByKey('visual_state_machine', machine, 'default_state') === stateId) {
+          await setDefaultVisualState(machineId, stateIds[0], false);
+        }
+        await api('/api/row/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table_id: 9, row_id: stateId })
+        });
+        const next = rowByKey('visual_state', stateIds[0]);
+        state.visual.state = next ? cellStringByKey('visual_state', next, 'state_key', next.key) : 'idle';
+        state.visual.started = performance.now();
+        log(`deleted visual state ${stateRow.key}`);
         await loadProject(false);
       } catch (error) {
         log(`error: ${error.message}`);
@@ -2269,8 +2521,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
     }
 
     function visualStateRows(visualRow) {
-      const machineId = cellRowByKey('unit_visual', visualRow, 'state_machine');
-      const machine = machineId ? rowByKey('visual_state_machine', machineId) : null;
+      const machine = visualStateMachine(visualRow);
       return cellRowsByKey('visual_state_machine', machine, 'states')
         .map(id => rowByKey('visual_state', id))
         .filter(Boolean);
