@@ -93,6 +93,7 @@ pub struct SkillEffect {
     pub power: i32,
     pub scaling: f32,
     pub knockback_cells: i32,
+    pub impact_pattern: Option<CellPattern>,
     pub trigger_skill: Option<SkillDefId>,
     pub trigger_timing: Option<String>,
 }
@@ -636,7 +637,11 @@ impl BattleWorld {
                 self.pending_impacts.push(PendingImpact {
                     caster_id: caster.id,
                     caster_team: caster.team,
-                    cells: vec![target_grid],
+                    cells: effect
+                        .impact_pattern
+                        .as_ref()
+                        .map(|pattern| pattern_cells(pattern, target_grid, facing))
+                        .unwrap_or_else(|| vec![target_grid]),
                     damage,
                     knockback_cells: effect.knockback_cells.max(0),
                     facing,
@@ -903,6 +908,14 @@ pub fn sample_battle_config() -> BattleConfig {
             .map(|forward| CellOffset { forward, side: 0 })
             .collect(),
     };
+    let impact_pattern = CellPattern {
+        id: 20003,
+        name: "Impact 3x3".to_string(),
+        facing_mode: FacingMode::Fixed,
+        cells: (-1..=1)
+            .flat_map(|forward| (-1..=1).map(move |side| CellOffset { forward, side }))
+            .collect(),
+    };
     let knight_skill = SkillDef {
         id: SkillDefId(17001),
         name: "Knight Slash".to_string(),
@@ -917,6 +930,7 @@ pub fn sample_battle_config() -> BattleConfig {
                 power: 18,
                 scaling: 1.0,
                 knockback_cells: 0,
+                impact_pattern: Some(melee_pattern.clone()),
                 trigger_skill: None,
                 trigger_timing: None,
             }],
@@ -937,6 +951,7 @@ pub fn sample_battle_config() -> BattleConfig {
                 power: 12,
                 scaling: 1.0,
                 knockback_cells: 0,
+                impact_pattern: Some(impact_pattern.clone()),
                 trigger_skill: None,
                 trigger_timing: None,
             }],
@@ -951,12 +966,13 @@ pub fn sample_battle_config() -> BattleConfig {
         steps: vec![SkillStep {
             tick_offset: 0,
             origin: SkillStepOrigin::Caster,
-            pattern: melee_pattern,
+            pattern: melee_pattern.clone(),
             effects: vec![SkillEffect {
                 kind: SkillEffectKind::Damage,
                 power: 8,
                 scaling: 1.0,
                 knockback_cells: 0,
+                impact_pattern: Some(melee_pattern.clone()),
                 trigger_skill: None,
                 trigger_timing: None,
             }],
@@ -1115,5 +1131,30 @@ mod tests {
             pattern_cells(&pattern, origin, Direction::Down),
             vec![GridPosition { x: 11, lane: -2 }]
         );
+    }
+
+    #[test]
+    fn projectile_damage_can_emit_multi_cell_impact_pattern() {
+        let mut world = BattleWorld::new(sample_battle_config());
+        let mut saw_projectile = false;
+        let mut saw_impact_3x3 = false;
+
+        for _ in 0..120 {
+            world.tick(0.2);
+            for event in world.drain_events() {
+                match event {
+                    BattleEvent::ProjectileLaunched { .. } => {
+                        saw_projectile = true;
+                    }
+                    BattleEvent::SkillAreaEffect { cells } if cells.len() == 9 => {
+                        saw_impact_3x3 = true;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        assert!(saw_projectile);
+        assert!(saw_impact_3x3);
     }
 }

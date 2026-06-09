@@ -206,6 +206,7 @@ pub struct SkillEffect {
     pub knockback_cells: i32,
     pub trigger_skill: RowId,
     pub trigger_timing: String,
+    pub impact_pattern: RowId,
 }
 
 #[derive(Debug, Clone)]

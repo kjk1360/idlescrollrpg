@@ -980,6 +980,16 @@
           "kind": "string"
         },
         "required": false
+      },
+      {
+        "id": 177,
+        "key": "impact_pattern",
+        "display_name": "Impact Pattern",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 20
+        },
+        "required": false
       }
     ]
   },

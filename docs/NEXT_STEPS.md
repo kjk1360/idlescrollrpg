@@ -159,6 +159,8 @@ The first playable preview is available through `belt_tools play`:
 - Visual tab can browse project image files and create/update `texture_asset` rows.
 - Battle runtime now reads generated skill data and resolves immediate damage through directional `CellPattern` cells.
 - Battle runtime supports `projectile_damage` effects that launch a projectile, travel linearly at one grid cell per 0.2s tick, and resolve delayed impact damage.
+- Added `skill_effect.impact_pattern` so projectile impacts can resolve a `CellPattern` centered on the projectile destination grid.
+- Added sample `impact_3x3` data and linked it to the archer projectile impact.
 - Play Preview renders default skill area flashes as translucent animated red grid squares.
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows.
 
@@ -178,6 +180,8 @@ The first playable preview is available through `belt_tools play`:
 - Skill judgment and effects use directional grid AABB/range shapes with four cast directions.
 - Skill ranges should use `CellPattern` as the primary internal model: a collection of relative `forward/side` grid offsets rotated by the four cast directions.
 - AABB, line, cross, and 3x3 are authoring presets that generate `CellPattern` data, not the core runtime representation.
+- Projectile visuals are presentation for runtime projectile entities; impact judgment happens when the projectile reaches the destination grid center.
+- Effects that look like ground spikes, columns, or wave bursts should normally be authored as AOE steps, not projectiles, so player-facing visuals match projectile defense rules.
 - A map runs waves as `Prepare -> Engage -> Resolve -> NextWave/Clear/Defeat`.
 - Visual scrolling is presentation; systemically, waves align units to start grids, fight, then prepare the next wave.
 - Unit rarity does not exist directly; skills, traits, and stats can have rarity.
@@ -193,10 +197,10 @@ The first playable preview is available through `belt_tools play`:
 
 ## Immediate Next Milestone: Combat Skill Runtime v1
 
-The runtime is grid/tick based, immediate primary skills execute through generated `CellPattern` data, and simple projectile damage is visible in the Play Preview. Next, extend this into the full skill execution model:
+The runtime is grid/tick based, immediate primary skills execute through generated `CellPattern` data, and projectile impacts can resolve a destination-centered `CellPattern`. Next, extend this into the full skill execution model:
 
 - queued `skill_step` execution for `tick_offset > 0`
-- projectile impact patterns such as fireball travel followed by 3x3 explosion cells
+- explicit projectile authoring fields such as speed, visual type, pierce/block rules, and collision policy
 - trigger timing runtime for conditional skill activation
 - behavior/target rule runtime
 - dungeon reward result generation from `drop_table`

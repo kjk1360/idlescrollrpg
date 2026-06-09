@@ -74,6 +74,8 @@ Implemented:
 - primary skills execute immediate `skill_step` damage effects through generated `CellPattern` data
 - knockback effect plumbing exists for forced grid movement with occupied-cell blocking and lane clamping
 - `projectile_damage` effects launch a delayed projectile impact at one grid cell per 0.2s tick
+- `skill_effect.impact_pattern` resolves projectile impact cells centered on the projectile destination grid
+- sample archer projectile uses `impact_3x3`
 - Play Preview renders area flashes as translucent animated red grid squares
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -105,6 +107,9 @@ Combat:
 - `CellPattern` is the primary internal range model: a collection of relative `forward/side` grid offsets rotated by cast direction
 - AABB, line, cross, and 3x3 should be authoring presets that generate `CellPattern` data
 - cast directions are up/down/left/right only
+- projectile visuals are presentation for runtime projectile entities
+- projectile impact judgment happens when the projectile reaches the destination grid center
+- ground spikes, columns, or wave bursts should generally be AOE steps instead of projectiles so visuals match projectile defense rules
 - wave flow is `Prepare -> Engage -> Resolve -> NextWave/Clear/Defeat`
 - visual scrolling is presentation; systemically, waves align units to start grids, fight, then prepare the next wave
 
@@ -279,6 +284,7 @@ Implemented:
 - effect cells from `CellPattern` relative `forward/side` offsets rotated by up/down/left/right facing
 - damage effects
 - `projectile_damage` effects with delayed impact damage
+- destination-centered `skill_effect.impact_pattern` for projectile impacts
 - knockback movement plumbing
 - Play Preview `effects` frames for red grid area flashes
 - Play Preview `projectiles` frames for linear red orb projectile movement
@@ -286,7 +292,7 @@ Implemented:
 Not implemented yet:
 
 - queued skill steps for `tick_offset > 0`
-- projectile impact patterns such as fireball travel followed by 3x3 explosion cells
+- explicit projectile authoring fields such as speed, visual type, pierce/block rules, and collision policy
 - trigger timing and conditional skill activation
 - multi-skill behavior rule selection
 - skill authoring presets that generate `CellPattern` rows

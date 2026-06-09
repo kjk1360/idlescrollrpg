@@ -125,6 +125,7 @@ fn skill_effect_from_data(db: &GeneratedDatabase, row_id: RowId) -> Result<Skill
         power: row.power,
         scaling: row.scaling,
         knockback_cells: row.knockback_cells.max(0),
+        impact_pattern: Some(cell_pattern_from_data(db, row.impact_pattern)?),
         trigger_skill: if row.trigger_timing.is_empty() {
             None
         } else {

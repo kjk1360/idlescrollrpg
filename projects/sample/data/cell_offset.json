@@ -88,5 +88,167 @@
         "value": 0
       }
     }
+  },
+  {
+    "id": 21010,
+    "key": "center",
+    "cells": {
+      "190": {
+        "kind": "string",
+        "value": "Center"
+      },
+      "191": {
+        "kind": "i32",
+        "value": 0
+      },
+      "192": {
+        "kind": "i32",
+        "value": 0
+      }
+    }
+  },
+  {
+    "id": 21011,
+    "key": "left_down",
+    "cells": {
+      "190": {
+        "kind": "string",
+        "value": "Left Down"
+      },
+      "191": {
+        "kind": "i32",
+        "value": -1
+      },
+      "192": {
+        "kind": "i32",
+        "value": -1
+      }
+    }
+  },
+  {
+    "id": 21012,
+    "key": "left_center",
+    "cells": {
+      "190": {
+        "kind": "string",
+        "value": "Left Center"
+      },
+      "191": {
+        "kind": "i32",
+        "value": -1
+      },
+      "192": {
+        "kind": "i32",
+        "value": 0
+      }
+    }
+  },
+  {
+    "id": 21013,
+    "key": "left_up",
+    "cells": {
+      "190": {
+        "kind": "string",
+        "value": "Left Up"
+      },
+      "191": {
+        "kind": "i32",
+        "value": -1
+      },
+      "192": {
+        "kind": "i32",
+        "value": 1
+      }
+    }
+  },
+  {
+    "id": 21014,
+    "key": "center_down",
+    "cells": {
+      "190": {
+        "kind": "string",
+        "value": "Center Down"
+      },
+      "191": {
+        "kind": "i32",
+        "value": 0
+      },
+      "192": {
+        "kind": "i32",
+        "value": -1
+      }
+    }
+  },
+  {
+    "id": 21015,
+    "key": "center_up",
+    "cells": {
+      "190": {
+        "kind": "string",
+        "value": "Center Up"
+      },
+      "191": {
+        "kind": "i32",
+        "value": 0
+      },
+      "192": {
+        "kind": "i32",
+        "value": 1
+      }
+    }
+  },
+  {
+    "id": 21016,
+    "key": "right_down",
+    "cells": {
+      "190": {
+        "kind": "string",
+        "value": "Right Down"
+      },
+      "191": {
+        "kind": "i32",
+        "value": 1
+      },
+      "192": {
+        "kind": "i32",
+        "value": -1
+      }
+    }
+  },
+  {
+    "id": 21017,
+    "key": "right_center",
+    "cells": {
+      "190": {
+        "kind": "string",
+        "value": "Right Center"
+      },
+      "191": {
+        "kind": "i32",
+        "value": 1
+      },
+      "192": {
+        "kind": "i32",
+        "value": 0
+      }
+    }
+  },
+  {
+    "id": 21018,
+    "key": "right_up",
+    "cells": {
+      "190": {
+        "kind": "string",
+        "value": "Right Up"
+      },
+      "191": {
+        "kind": "i32",
+        "value": 1
+      },
+      "192": {
+        "kind": "i32",
+        "value": 1
+      }
+    }
   }
 ]
