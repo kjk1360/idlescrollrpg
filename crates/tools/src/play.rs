@@ -532,7 +532,9 @@ const PLAY_HTML: &str = r#"<!doctype html>
   <script>
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
-  let playback = null;
+    const GRID_CELL_W = 46;
+    const GRID_CELL_H = 34;
+    let playback = null;
     const images = {};
     let start = performance.now();
 
@@ -616,12 +618,20 @@ const PLAY_HTML: &str = r#"<!doctype html>
         ctx.lineTo(x + 180, floorTop);
         ctx.stroke();
       }
-      for (let lane = -1; lane <= 1; lane += 0.5) {
-        const y = laneY(lane, h);
-        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      for (let laneEdge = -1.5; laneEdge <= 1.5; laneEdge += 1) {
+        const y = laneY(laneEdge, h);
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+      for (let grid = -14; grid <= 14; grid += 1) {
+        const x = gridX(grid, w) - GRID_CELL_W / 2;
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        ctx.beginPath();
+        ctx.moveTo(x, laneY(-1, h) - GRID_CELL_H / 2);
+        ctx.lineTo(x, laneY(1, h) + GRID_CELL_H / 2);
         ctx.stroke();
       }
       ctx.fillStyle = 'rgba(0,0,0,0.28)';
@@ -637,12 +647,12 @@ const PLAY_HTML: &str = r#"<!doctype html>
           const x = gridX(cell.x, w);
           const y = laneY(cell.lane, h);
           ctx.save();
-          ctx.translate(x, y + 6);
+          ctx.translate(x, y);
           ctx.fillStyle = `rgba(225, 45, 45, ${alpha})`;
           ctx.strokeStyle = `rgba(255, 212, 212, ${alpha * 0.8})`;
-          ctx.lineWidth = 2;
-          ctx.fillRect(-20, -16, 40, 32);
-          ctx.strokeRect(-20, -16, 40, 32);
+          ctx.lineWidth = 1;
+          ctx.fillRect(-GRID_CELL_W / 2, -GRID_CELL_H / 2, GRID_CELL_W, GRID_CELL_H);
+          ctx.strokeRect(-GRID_CELL_W / 2, -GRID_CELL_H / 2, GRID_CELL_W, GRID_CELL_H);
           ctx.restore();
         }
       }
@@ -739,11 +749,11 @@ const PLAY_HTML: &str = r#"<!doctype html>
     }
 
     function laneY(lane, h) {
-      return h * 0.67 + lane * h * 0.12;
+      return h * 0.67 + Number(lane || 0) * GRID_CELL_H;
     }
 
     function gridX(x, w) {
-      return w * 0.5 - Number(x || 0) * 42;
+      return w * 0.5 - Number(x || 0) * GRID_CELL_W;
     }
 
     function visualState(visual, key) {
