@@ -966,6 +966,7 @@ fn load_special_trigger_effect(
             )?,
             damage_scale: read_f32(row, FieldId(367), "special_trigger_effect.damage_scale")?,
             target_rule: read_string(row, FieldId(368), "special_trigger_effect.target_rule")?,
+            trigger_skill: read_row(row, FieldId(369), "special_trigger_effect.trigger_skill")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());

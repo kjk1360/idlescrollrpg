@@ -64,6 +64,7 @@ pub struct GeneratedRelationCache {
     pub special_trigger_def_effects: HashMap<RowId, Vec<RowId>>,
     pub special_trigger_condition_stat: HashMap<RowId, RowId>,
     pub special_trigger_effect_stat: HashMap<RowId, RowId>,
+    pub special_trigger_effect_trigger_skill: HashMap<RowId, RowId>,
 }
 
 impl GeneratedRelationCache {
@@ -654,6 +655,14 @@ impl GeneratedRelationCache {
             }
             cache.special_trigger_effect_stat.insert(row.id, row.stat);
         }
+        for row in &db.special_trigger_effect.rows {
+            if db.skill_def.get_by_id(row.trigger_skill).is_none() {
+                return Err(format!("missing relation target for special_trigger_effect.trigger_skill from {:?} to {:?}", row.id, row.trigger_skill));
+            }
+            cache
+                .special_trigger_effect_trigger_skill
+                .insert(row.id, row.trigger_skill);
+        }
         Ok(cache)
     }
 
@@ -904,5 +913,11 @@ impl GeneratedRelationCache {
 
     pub fn get_special_trigger_effect_stat(&self, source: RowId) -> Option<RowId> {
         self.special_trigger_effect_stat.get(&source).copied()
+    }
+
+    pub fn get_special_trigger_effect_trigger_skill(&self, source: RowId) -> Option<RowId> {
+        self.special_trigger_effect_trigger_skill
+            .get(&source)
+            .copied()
     }
 }

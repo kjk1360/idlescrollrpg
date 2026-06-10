@@ -114,6 +114,7 @@ pub struct SpecialTriggerEffect {
     pub interval_seconds: f32,
     pub damage_scale: f32,
     pub target_rule: String,
+    pub trigger_skill: SkillDefId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -128,6 +129,7 @@ pub enum SpecialTriggerEffectKind {
     TimedStatDelta,
     InstantDamage,
     PeriodicDamage,
+    CastSkill,
 }
 
 #[derive(Debug, Clone)]
@@ -1043,7 +1045,25 @@ impl BattleWorld {
                     .iter()
                     .filter(|effect| effect.timing == SpecialTriggerEffectTiming::OnInterval)
                 {
-                    self.apply_special_trigger_effect(self.units[index].id, effect, &snapshot);
+                    match effect.kind {
+                        SpecialTriggerEffectKind::StatDelta
+                        | SpecialTriggerEffectKind::TimedStatDelta => {
+                            self.apply_special_trigger_effect(
+                                self.units[index].id,
+                                effect,
+                                &snapshot,
+                            );
+                        }
+                        SpecialTriggerEffectKind::CastSkill => {
+                            self.apply_special_trigger_cast_skill(
+                                self.units[index].id,
+                                effect,
+                                &snapshot,
+                            );
+                        }
+                        SpecialTriggerEffectKind::InstantDamage
+                        | SpecialTriggerEffectKind::PeriodicDamage => {}
+                    }
                 }
 
                 if !special_trigger_conditions_pass(
@@ -1113,6 +1133,9 @@ impl BattleWorld {
                             });
                         }
                     }
+                    SpecialTriggerEffectKind::CastSkill => {
+                        self.apply_special_trigger_cast_skill(unit_id, effect, &snapshot);
+                    }
                 }
             }
         }
@@ -1166,6 +1189,24 @@ impl BattleWorld {
         let current = unit.stats.get(effect.stat);
         unit.stats.set(effect.stat, current + effect.stat_delta);
         sync_legacy_fields_from_stats(unit);
+    }
+
+    fn apply_special_trigger_cast_skill(
+        &mut self,
+        unit_id: UnitId,
+        effect: &SpecialTriggerEffect,
+        snapshot: &[UnitState],
+    ) {
+        let Some(source) = snapshot
+            .iter()
+            .find(|unit| unit.id == unit_id && unit.is_alive())
+        else {
+            return;
+        };
+
+        for target in special_trigger_effect_targets(snapshot, source, &effect.target_rule) {
+            self.execute_skill(unit_id, target, effect.trigger_skill);
+        }
     }
 
     fn tick_pending_special_periodics(&mut self) {
@@ -2193,6 +2234,7 @@ mod tests {
                     interval_seconds: 0.0,
                     damage_scale: 0.0,
                     target_rule: "self".to_string(),
+                    trigger_skill: SkillDefId(17001),
                 },
                 SpecialTriggerEffect {
                     timing: SpecialTriggerEffectTiming::OnTrigger,
@@ -2203,6 +2245,7 @@ mod tests {
                     interval_seconds: 0.5,
                     damage_scale: 1.0,
                     target_rule: "nearest_enemy".to_string(),
+                    trigger_skill: SkillDefId(17001),
                 },
             ],
         }];
@@ -2360,6 +2403,7 @@ mod tests {
                 interval_seconds: 0.0,
                 damage_scale: 1.0,
                 target_rule: "nearest_enemy".to_string(),
+                trigger_skill: SkillDefId(17001),
             }],
         }];
 
@@ -2407,6 +2451,7 @@ mod tests {
                 interval_seconds: 0.0,
                 damage_scale: 0.0,
                 target_rule: "self".to_string(),
+                trigger_skill: SkillDefId(17001),
             },
             &snapshot,
         );
@@ -2432,5 +2477,39 @@ mod tests {
             .stats
             .get(STAT_ATTACK);
         assert_eq!(expired_attack, 18.0);
+    }
+
+    #[test]
+    fn special_trigger_can_cast_skill_effect() {
+        let mut world = BattleWorld::new(sample_battle_config());
+        let snapshot = world.units().to_vec();
+
+        world.apply_special_trigger_cast_skill(
+            UnitId(1),
+            &SpecialTriggerEffect {
+                timing: SpecialTriggerEffectTiming::OnTrigger,
+                kind: SpecialTriggerEffectKind::CastSkill,
+                stat: STAT_CURRENT_HP,
+                stat_delta: 0.0,
+                duration_seconds: 0.0,
+                interval_seconds: 0.0,
+                damage_scale: 0.0,
+                target_rule: "nearest_enemy".to_string(),
+                trigger_skill: SkillDefId(17001),
+            },
+            &snapshot,
+        );
+
+        let saw_skill_damage = world.drain_events().into_iter().any(|event| {
+            matches!(
+                event,
+                BattleEvent::UnitAttacked {
+                    attacker: UnitId(1),
+                    damage: 36,
+                    ..
+                }
+            )
+        });
+        assert!(saw_skill_damage);
     }
 }

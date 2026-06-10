@@ -2120,6 +2120,16 @@
           "kind": "string"
         },
         "required": true
+      },
+      {
+        "id": 369,
+        "key": "trigger_skill",
+        "display_name": "Trigger Skill",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 17
+        },
+        "required": true
       }
     ]
   }

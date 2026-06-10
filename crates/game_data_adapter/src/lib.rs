@@ -418,6 +418,7 @@ fn special_trigger_effect_from_data(
             "timed_stat_delta" => SpecialTriggerEffectKind::TimedStatDelta,
             "instant_damage" => SpecialTriggerEffectKind::InstantDamage,
             "periodic_damage" => SpecialTriggerEffectKind::PeriodicDamage,
+            "cast_skill" => SpecialTriggerEffectKind::CastSkill,
             other => return Err(format!("unsupported special trigger effect kind {other}")),
         },
         stat: StatDefId(row.stat.0 as u32),
@@ -426,6 +427,7 @@ fn special_trigger_effect_from_data(
         interval_seconds: row.interval_seconds.max(0.0),
         damage_scale: row.damage_scale,
         target_rule: row.target_rule.clone(),
+        trigger_skill: SkillDefId(row.trigger_skill.0 as u32),
     })
 }
 

@@ -133,8 +133,9 @@ Implemented:
 - the Moonlight trigger currently uses one `stat_gte` condition, one `on_interval/stat_delta` effect, and one `on_trigger/periodic_damage` effect
 - supported special trigger condition kinds are `always`, `stat_gte`, `stat_lte`, `stat_eq`, `target_exists`, and `target_in_range`
 - `special_trigger_condition` rows include `target_rule` and `range`, allowing trigger activation to require a nearest enemy to exist or be inside line-combat range
-- supported special trigger effect kinds are `stat_delta`, `timed_stat_delta`, `instant_damage`, and `periodic_damage`; `stat_delta` and `timed_stat_delta` can run on interval or trigger
+- supported special trigger effect kinds are `stat_delta`, `timed_stat_delta`, `instant_damage`, `periodic_damage`, and `cast_skill`; `stat_delta`, `timed_stat_delta`, and `cast_skill` can run on interval or trigger
 - `timed_stat_delta` applies a stat change to `self` or `nearest_enemy` through `target_rule`, then reverts it after `duration_seconds`; the sample Moonlight trigger includes a temporary self attack buff
+- `special_trigger_effect.trigger_skill` references a `skill_def` row for `cast_skill`; the sample Moonlight trigger includes an extra Knight Slash cast on trigger
 - Play Preview renders impact flashes on the combat line
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -522,7 +523,7 @@ Expose the local account-state loop in the tool UI and playable preview.
 Recommended order:
 
 1. Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
-2. Add cooldown/resource checks, skill-cast effects, and richer buff/debuff presets to the composable special trigger tables.
+2. Add cooldown/resource checks and richer buff/debuff presets to the composable special trigger tables.
 3. Extend equipment special option runtime from `on_equip` stat/granted-skill/trigger-key application into skill mutation and conditional effects.
 4. Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
 5. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.

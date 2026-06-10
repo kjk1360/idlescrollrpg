@@ -38,6 +38,10 @@
       "368": {
         "kind": "string",
         "value": "self"
+      },
+      "369": {
+        "kind": "row",
+        "value": 17001
       }
     }
   },
@@ -80,6 +84,10 @@
       "368": {
         "kind": "string",
         "value": "nearest_enemy"
+      },
+      "369": {
+        "kind": "row",
+        "value": 17001
       }
     }
   },
@@ -122,6 +130,56 @@
       "368": {
         "kind": "string",
         "value": "self"
+      },
+      "369": {
+        "kind": "row",
+        "value": 17001
+      }
+    }
+  },
+  {
+    "id": 37004,
+    "key": "moon_wrath_cast_slash",
+    "cells": {
+      "360": {
+        "kind": "string",
+        "value": "Moon Wrath Cast Slash"
+      },
+      "361": {
+        "kind": "string",
+        "value": "on_trigger"
+      },
+      "362": {
+        "kind": "string",
+        "value": "cast_skill"
+      },
+      "363": {
+        "kind": "row",
+        "value": 23003
+      },
+      "364": {
+        "kind": "f32",
+        "value": 0.0
+      },
+      "365": {
+        "kind": "f32",
+        "value": 0.0
+      },
+      "366": {
+        "kind": "f32",
+        "value": 0.0
+      },
+      "367": {
+        "kind": "f32",
+        "value": 0.0
+      },
+      "368": {
+        "kind": "string",
+        "value": "nearest_enemy"
+      },
+      "369": {
+        "kind": "row",
+        "value": 17001
       }
     }
   }

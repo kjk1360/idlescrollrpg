@@ -423,4 +423,5 @@ pub struct SpecialTriggerEffect {
     pub interval_seconds: f32,
     pub damage_scale: f32,
     pub target_rule: String,
+    pub trigger_skill: RowId,
 }
