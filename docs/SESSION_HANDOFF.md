@@ -94,6 +94,8 @@ Implemented:
 - `belt_tools simulate` previews reward storage settlement by tab and one-day overflow mail output
 - `belt_tools simulate` can load/save local account state JSON with energy, inventory stacks, and one-day overflow mail
 - account-state reward writeback fills partial stacks before opening new slots and sends capacity overflow to mail
+- Data Studio Operation tab displays local account energy, warehouse slots, inventory stacks, and overflow mail
+- `/api/account-state` returns the local account-state snapshot and `/api/account-dispatch` runs dungeon dispatch with writeback
 - Play Preview renders impact flashes on the combat line
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -111,6 +113,10 @@ Operation:
 - energy can later be sold through web shop flows
 - some consumable items can restore energy
 - server/db usage is limited to auction, mail, guild, ranking, and similar non-realtime systems
+- Supabase is the chosen backend direction when shared online systems are added
+- auction house is the first server-backed priority
+- chat is explicitly lower priority
+- basic player/user state can remain local for the Steam-style client game
 
 Combat:
 
@@ -438,11 +444,11 @@ Expose the local account-state loop in the tool UI and playable preview.
 
 Recommended order:
 
-1. Add account-state load/save API endpoints to `belt_tools serve`.
-2. Add Warehouse UI for material/equipment/consumable inventory slots.
-3. Add local overflow mail UI with remaining expiry time and claim/delete actions.
-4. Add energy display and dungeon dispatch button that writes to account state.
-5. Add first recipe tables and instant alchemy/forge/refinement commands.
+1. Add local overflow mail claim/delete actions.
+2. Add elapsed real-time energy recovery display and recovery writeback.
+3. Add first recipe tables and instant alchemy/forge/refinement commands.
+4. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
+5. Keep chat/guild/ranking behind auction house priority.
 6. Connect battle simulation states to visual state machine keys.
 7. Package and verify the updated `belt_tools.exe` again.
 

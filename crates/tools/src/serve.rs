@@ -8,6 +8,7 @@ use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) fn serve(args: &[String]) -> Result<(), String> {
     let project_path = crate::option_value_for_args(args, "--project")
@@ -136,6 +137,7 @@ fn route_request(request: &Request, state: &ServerState) -> Vec<u8> {
         ("GET", "/") => Ok(html(INDEX_HTML)),
         ("GET", "/asset") => asset(request, state),
         ("GET", "/api/assets") => api_assets(state),
+        ("GET", "/api/account-state") => api_account_state(state),
         ("GET", "/api/project") => api_project(state),
         ("GET", "/api/status") => api_status(state),
         ("GET", "/api/view") => api_view(request, state),
@@ -150,6 +152,7 @@ fn route_request(request: &Request, state: &ServerState) -> Vec<u8> {
         ("POST", "/api/codegen") => api_codegen(state),
         ("POST", "/api/data-build") => api_data_build(state),
         ("POST", "/api/simulate") => api_simulate(request, state),
+        ("POST", "/api/account-dispatch") => api_account_dispatch(request, state),
         ("POST", "/api/import/aseprite") => api_import_aseprite(request, state),
         ("POST", "/api/visual/slice-grid") => api_slice_sprite_grid(request, state),
         _ => Err(("not found".to_string(), 404)),
@@ -258,6 +261,12 @@ fn api_status(state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
         200,
         &json!({ "ok": true, "status": project_status(&project, &state.project_path) }),
     ))
+}
+
+fn api_account_state(state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
+    let snapshot =
+        crate::account_state_snapshot_for_api(&state.project_path).map_err(|error| (error, 500))?;
+    Ok(json_response(200, &snapshot))
 }
 
 fn api_view(request: &Request, state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
@@ -650,6 +659,29 @@ fn api_simulate(request: &Request, state: &ServerState) -> Result<Vec<u8>, (Stri
     Ok(json_response(200, &json!({ "ok": true, "output": output })))
 }
 
+fn api_account_dispatch(request: &Request, state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
+    let payload = parse_body(&request.body)?;
+    let map_key = payload
+        .get("map_key")
+        .and_then(Value::as_str)
+        .unwrap_or("endless_left_road");
+    let seed = payload.get("seed").and_then(Value::as_u64).unwrap_or(1);
+    let now_unix = payload
+        .get("now_unix")
+        .and_then(Value::as_i64)
+        .unwrap_or_else(current_unix_time);
+    let snapshot = crate::dispatch_account_for_api(&state.project_path, map_key, seed, now_unix)
+        .map_err(|error| (error, 500))?;
+    Ok(json_response(
+        200,
+        &json!({
+            "ok": true,
+            "message": format!("dispatched {map_key} and saved account state"),
+            "account": snapshot,
+        }),
+    ))
+}
+
 fn api_import_aseprite(request: &Request, state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
     let payload = parse_body(&request.body)?;
     let file = string_value(&payload, "file")?;
@@ -755,6 +787,13 @@ fn api_slice_sprite_grid(request: &Request, state: &ServerState) -> Result<Vec<u
 
 fn load_project(path: &Path) -> Result<DataProject, (String, u16)> {
     DataProject::load_from_dir(path).map_err(|error| (error.to_string(), 500))
+}
+
+fn current_unix_time() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs() as i64)
+        .unwrap_or(0)
 }
 
 fn save_project(project: &DataProject, state: &ServerState) -> Result<(), (String, u16)> {
@@ -1535,6 +1574,42 @@ const INDEX_HTML: &str = r#"<!doctype html>
       border: 1px solid var(--line);
       background: var(--panel);
     }
+    .operation-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(180px, 1fr));
+      gap: 12px;
+      padding: 12px;
+    }
+    .operation-panel {
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+    .operation-panel.wide {
+      grid-column: 1 / -1;
+    }
+    .operation-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      font-weight: 700;
+    }
+    .operation-body {
+      padding: 10px 12px;
+      display: grid;
+      gap: 8px;
+    }
+    .stat-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+    }
+    .stat-line span:last-child {
+      font-weight: 700;
+      color: var(--text);
+    }
     .asset-head {
       display: flex;
       align-items: center;
@@ -1843,6 +1918,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
         <button id="schemaTab" class="tab active">Schema</button>
         <button id="dataTab" class="tab">Data</button>
         <button id="visualTab" class="tab">Visual</button>
+        <button id="operationTab" class="tab">Operation</button>
       </div>
       <span id="projectPath" class="status">loading</span>
       <span id="freshness" class="status">status</span>
@@ -1875,7 +1951,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
     </main>
   </div>
   <script>
-    let state = { project: null, assets: [], mode: 'schema', selected: null, backStack: [], visual: { key: null, state: 'idle', started: 0 }, images: {} };
+    let state = { project: null, assets: [], account: null, mode: 'schema', selected: null, backStack: [], visual: { key: null, state: 'idle', started: 0 }, images: {} };
     const $ = id => document.getElementById(id);
 
     async function api(path, options) {
@@ -2044,7 +2120,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
     }
 
     function renderNav() {
-      document.querySelector('.app').classList.toggle('visual-mode', state.mode === 'visual');
+      document.querySelector('.app').classList.toggle('visual-mode', state.mode === 'visual' || state.mode === 'operation');
       $('tables').innerHTML = rootTables().map(table => renderTableNavItem(table, 0, '')).join('');
       $('views').style.display = state.mode === 'data' ? '' : 'none';
       $('viewsTitle').style.display = state.mode === 'data' ? '' : 'none';
@@ -2057,6 +2133,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
       $('schemaTab').classList.toggle('active', state.mode === 'schema');
       $('dataTab').classList.toggle('active', state.mode === 'data');
       $('visualTab').classList.toggle('active', state.mode === 'visual');
+      $('operationTab').classList.toggle('active', state.mode === 'operation');
     }
 
     function renderStatus(status) {
@@ -2173,6 +2250,111 @@ const INDEX_HTML: &str = r#"<!doctype html>
             ${selectedRows.map(row => relationRowButton(targetTableId, row, 'Remove', `setRelationValue(${selection.tableId}, ${selection.rowId}, ${selection.fieldId}, ${row.id}, false)`)).join('')}
           </div>
         </div>`;
+    }
+
+    async function loadAccountState() {
+      const account = await api('/api/account-state');
+      state.account = account;
+      return account;
+    }
+
+    async function renderOperationDashboard() {
+      const account = state.account || await loadAccountState();
+      $('sheetTitle').textContent = 'Operation';
+      $('sheetMeta').textContent = `local account / ${account.path}`;
+      $('sheetTools').innerHTML = `
+        <button class="primary" onclick="dispatchDungeon()">Dispatch Dungeon</button>
+        <button onclick="refreshOperation()">Refresh</button>`;
+      const storage = account.storage_tabs || [];
+      const inventory = account.inventory || [];
+      const mail = account.mail || [];
+      const byCategory = category => inventory.filter(item => item.category === category);
+      $('grid').innerHTML = `
+        <div class="operation-grid">
+          <div class="operation-panel">
+            <div class="operation-head"><span>Energy</span><span>${account.energy}</span></div>
+            <div class="operation-body">
+              <div class="stat-line"><span>Last Update</span><span>${account.last_energy_update_unix}</span></div>
+              <div class="stat-line"><span>Mode</span><span>local first</span></div>
+            </div>
+          </div>
+          ${storage.map(tab => `
+            <div class="operation-panel">
+              <div class="operation-head"><span>${escapeHtml(tab.name)}</span><span>${tab.used_slots}/${tab.capacity}</span></div>
+              <div class="operation-body">
+                <div class="stat-line"><span>Category</span><span>${escapeHtml(tab.item_category)}</span></div>
+                <div class="stat-line"><span>Free Slots</span><span>${tab.free_slots}</span></div>
+              </div>
+            </div>`).join('')}
+          <div class="operation-panel wide">
+            <div class="operation-head"><span>Warehouse</span><span>${inventory.length} stacks</span></div>
+            <table>
+              <thead><tr><th>Item</th><th>Category</th><th>Rarity</th><th>Qty</th><th>Stack</th></tr></thead>
+              <tbody>
+                ${inventory.map(item => `
+                  <tr>
+                    <td>${escapeHtml(item.name)}<br><small>${escapeHtml(item.item_key)}</small></td>
+                    <td>${escapeHtml(item.category)}</td>
+                    <td>${escapeHtml(item.rarity)}</td>
+                    <td>${item.quantity}</td>
+                    <td>${item.stack_size}</td>
+                  </tr>`).join('') || '<tr><td colspan="5">empty</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+          <div class="operation-panel">
+            <div class="operation-head"><span>Material</span><span>${byCategory('material').length}</span></div>
+            <div class="operation-body">${byCategory('material').map(item => `<div class="stat-line"><span>${escapeHtml(item.name)}</span><span>${item.quantity}</span></div>`).join('') || '<span>empty</span>'}</div>
+          </div>
+          <div class="operation-panel">
+            <div class="operation-head"><span>Equipment</span><span>${byCategory('equipment').length}</span></div>
+            <div class="operation-body">${byCategory('equipment').map(item => `<div class="stat-line"><span>${escapeHtml(item.name)}</span><span>${item.quantity}</span></div>`).join('') || '<span>empty</span>'}</div>
+          </div>
+          <div class="operation-panel">
+            <div class="operation-head"><span>Consumable</span><span>${byCategory('consumable').length}</span></div>
+            <div class="operation-body">${byCategory('consumable').map(item => `<div class="stat-line"><span>${escapeHtml(item.name)}</span><span>${item.quantity}</span></div>`).join('') || '<span>empty</span>'}</div>
+          </div>
+          <div class="operation-panel wide">
+            <div class="operation-head"><span>Mail</span><span>${mail.length}</span></div>
+            <table>
+              <thead><tr><th>Item</th><th>Category</th><th>Qty</th><th>Expires At</th></tr></thead>
+              <tbody>
+                ${mail.map(item => `
+                  <tr>
+                    <td>${escapeHtml(item.name)}<br><small>${escapeHtml(item.item_key)}</small></td>
+                    <td>${escapeHtml(item.category)}</td>
+                    <td>${item.quantity}</td>
+                    <td>${item.expires_at_unix}</td>
+                  </tr>`).join('') || '<tr><td colspan="4">empty</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    async function refreshOperation() {
+      try {
+        await loadAccountState();
+        await renderOperationDashboard();
+        log('account state refreshed');
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
+    async function dispatchDungeon() {
+      try {
+        const result = await api('/api/account-dispatch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ map_key: 'endless_left_road', seed: Date.now() })
+        });
+        state.account = result.account;
+        await renderOperationDashboard();
+        log(result.message);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
     }
 
     function renderVisualDashboard() {
@@ -3217,6 +3399,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
       renderStatus(data.status);
       renderNav();
       if (state.mode === 'visual') renderVisualDashboard();
+      else if (state.mode === 'operation') await renderOperationDashboard();
       else if (selectFirst && state.project.tables.length) selectTable(state.project.tables[0].key);
       else if (state.selected?.type === 'relation') renderRelationPicker(state.selected);
       else if (state.selected?.type === 'table') {
@@ -3236,6 +3419,10 @@ const INDEX_HTML: &str = r#"<!doctype html>
       renderNav();
       if (mode === 'visual') {
         renderVisualDashboard();
+        return;
+      }
+      if (mode === 'operation') {
+        renderOperationDashboard().catch(error => log(`error: ${error.message}`));
         return;
       }
       if (state.project?.tables?.length) selectTable(state.project.tables[0].key);
@@ -3275,6 +3462,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
     $('schemaTab').onclick = () => setMode('schema');
     $('dataTab').onclick = () => setMode('data');
     $('visualTab').onclick = () => setMode('visual');
+    $('operationTab').onclick = () => setMode('operation');
     $('addTableBtn').onclick = addTable;
     loadProject().catch(error => log(`error: ${error.message}`));
   </script>

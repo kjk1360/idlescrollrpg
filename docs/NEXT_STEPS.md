@@ -183,6 +183,8 @@ The first playable preview is available through `belt_tools play`:
 - `belt_tools simulate` now previews reward storage settlement by storage tab and sends overflow quantities to one-day overflow mail output.
 - `belt_tools simulate` can load/save local account state JSON with energy, inventory stacks, and expiring overflow mail.
 - Account-state reward writeback fills partial inventory stacks before opening new slots and sends capacity overflow to one-day mail.
+- Data Studio Operation tab can display local account energy, warehouse slots, inventory stacks, and overflow mail.
+- Data Studio can dispatch the sample dungeon through `/api/account-dispatch` and persist the local account-state file.
 
 ## Locked Design Direction
 
@@ -238,11 +240,22 @@ The local account-state file is intentionally small and server-portable:
 
 The next production-facing step is to expose the local account state in the UI and make it behave like the later server-backed account model:
 
-- Warehouse UI that reads account inventory stacks by material/equipment/consumable tab.
-- Local overflow mail UI with remaining expiry time and claim/delete actions.
-- Energy display that recovers by elapsed real time and can be spent by dungeon dispatch.
-- Account-state API endpoints in `belt_tools serve` and `belt_tools play` for preview/test workflows.
+- Warehouse UI claim/delete actions for local overflow mail.
+- Energy display with elapsed real-time recovery preview instead of raw unix values.
+- Account-state API endpoints in `belt_tools play` for preview/test workflows.
 - First recipe tables and instant alchemy/forge/refinement commands that mutate the same account-state file.
+
+## Server Direction
+
+Use Supabase only for shared online systems where a server is actually needed. The current priority is auction house first; chat, guild, and rankings are later. Basic user state can remain local because the target is a Steam-style client game and the server exists mainly for cross-user content.
+
+When Supabase is introduced, keep security official and conservative:
+
+- Supabase Auth for identity.
+- Postgres RLS for table-level access boundaries.
+- Edge Functions or Postgres RPC for all auction/economy mutations.
+- No direct client writes for listing creation, purchase settlement, currency transfer, or mail rewards created by auction actions.
+- Local account-state remains the offline gameplay source of truth until a specific shared feature requires server authority.
 
 ## Immediate Next Milestone: Combat Skill Runtime v1
 

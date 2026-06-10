@@ -964,6 +964,100 @@ fn save_account_state(path: &Path, state: &AccountState) -> Result<(), String> {
     write_file(path, &content)
 }
 
+fn account_state_path_for_project(project_path: &Path) -> PathBuf {
+    project_path.join("account_state.json")
+}
+
+pub(crate) fn account_state_snapshot_for_api(
+    project_path: &Path,
+) -> Result<serde_json::Value, String> {
+    let project = DataProject::load_from_dir(project_path).map_err(|error| error.to_string())?;
+    let path = account_state_path_for_project(project_path);
+    let state = load_or_create_account_state(&project, &path)?;
+    let db = GeneratedDatabase::from_project(&project)?;
+    let slots = inventory_slots_by_tab(&db, &state)?;
+    let inventory = state
+        .inventory
+        .iter()
+        .map(|stack| {
+            let item = db.item_def.get_by_key(&stack.item_key);
+            serde_json::json!({
+                "item_key": stack.item_key,
+                "quantity": stack.quantity,
+                "name": item.map(|item| item.name.as_str()).unwrap_or(stack.item_key.as_str()),
+                "category": item.map(|item| item.category.as_str()).unwrap_or("unknown"),
+                "rarity": item.map(|item| item.rarity.as_str()).unwrap_or("unknown"),
+                "stack_size": item.map(|item| item.stack_size).unwrap_or(1),
+            })
+        })
+        .collect::<Vec<_>>();
+    let mail = state
+        .mail
+        .iter()
+        .map(|mail| {
+            let item = db.item_def.get_by_key(&mail.item_key);
+            serde_json::json!({
+                "item_key": mail.item_key,
+                "quantity": mail.quantity,
+                "expires_at_unix": mail.expires_at_unix,
+                "name": item.map(|item| item.name.as_str()).unwrap_or(mail.item_key.as_str()),
+                "category": item.map(|item| item.category.as_str()).unwrap_or("unknown"),
+                "rarity": item.map(|item| item.rarity.as_str()).unwrap_or("unknown"),
+            })
+        })
+        .collect::<Vec<_>>();
+    let storage_tabs = db
+        .storage_tab_config
+        .rows
+        .iter()
+        .map(|tab| {
+            let used = slots.get(&tab.tab_key).copied().unwrap_or(0);
+            serde_json::json!({
+                "tab_key": tab.tab_key,
+                "name": tab.name,
+                "item_category": tab.item_category,
+                "capacity": tab.base_capacity.max(0),
+                "used_slots": used,
+                "free_slots": (tab.base_capacity.max(0) - used).max(0),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    Ok(serde_json::json!({
+        "ok": true,
+        "path": path,
+        "energy": state.energy,
+        "last_energy_update_unix": state.last_energy_update_unix,
+        "inventory": inventory,
+        "mail": mail,
+        "storage_tabs": storage_tabs,
+    }))
+}
+
+pub(crate) fn dispatch_account_for_api(
+    project_path: &Path,
+    map_key: &str,
+    seed: u64,
+    now_unix: i64,
+) -> Result<serde_json::Value, String> {
+    let account_path = account_state_path_for_project(project_path);
+    let args = vec![
+        "--project".to_string(),
+        project_path.to_string_lossy().to_string(),
+        "--map".to_string(),
+        map_key.to_string(),
+        "--seed".to_string(),
+        seed.to_string(),
+        "--account-state".to_string(),
+        account_path.to_string_lossy().to_string(),
+        "--write-account-state".to_string(),
+        "--now-unix".to_string(),
+        now_unix.to_string(),
+    ];
+    simulate(&args)?;
+    account_state_snapshot_for_api(project_path)
+}
+
 fn option_value<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
     args.windows(2)
         .find(|window| window[0] == flag)
