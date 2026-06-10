@@ -66,16 +66,17 @@ Implemented:
 - Visual tab animation frame list editor for active state `sprite_animation` rows
 - Visual tab state machine editor for active `visual_state_machine` rows
 - `/api/assets` project image browser and Visual tab texture asset create/update UI
-- tick/grid-based `belt_core` wave combat with prepare/engage phases and map clear
+- tick-based 1D line `belt_core` wave combat with prepare/engage phases and map clear
 - initial item/drop/energy/storage data tables for dungeon reward and operation UI foundations
 - initial CellPattern-based skill, skill step, skill effect, and behavior rule data tables
 - `unit_def.skills` linked to sample unit skills; adapter reads primary skill cooldown
 - `belt_core` runtime skill models for `SkillDef`, `SkillStep`, `SkillEffect`, `CellPattern`, and rotated `CellOffset` cells
-- primary skills execute immediate `skill_step` damage effects through generated `CellPattern` data
-- knockback effect plumbing exists for forced grid movement with occupied-cell blocking and lane clamping
-- `projectile_damage` effects launch a delayed projectile impact at one grid cell per 0.2s tick
-- `skill_effect.impact_pattern` resolves projectile impact cells centered on the projectile destination grid
-- sample archer projectile uses `impact_3x3`
+- primary skills execute immediate `skill_step` damage effects against a selected line target
+- skill use is gated by `skill_def.range`, cooldown, and payable costs
+- units can overlap on the combat line; occupancy, lane movement, and path blocking are not part of the current combat rule
+- knockback effect plumbing exists as simple distance displacement
+- `projectile_damage` effects launch a delayed projectile impact based on line distance
+- `skill_effect.impact_pattern` and `CellPattern` data remain for compatibility, but current combat resolution is range/target based
 - `tick_offset > 0` skill steps are queued and executed after their tick delay
 - sample knight slash has a one-tick delayed 3x3 aftershock step
 - `unit_def.behavior_rules` selects skills by descending priority
@@ -89,7 +90,7 @@ Implemented:
 - skill selection ignores skills the caster cannot pay for, and skill execution subtracts caster costs before effects run
 - `skill_effect.stat_duration_ticks` and `skill_effect.stat_tick_delta` support timed Stat modifiers
 - timed Stat modifiers can expire by reversing the initial `stat_delta` and can apply per-tick Stat changes while active
-- Play Preview renders area flashes as translucent animated red grid squares
+- Play Preview renders impact flashes on the combat line
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
 ## Locked Design Direction
@@ -109,20 +110,18 @@ Operation:
 
 Combat:
 
-- automatic tick/grid belt-scroll dungeon combat
-- advancing-axis grid with 3 lanes
-- one unit per grid cell
-- occupied cells cannot be entered or crossed
+- automatic tick-based 1D line belt-scroll dungeon combat
+- units are positioned by distance on one horizontal combat line
+- multiple units can overlap
+- no occupancy, path blocking, or lane movement
 - no normal collision/pushing
-- knockback is forced grid movement
+- knockback is simple distance displacement
 - no basic attacks; every action is a skill
-- skill judgment/effects use directional grid cell patterns
-- `CellPattern` is the primary internal range model: a collection of relative `forward/side` grid offsets rotated by cast direction
-- AABB, line, cross, and 3x3 should be authoring presets that generate `CellPattern` data
-- cast directions are up/down/left/right only
+- a basic attack is a zero-cost skill with range and cooldown
+- skill judgment is target in `skill_def.range`, cooldown ready, and costs payable
+- `CellPattern` data is retained for compatibility/authoring experiments, but it is not the current combat rule model
 - projectile visuals are presentation for runtime projectile entities
-- projectile impact judgment happens when the projectile reaches the destination grid center
-- ground spikes, columns, or wave bursts should generally be AOE steps instead of projectiles so visuals match projectile defense rules
+- projectile impact judgment happens when the projectile reaches the target distance
 - wave flow is `Prepare -> Engage -> Resolve -> NextWave/Clear/Defeat`
 - visual scrolling is presentation; systemically, waves align units to start grids, fight, then prepare the next wave
 
@@ -287,12 +286,13 @@ Verified packaged commands:
 
 Implemented:
 
-- grid/tick wave combat
+- tick-based 1D line wave combat
 - prepare/engage wave flow
-- one unit per grid cell
-- movement blocked by occupied cells
+- overlapping unit positions
+- movement by horizontal distance with no path blocking
 - primary skill selection from `unit_def.skills`
 - skill cooldown from `skill_def.cooldown_ticks`
+- skill range from `skill_def.range`
 - immediate `skill_step` execution when `tick_offset == 0`
 - queued `skill_step` execution when `tick_offset > 0`
 - behavior rule skill selection by priority
@@ -300,22 +300,21 @@ Implemented:
 - stat-delta skill effects for stack/resource changes
 - stat-cost skill payment from `skill_def.costs`
 - timed stat modifiers for temporary stacks, buffs/debuffs, and over-time resource changes
-- effect cells from `CellPattern` relative `forward/side` offsets rotated by up/down/left/right facing
-- damage effects
+- single-target line damage effects
 - `projectile_damage` effects with delayed impact damage
-- destination-centered `skill_effect.impact_pattern` for projectile impacts
-- knockback movement plumbing
-- Play Preview `effects` frames for red grid area flashes
+- `skill_effect.impact_pattern` retained in data for compatibility, but projectile impact currently resolves against the selected target
+- knockback movement plumbing as line displacement
+- Play Preview `effects` frames for line impact flashes
 - Play Preview `projectiles` frames for linear red orb projectile movement
 
 Not implemented yet:
 
 - explicit projectile authoring fields such as speed, visual type, pierce/block rules, and collision policy
 - trigger timing and conditional skill activation
-- richer behavior conditions such as ally/enemy counts, cooldown availability, lane checks, and enemies in pattern with stat filters
+- richer behavior conditions such as ally/enemy counts, cooldown availability, distance checks, and target stat filters
 - richer resource flows around skill costs, such as mana gain effects, generated UI presets, and cost preview labels
 - authoring presets and UI hints for temporary stacks, shields, buffs, debuffs, and over-time effects
-- skill authoring presets that generate `CellPattern` rows
+- line-combat skill authoring presets for single-target, nearest enemy, self, ally, and all-enemies effects
 - dungeon reward settlement from `drop_table`
 - account energy spending/recovery simulation
 

@@ -57,15 +57,16 @@
 - Added Visual tab animation frame list editor for active state animations.
 - Added Visual tab state machine editor for state add/delete, default state, and animation assignment.
 - Added `/api/assets` project asset browser and Visual tab texture asset create/update UI.
-- Converted `belt_core` battle runtime to tick/grid-based wave combat.
+- Converted `belt_core` battle runtime to tick-based wave combat.
 - Changed maps to clear after their final wave instead of looping indefinitely.
 - Removed the operation harvesting/production premise from the locked design direction.
 - Added initial item, drop table, account energy, and storage tab data tables.
 - Added initial CellPattern-based skill, skill step, skill effect, and behavior rule data tables.
 - Linked `unit_def.skills` to sample unit skills and wired primary skill cooldown into battle config conversion.
 - Added `belt_core` runtime models for `SkillDef`, `SkillStep`, `SkillEffect`, `CellPattern`, and rotated `CellOffset` cells.
-- Changed grid combat to execute primary skills through `CellPattern` judgment and immediate `skill_step` damage effects.
-- Added knockback effect plumbing for forced grid movement, including occupied-cell blocking and lane clamping.
+- Simplified combat from 3-lane grid tactics to 1D distance-based line combat with overlap allowed.
+- Added `skill_def.range`; skills fire when the target is within range, cooldown is ready, and costs can be paid.
+- Kept `CellPattern` data for compatibility, but current runtime skill judgment is range-based.
 
 ## Current Stable CLI Flow
 
@@ -144,8 +145,8 @@ The first focused local UI is available through `belt_tools serve`:
 The first playable preview is available through `belt_tools play`:
 
 - Rust `BattleWorld` produces simulation frames from project data.
-- Browser canvas renders endless-left belt-scroll presentation over tick/grid combat data.
-- Battle runtime uses grid occupancy, 3 lanes, fixed tick stepping, prepare/engage wave phases, and map clear.
+- Browser canvas renders endless-left belt-scroll presentation over 1D line combat data.
+- Battle runtime uses fixed tick stepping, prepare/engage wave phases, line movement, overlapping units, and map clear.
 - Unit visuals are driven by `unit_def.visual`.
 - Visual data supports texture asset references, sprite animation settings, visual states, state machines, and unit visual settings.
 - Placeholder sprite rendering uses `unit_visual.body_color` until real texture loading/slicing is added.
@@ -157,11 +158,10 @@ The first playable preview is available through `belt_tools play`:
 - Visual tab can edit the active `sprite_animation.frames` order, add/remove frames, and update fps/looping.
 - Visual tab can edit the active `visual_state_machine` states, default state, and state animation references.
 - Visual tab can browse project image files and create/update `texture_asset` rows.
-- Battle runtime now reads generated skill data and resolves immediate damage through directional `CellPattern` cells.
-- Battle runtime supports `projectile_damage` effects that launch a projectile, travel linearly at one grid cell per 0.2s tick, and resolve delayed impact damage.
-- Added `skill_effect.impact_pattern` so projectile impacts can resolve a `CellPattern` centered on the projectile destination grid.
-- Added sample `impact_3x3` data and linked it to the archer projectile impact.
-- Play Preview renders default skill area flashes as translucent animated red grid squares.
+- Battle runtime now reads generated skill data and resolves immediate damage against the selected line target.
+- Battle runtime supports `projectile_damage` effects that launch a projectile, travel linearly by distance, and resolve delayed single-target impact damage.
+- `skill_effect.impact_pattern` remains in data for compatibility, but current line combat resolves projectile impact against the selected target.
+- Play Preview renders default skill impact flashes on the line.
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows.
 - Added queued `skill_step` execution for `tick_offset > 0`.
 - Added a sample knight aftershock step that fires one tick after the initial slash.
@@ -185,16 +185,15 @@ The first playable preview is available through `belt_tools play`:
 - Combat/dungeon dispatch is the source of base materials and part of advanced materials.
 - Account energy is a dungeon dispatch/fatigue resource.
 - Account energy recovers by real elapsed time, can later be sold through web shop flows, and can be restored by consumable items.
-- Combat is automatic tick/grid belt-scroll dungeon combat.
-- Combat grid is an advancing-axis grid with 3 lanes.
-- One unit occupies one grid cell; occupied cells cannot be entered or crossed.
-- Collision/pushing is not part of normal movement; knockback is a forced grid movement effect.
+- Combat is automatic tick-based 1D line belt-scroll dungeon combat.
+- Units are positioned by distance on a single horizontal combat line.
+- Multiple units can overlap; there is no occupancy, path blocking, or lane movement.
+- Collision/pushing is not part of normal movement; knockback is a simple distance displacement effect.
 - There is no basic attack concept; every action is a skill.
-- Skill judgment and effects use directional grid AABB/range shapes with four cast directions.
-- Skill ranges should use `CellPattern` as the primary internal model: a collection of relative `forward/side` grid offsets rotated by the four cast directions.
-- AABB, line, cross, and 3x3 are authoring presets that generate `CellPattern` data, not the core runtime representation.
-- Projectile visuals are presentation for runtime projectile entities; impact judgment happens when the projectile reaches the destination grid center.
-- Effects that look like ground spikes, columns, or wave bursts should normally be authored as AOE steps, not projectiles, so player-facing visuals match projectile defense rules.
+- A basic attack is represented as a zero-cost skill with range and cooldown.
+- Skill judgment is intentionally simple: target in `skill_def.range`, cooldown ready, and costs payable.
+- `CellPattern` is no longer the primary combat rule model; it is retained as compatibility/authoring data until removed or repurposed.
+- Projectile visuals are presentation for runtime projectile entities; impact judgment happens when the projectile reaches the target distance.
 - A map runs waves as `Prepare -> Engage -> Resolve -> NextWave/Clear/Defeat`.
 - Visual scrolling is presentation; systemically, waves align units to start grids, fight, then prepare the next wave.
 - Unit rarity does not exist directly; skills, traits, and stats can have rarity.
@@ -210,17 +209,17 @@ The first playable preview is available through `belt_tools play`:
 
 ## Immediate Next Milestone: Combat Skill Runtime v1
 
-The runtime is grid/tick based, primary skills execute immediate and delayed `skill_step` entries through generated `CellPattern` data, projectile impacts can resolve a destination-centered `CellPattern`, and units can choose skills from priority behavior rules with stat-based conditions. Next, extend this into the full skill execution model:
+The runtime is tick-based 1D line combat. Primary skills execute immediate and delayed `skill_step` entries against a selected target when that target is within `skill_def.range`, costs can be paid, and cooldown is ready. Units can choose skills from priority behavior rules with stat-based conditions. Next, extend this into the full skill execution model:
 
 - explicit projectile authoring fields such as speed, visual type, pierce/block rules, and collision policy
 - trigger timing runtime for conditional skill activation
-- richer behavior conditions such as ally/enemy counts, cooldown availability, lane checks, and enemies in pattern with stat filters
+- richer behavior conditions such as ally/enemy counts, cooldown availability, distance checks, and target stat filters
 - richer resource flows around skill costs, such as mana gain effects, generated UI presets, and cost preview labels
 - authoring presets and UI hints for temporary stacks, shields, buffs, debuffs, and over-time effects
 - dungeon reward result generation from `drop_table`
 - account energy spending/recovery simulation
 - battle simulation states to visual state machine keys
-- skill authoring presets that generate `CellPattern` rows: AABB, line, cross, 3x3
+- line-combat skill authoring presets for single-target, nearest enemy, self, ally, and all-enemies effects
 - row preview thumbnails for sprite frame lists and palettes
 - relation picker pagination/search for large tables
 - richer row display labels beyond id/key/name fallback

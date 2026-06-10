@@ -848,6 +848,15 @@
         "required": true
       },
       {
+        "id": 156,
+        "key": "range",
+        "display_name": "Range",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
         "id": 152,
         "key": "cast_pattern",
         "display_name": "Cast Pattern",

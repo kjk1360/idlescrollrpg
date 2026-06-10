@@ -458,6 +458,7 @@ fn load_skill_def(project: &DataProject) -> Result<GeneratedTable<SkillDef>, Str
             key: row.key.clone(),
             name: read_string(row, FieldId(150), "skill_def.name")?,
             cooldown_ticks: read_i32(row, FieldId(151), "skill_def.cooldown_ticks")?,
+            range: read_f32(row, FieldId(156), "skill_def.range")?,
             cast_pattern: read_row(row, FieldId(152), "skill_def.cast_pattern")?,
             steps: read_rows(row, FieldId(153), "skill_def.steps")?,
             costs: read_rows(row, FieldId(155), "skill_def.costs")?,

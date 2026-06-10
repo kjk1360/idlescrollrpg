@@ -593,7 +593,7 @@ const PLAY_HTML: &str = r#"<!doctype html>
       drawBackground(w, h, elapsed);
       drawAreaEffects(frame.effects || [], elapsed, w, h);
       drawProjectiles(frame.projectiles || [], elapsed, w, h);
-      const sorted = [...frame.units].sort((a, b) => a.render_lane - b.render_lane);
+      const sorted = [...frame.units].sort((a, b) => a.team.localeCompare(b.team));
       for (const unit of sorted) drawUnit(unit, elapsed, w, h);
       document.getElementById('time').textContent = `${elapsed.toFixed(1)}s / units ${frame.units.length}`;
     }
@@ -618,20 +618,19 @@ const PLAY_HTML: &str = r#"<!doctype html>
         ctx.lineTo(x + 180, floorTop);
         ctx.stroke();
       }
-      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-      for (let laneEdge = -1.5; laneEdge <= 1.5; laneEdge += 1) {
-        const y = laneY(laneEdge, h);
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, laneY(0, h) + 28);
+      ctx.lineTo(w, laneY(0, h) + 28);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+      ctx.lineWidth = 1;
+      for (let marker = -14; marker <= 14; marker += 2) {
+        const x = gridX(marker, w);
         ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(w, y);
-        ctx.stroke();
-      }
-      for (let grid = -14; grid <= 14; grid += 1) {
-        const x = gridX(grid, w) - GRID_CELL_W / 2;
-        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-        ctx.beginPath();
-        ctx.moveTo(x, laneY(-1, h) - GRID_CELL_H / 2);
-        ctx.lineTo(x, laneY(1, h) + GRID_CELL_H / 2);
+        ctx.moveTo(x, laneY(0, h) + 18);
+        ctx.lineTo(x, laneY(0, h) + 38);
         ctx.stroke();
       }
       ctx.fillStyle = 'rgba(0,0,0,0.28)';
@@ -651,8 +650,10 @@ const PLAY_HTML: &str = r#"<!doctype html>
           ctx.fillStyle = `rgba(225, 45, 45, ${alpha})`;
           ctx.strokeStyle = `rgba(255, 212, 212, ${alpha * 0.8})`;
           ctx.lineWidth = 1;
-          ctx.fillRect(-GRID_CELL_W / 2, -GRID_CELL_H / 2, GRID_CELL_W, GRID_CELL_H);
-          ctx.strokeRect(-GRID_CELL_W / 2, -GRID_CELL_H / 2, GRID_CELL_W, GRID_CELL_H);
+          ctx.beginPath();
+          ctx.ellipse(0, 20, 24, 7, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
           ctx.restore();
         }
       }
@@ -749,7 +750,8 @@ const PLAY_HTML: &str = r#"<!doctype html>
     }
 
     function laneY(lane, h) {
-      return h * 0.67 + Number(lane || 0) * GRID_CELL_H;
+      const teamOffset = Number(lane || 0) * 8;
+      return h * 0.68 + teamOffset;
     }
 
     function gridX(x, w) {

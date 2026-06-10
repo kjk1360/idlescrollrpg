@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnitDefId(pub u32);
@@ -152,6 +152,7 @@ pub struct SkillDef {
     pub id: SkillDefId,
     pub name: String,
     pub cooldown_ticks: u32,
+    pub range: f32,
     pub cast_pattern: CellPattern,
     pub steps: Vec<SkillStep>,
     pub costs: Vec<SkillStatCost>,
@@ -364,7 +365,8 @@ pub struct BattleWorld {
 #[derive(Debug, Clone)]
 struct PendingSkillStep {
     caster: EffectCaster,
-    target_grid: GridPosition,
+    target_id: UnitId,
+    target_position: BeltPosition,
     facing: Direction,
     step: SkillStep,
     ticks_remaining: u32,
@@ -373,7 +375,8 @@ struct PendingSkillStep {
 #[derive(Debug, Clone)]
 struct PendingImpact {
     caster: EffectCaster,
-    cells: Vec<GridPosition>,
+    target: UnitId,
+    target_position: BeltPosition,
     damage: i32,
     knockback_cells: i32,
     facing: Direction,
@@ -392,18 +395,18 @@ struct PendingStatModifier {
 #[derive(Debug, Clone)]
 struct EffectCaster {
     id: UnitId,
-    team: Team,
     attack: i32,
     grid: GridPosition,
+    position: BeltPosition,
 }
 
 impl From<&UnitState> for EffectCaster {
     fn from(unit: &UnitState) -> Self {
         Self {
             id: unit.id,
-            team: unit.team,
             attack: unit.attack,
             grid: unit.grid,
+            position: unit.position,
         }
     }
 }
@@ -490,30 +493,24 @@ impl BattleWorld {
                 continue;
             };
             let Some(skill) = self.select_skill_for(&self.units[index], &target) else {
-                if !grid_in_range(
-                    self.units[index].grid,
-                    target.grid,
+                if !line_in_range(
+                    self.units[index].position,
+                    target.position,
                     self.units[index].attack_range,
                 ) {
-                    self.move_toward(index, target.grid);
+                    self.move_toward(index, target.position, dt);
                 }
                 continue;
             };
 
-            let facing = direction_toward(self.units[index].grid, target.grid);
-            if pattern_contains(
-                &skill.cast_pattern,
-                self.units[index].grid,
-                facing,
-                target.grid,
-            ) {
+            if line_in_range(self.units[index].position, target.position, skill.range) {
                 if self.units[index].attack_cooldown <= 0.0 {
                     actions.push((self.units[index].id, target.id, skill.id));
                     self.units[index].attack_cooldown =
                         skill.cooldown_ticks.max(1) as f32 * self.config.tick_duration;
                 }
             } else {
-                self.move_toward(index, target.grid);
+                self.move_toward(index, target.position, dt);
             }
         }
 
@@ -533,15 +530,16 @@ impl BattleWorld {
     }
 
     fn tick_prepare(&mut self) {
-        let occupied = self.occupied_cells();
         for index in 0..self.units.len() {
             if !self.units[index].is_alive() {
                 continue;
             }
-            let target = self.units[index].home_grid;
-            if self.units[index].grid != target {
-                self.move_toward_with_occupied(index, target, &occupied);
+            let target = self.units[index].home_grid.to_belt();
+            if line_distance(self.units[index].position, target) > 0.05 {
+                self.move_toward(index, target, self.config.tick_duration);
             } else {
+                self.units[index].position = target;
+                self.units[index].grid = grid_from_belt(target, 0.0);
                 self.emit_move(index);
             }
         }
@@ -554,7 +552,7 @@ impl BattleWorld {
             .units
             .iter()
             .filter(|unit| unit.is_alive())
-            .all(|unit| unit.grid == unit.home_grid);
+            .all(|unit| line_distance(unit.position, unit.home_grid.to_belt()) <= 0.05);
         if ready && self.prepare_ticks_remaining == 0 {
             self.phase = BattlePhase::Engage;
             if let Some(wave_id) = &self.active_wave_id {
@@ -660,45 +658,16 @@ impl BattleWorld {
         }
     }
 
-    fn occupied_cells(&self) -> HashMap<GridPosition, UnitId> {
-        self.units
-            .iter()
-            .filter(|unit| unit.is_alive())
-            .map(|unit| (unit.grid, unit.id))
-            .collect()
-    }
-
-    fn move_toward(&mut self, index: usize, target: GridPosition) {
-        let occupied = self.occupied_cells();
-        self.move_toward_with_occupied(index, target, &occupied);
-    }
-
-    fn move_toward_with_occupied(
-        &mut self,
-        index: usize,
-        target: GridPosition,
-        occupied: &HashMap<GridPosition, UnitId>,
-    ) {
-        let steps = self.units[index].move_speed.floor().max(1.0) as i32;
-        let unit_id = self.units[index].id;
-        let mut blocked = occupied
-            .iter()
-            .filter_map(|(position, occupant)| (*occupant != unit_id).then_some(*position))
-            .collect::<HashSet<_>>();
-
-        for _ in 0..steps {
-            let current = self.units[index].grid;
-            if current == target {
-                break;
-            }
-            let Some(next) = next_step_toward(current, target, &blocked) else {
-                break;
-            };
-            blocked.remove(&current);
-            blocked.insert(next);
-            self.units[index].grid = next;
-            self.units[index].position = next.to_belt();
+    fn move_toward(&mut self, index: usize, target: BeltPosition, dt: f32) {
+        let current = self.units[index].position;
+        let dx = target.x - current.x;
+        let distance = dx.abs();
+        if distance > 0.001 {
+            let max_step = (self.units[index].move_speed * dt).max(0.05);
+            let step = max_step.min(distance);
+            self.units[index].position.x += dx.signum() * step;
         }
+        self.units[index].grid = grid_from_belt(self.units[index].position, 0.0);
         self.emit_move(index);
     }
 
@@ -730,6 +699,9 @@ impl BattleWorld {
             if !can_pay_skill_cost(unit, skill) {
                 continue;
             }
+            if !line_in_range(unit.position, target.position, skill.range) {
+                continue;
+            }
             if self.behavior_rule_matches(rule, unit, target, facing, skill) {
                 return Some(skill);
             }
@@ -737,6 +709,7 @@ impl BattleWorld {
 
         self.primary_skill_for(unit)
             .filter(|skill| can_pay_skill_cost(unit, skill))
+            .filter(|skill| line_in_range(unit.position, target.position, skill.range))
     }
 
     fn skill_by_id(&self, skill_id: SkillDefId) -> Option<&SkillDef> {
@@ -790,82 +763,63 @@ impl BattleWorld {
             if step.tick_offset > 0 {
                 self.pending_skill_steps.push(PendingSkillStep {
                     caster: caster.clone(),
-                    target_grid: target.grid,
+                    target_id,
+                    target_position: target.position,
                     facing,
                     step: step.clone(),
                     ticks_remaining: step.tick_offset,
                 });
                 continue;
             }
-            self.execute_skill_step(&caster, target.grid, facing, step);
+            self.execute_skill_step(&caster, target_id, target.position, facing, step);
         }
     }
 
     fn execute_skill_step(
         &mut self,
         caster: &EffectCaster,
-        target_grid: GridPosition,
+        target_id: UnitId,
+        target_position: BeltPosition,
         facing: Direction,
         step: &SkillStep,
     ) {
-        let origin = match step.origin {
-            SkillStepOrigin::Caster => caster.grid,
-            SkillStepOrigin::Target => target_grid,
-        };
-        let cells = pattern_cells(&step.pattern, origin, facing)
-            .into_iter()
-            .collect::<HashSet<_>>();
         for effect in &step.effects {
-            self.apply_effect(caster, target_grid, facing, &cells, effect);
+            self.apply_effect(caster, target_id, target_position, facing, effect);
         }
     }
 
     fn apply_effect(
         &mut self,
         caster: &EffectCaster,
-        target_grid: GridPosition,
+        target_id: UnitId,
+        target_position: BeltPosition,
         facing: Direction,
-        cells: &HashSet<GridPosition>,
         effect: &SkillEffect,
     ) {
         let damage = (effect.power as f32 + caster.attack as f32 * effect.scaling).round() as i32;
         match effect.kind {
             SkillEffectKind::Damage => {
                 self.events.push(BattleEvent::SkillAreaEffect {
-                    cells: cells.iter().copied().collect(),
+                    cells: vec![grid_from_belt(target_position, 0.0)],
                 });
-                let targets = self
-                    .units
-                    .iter()
-                    .filter(|unit| unit.is_alive() && caster.team.is_enemy_of(unit.team))
-                    .filter(|unit| cells.contains(&unit.grid))
-                    .map(|unit| unit.id)
-                    .collect::<Vec<_>>();
-
-                for target in targets {
-                    self.damage_unit(caster.id, target, damage);
-                    if effect.knockback_cells > 0 {
-                        self.knockback_unit(target, facing, effect.knockback_cells);
-                    }
+                self.damage_unit(caster.id, target_id, damage);
+                if effect.knockback_cells > 0 {
+                    self.knockback_unit(target_id, facing, effect.knockback_cells);
                 }
             }
             SkillEffectKind::ProjectileDamage => {
-                let distance = caster.grid.x.abs_diff(target_grid.x) as u32
-                    + caster.grid.lane.abs_diff(target_grid.lane) as u32;
+                let distance = line_distance(caster.position, target_position).ceil() as u32;
                 let travel_ticks = distance.max(1);
                 self.events.push(BattleEvent::ProjectileLaunched {
                     caster: caster.id,
                     from: caster.grid,
-                    to: target_grid,
+                    to: grid_from_belt(target_position, 0.0),
                     duration: travel_ticks as f32 * self.config.tick_duration,
                 });
                 self.pending_impacts.push(PendingImpact {
                     caster: caster.clone(),
-                    cells: effect
-                        .impact_pattern
-                        .as_ref()
-                        .map(|pattern| pattern_cells(pattern, target_grid, facing))
-                        .unwrap_or_else(|| vec![target_grid]),
+                    target: target_id,
+                    target_position,
                     damage,
                     knockback_cells: effect.knockback_cells.max(0),
                     facing,
@@ -874,23 +828,14 @@ impl BattleWorld {
             }
             SkillEffectKind::StatDelta => {
                 self.events.push(BattleEvent::SkillAreaEffect {
-                    cells: cells.iter().copied().collect(),
+                    cells: vec![grid_from_belt(target_position, 0.0)],
                 });
                 match effect.stat_target {
                     ConditionSubject::SelfUnit => {
                         self.apply_stat_effect(caster.id, effect);
                     }
                     ConditionSubject::Target => {
-                        let targets = self
-                            .units
-                            .iter()
-                            .filter(|unit| unit.is_alive() && caster.team.is_enemy_of(unit.team))
-                            .filter(|unit| cells.contains(&unit.grid))
-                            .map(|unit| unit.id)
-                            .collect::<Vec<_>>();
-                        for target in targets {
-                            self.apply_stat_effect(target, effect);
-                        }
+                        self.apply_stat_effect(target_id, effect);
                     }
                 }
             }
@@ -911,7 +856,13 @@ impl BattleWorld {
         self.pending_skill_steps = pending;
 
         for step in ready {
-            self.execute_skill_step(&step.caster, step.target_grid, step.facing, &step.step);
+            self.execute_skill_step(
+                &step.caster,
+                step.target_id,
+                step.target_position,
+                step.facing,
+                &step.step,
+            );
         }
     }
 
@@ -930,22 +881,11 @@ impl BattleWorld {
 
         for impact in ready {
             self.events.push(BattleEvent::SkillAreaEffect {
-                cells: impact.cells.clone(),
+                cells: vec![grid_from_belt(impact.target_position, 0.0)],
             });
-            let cell_set = impact.cells.iter().copied().collect::<HashSet<_>>();
-            let targets = self
-                .units
-                .iter()
-                .filter(|unit| unit.is_alive() && impact.caster.team.is_enemy_of(unit.team))
-                .filter(|unit| cell_set.contains(&unit.grid))
-                .map(|unit| unit.id)
-                .collect::<Vec<_>>();
-
-            for target in targets {
-                self.damage_unit(impact.caster.id, target, impact.damage);
-                if impact.knockback_cells > 0 {
-                    self.knockback_unit(target, impact.facing, impact.knockback_cells);
-                }
+            self.damage_unit(impact.caster.id, impact.target, impact.damage);
+            if impact.knockback_cells > 0 {
+                self.knockback_unit(impact.target, impact.facing, impact.knockback_cells);
             }
         }
     }
@@ -1044,21 +984,16 @@ impl BattleWorld {
         if !self.units[index].is_alive() {
             return;
         }
-        let mut occupied = self.occupied_cells();
-        occupied.remove(&self.units[index].grid);
-        let mut next = self.units[index].grid;
-        for _ in 0..cells {
-            let candidate = step_in_direction(next, facing);
-            if candidate.lane < -1 || candidate.lane > 1 || occupied.contains_key(&candidate) {
-                break;
-            }
-            next = candidate;
+        let direction = match facing {
+            Direction::Left => -1.0,
+            Direction::Right => 1.0,
+            Direction::Up | Direction::Down => 0.0,
+        };
+        if direction != 0.0 {
+            self.units[index].position.x += direction * cells.max(0) as f32;
+            self.units[index].grid = grid_from_belt(self.units[index].position, 0.0);
         }
-        if next != self.units[index].grid {
-            self.units[index].grid = next;
-            self.units[index].position = next.to_belt();
-            self.emit_move(index);
-        }
+        self.emit_move(index);
     }
 }
 
@@ -1067,18 +1002,9 @@ fn closest_target(units: &[UnitState], actor: &UnitState) -> Option<UnitState> {
         .iter()
         .filter(|unit| unit.is_alive() && actor.team.is_enemy_of(unit.team))
         .min_by(|a, b| {
-            actor
-                .grid
-                .x
-                .abs_diff(a.grid.x)
-                .cmp(&actor.grid.x.abs_diff(b.grid.x))
-                .then_with(|| {
-                    actor
-                        .grid
-                        .lane
-                        .abs_diff(a.grid.lane)
-                        .cmp(&actor.grid.lane.abs_diff(b.grid.lane))
-                })
+            line_distance(actor.position, a.position)
+                .partial_cmp(&line_distance(actor.position, b.position))
+                .unwrap_or(std::cmp::Ordering::Equal)
         })
         .cloned()
 }
@@ -1100,21 +1026,24 @@ fn lane_to_grid(lane: f32) -> i32 {
     }
 }
 
-fn grid_in_range(actor: GridPosition, target: GridPosition, range: f32) -> bool {
-    let range = range.ceil().max(1.0) as i32;
-    (actor.x - target.x).abs() <= range && (actor.lane - target.lane).abs() <= range
+fn line_distance(actor: BeltPosition, target: BeltPosition) -> f32 {
+    (actor.x - target.x).abs()
+}
+
+fn line_in_range(actor: BeltPosition, target: BeltPosition, range: f32) -> bool {
+    line_distance(actor, target) <= range.max(0.0)
 }
 
 fn behavior_condition_matches(
     condition: BehaviorCondition,
     actor: GridPosition,
     target: GridPosition,
-    facing: Direction,
+    _facing: Direction,
     skill: &SkillDef,
 ) -> bool {
     match condition {
         BehaviorCondition::NearestEnemyInCastPattern => {
-            pattern_contains(&skill.cast_pattern, actor, facing, target)
+            line_in_range(actor.to_belt(), target.to_belt(), skill.range)
         }
         BehaviorCondition::Always => true,
     }
@@ -1124,12 +1053,12 @@ fn condition_matches(
     condition: &ConditionDef,
     actor: &UnitState,
     target: &UnitState,
-    facing: Direction,
+    _facing: Direction,
     skill: &SkillDef,
 ) -> bool {
     match condition.kind {
         ConditionKind::NearestEnemyInCastPattern => {
-            pattern_contains(&skill.cast_pattern, actor.grid, facing, target.grid)
+            line_in_range(actor.position, target.position, skill.range)
         }
         ConditionKind::Always => true,
         ConditionKind::StatCompare => {
@@ -1204,15 +1133,7 @@ fn direction_toward(actor: GridPosition, target: GridPosition) -> Direction {
     }
 }
 
-fn pattern_contains(
-    pattern: &CellPattern,
-    origin: GridPosition,
-    facing: Direction,
-    target: GridPosition,
-) -> bool {
-    pattern_cells(pattern, origin, facing).contains(&target)
-}
-
+#[cfg(test)]
 fn pattern_cells(
     pattern: &CellPattern,
     origin: GridPosition,
@@ -1225,6 +1146,7 @@ fn pattern_cells(
         .collect()
 }
 
+#[cfg(test)]
 fn apply_cell_offset(
     origin: GridPosition,
     offset: CellOffset,
@@ -1256,55 +1178,6 @@ fn apply_cell_offset(
             lane: origin.lane - offset.forward,
         },
     }
-}
-
-fn step_in_direction(position: GridPosition, direction: Direction) -> GridPosition {
-    match direction {
-        Direction::Left => GridPosition {
-            x: position.x - 1,
-            lane: position.lane,
-        },
-        Direction::Right => GridPosition {
-            x: position.x + 1,
-            lane: position.lane,
-        },
-        Direction::Up => GridPosition {
-            x: position.x,
-            lane: position.lane + 1,
-        },
-        Direction::Down => GridPosition {
-            x: position.x,
-            lane: position.lane - 1,
-        },
-    }
-}
-
-fn next_step_toward(
-    current: GridPosition,
-    target: GridPosition,
-    blocked: &HashSet<GridPosition>,
-) -> Option<GridPosition> {
-    let x_dir = (target.x - current.x).signum();
-    let lane_dir = (target.lane - current.lane).signum();
-    let candidates = [
-        GridPosition {
-            x: current.x + x_dir,
-            lane: current.lane,
-        },
-        GridPosition {
-            x: current.x,
-            lane: (current.lane + lane_dir).clamp(-1, 1),
-        },
-        GridPosition {
-            x: current.x + x_dir,
-            lane: (current.lane + lane_dir).clamp(-1, 1),
-        },
-    ];
-    candidates
-        .into_iter()
-        .filter(|position| *position != current)
-        .filter(|position| position.lane >= -1 && position.lane <= 1)
-        .find(|position| !blocked.contains(position))
 }
 
 pub fn sample_battle_config() -> BattleConfig {
@@ -1344,6 +1217,7 @@ pub fn sample_battle_config() -> BattleConfig {
         id: SkillDefId(17001),
         name: "Knight Slash".to_string(),
         cooldown_ticks: 5,
+        range: 1.5,
         cast_pattern: melee_pattern.clone(),
         steps: vec![
             SkillStep {
@@ -1392,6 +1266,7 @@ pub fn sample_battle_config() -> BattleConfig {
         id: SkillDefId(17002),
         name: "Arrow Shot".to_string(),
         cooldown_ticks: 4,
+        range: 5.0,
         cast_pattern: line_pattern.clone(),
         steps: vec![SkillStep {
             tick_offset: 0,
@@ -1419,6 +1294,7 @@ pub fn sample_battle_config() -> BattleConfig {
         id: SkillDefId(17003),
         name: "Slime Tackle".to_string(),
         cooldown_ticks: 6,
+        range: 1.5,
         cast_pattern: melee_pattern.clone(),
         steps: vec![SkillStep {
             tick_offset: 0,
@@ -1606,12 +1482,6 @@ mod tests {
             |event| matches!(event, BattleEvent::WaveCleared { wave_id } if wave_id == "wave_001")
         ));
         assert!(world.units().iter().any(|unit| unit.team == Team::Player));
-        let occupied = world
-            .units()
-            .iter()
-            .map(|unit| unit.grid)
-            .collect::<HashSet<_>>();
-        assert_eq!(occupied.len(), world.units().len());
     }
 
     #[test]
@@ -1646,10 +1516,10 @@ mod tests {
     }
 
     #[test]
-    fn projectile_damage_can_emit_multi_cell_impact_pattern() {
+    fn projectile_damage_hits_single_line_target_after_travel() {
         let mut world = BattleWorld::new(sample_battle_config());
         let mut saw_projectile = false;
-        let mut saw_impact_3x3 = false;
+        let mut saw_archer_damage = false;
 
         for _ in 0..120 {
             world.tick(0.2);
@@ -1658,8 +1528,11 @@ mod tests {
                     BattleEvent::ProjectileLaunched { .. } => {
                         saw_projectile = true;
                     }
-                    BattleEvent::SkillAreaEffect { cells } if cells.len() == 9 => {
-                        saw_impact_3x3 = true;
+                    BattleEvent::UnitAttacked {
+                        attacker: UnitId(2),
+                        ..
+                    } => {
+                        saw_archer_damage = true;
                     }
                     _ => {}
                 }
@@ -1667,36 +1540,38 @@ mod tests {
         }
 
         assert!(saw_projectile);
-        assert!(saw_impact_3x3);
+        assert!(saw_archer_damage);
     }
 
     #[test]
     fn delayed_skill_steps_execute_after_tick_offset() {
         let mut world = BattleWorld::new(sample_battle_config());
-        let mut saw_delayed_area = false;
+        let mut saw_delayed_attack = false;
+        let mut last_knight_attack_tick = None;
 
-        for _ in 0..120 {
+        for tick in 0..120 {
             world.tick(0.2);
-            let mut frame_has_attack = false;
-            let mut frame_has_3x3 = false;
             for event in world.drain_events() {
-                match event {
-                    BattleEvent::UnitAttacked { attacker, .. } if attacker == UnitId(1) => {
-                        frame_has_attack = true;
+                if let BattleEvent::UnitAttacked {
+                    attacker: UnitId(1),
+                    ..
+                } = event
+                {
+                    if let Some(previous_tick) = last_knight_attack_tick {
+                        if tick == previous_tick + 1 {
+                            saw_delayed_attack = true;
+                            break;
+                        }
                     }
-                    BattleEvent::SkillAreaEffect { cells } if cells.len() == 9 => {
-                        frame_has_3x3 = true;
-                    }
-                    _ => {}
+                    last_knight_attack_tick = Some(tick);
                 }
             }
-            if frame_has_attack && frame_has_3x3 {
-                saw_delayed_area = true;
+            if saw_delayed_attack {
                 break;
             }
         }
 
-        assert!(saw_delayed_area);
+        assert!(saw_delayed_attack);
     }
 
     #[test]

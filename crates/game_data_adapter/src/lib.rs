@@ -82,6 +82,7 @@ fn skill_def_from_data(
         id: SkillDefId(row.id.0 as u32),
         name: row.name.clone(),
         cooldown_ticks: row.cooldown_ticks.max(1) as u32,
+        range: row.range.max(0.0),
         cast_pattern,
         steps,
         costs: row

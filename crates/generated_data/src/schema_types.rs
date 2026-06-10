@@ -181,6 +181,7 @@ pub struct SkillDef {
     pub key: String,
     pub name: String,
     pub cooldown_ticks: i32,
+    pub range: f32,
     pub cast_pattern: RowId,
     pub steps: Vec<RowId>,
     pub costs: Vec<RowId>,
