@@ -1,8 +1,9 @@
 use belt_core::{
     BattleConfig, BehaviorCondition, BehaviorRule, BeltPosition, CellOffset, CellPattern,
     CompareOperator, ConditionDef, ConditionKind, ConditionSubject, FacingMode, MapDef, SkillDef,
-    SkillDefId, SkillEffect, SkillEffectKind, SkillStatCost, SkillStep, SkillStepOrigin, StatBlock,
-    StatCompare, StatDefId, UnitDef, UnitDefId, UnitGroup, UnitSpawn, WaveDef,
+    SkillDefId, SkillEffect, SkillEffectKind, SkillStatCost, SkillStep, SkillStepOrigin,
+    SpecialTriggerDef, StatBlock, StatCompare, StatDefId, UnitDef, UnitDefId, UnitGroup, UnitSpawn,
+    WaveDef,
 };
 use data_studio_core::{DataProject, RowId};
 use generated_data::relation_cache::GeneratedRelationCache;
@@ -329,16 +330,40 @@ fn apply_special_option_to_unit(
         }
     }
 
-    if !option.trigger_key.is_empty()
-        && !unit_def
+    if !option.trigger_key.is_empty() {
+        let trigger = special_trigger_from_data(db, &option.trigger_key)?;
+        if !unit_def
             .special_triggers
             .iter()
-            .any(|key| key == &option.trigger_key)
-    {
-        unit_def.special_triggers.push(option.trigger_key.clone());
+            .any(|existing| existing.key == trigger.key)
+        {
+            unit_def.special_triggers.push(trigger);
+        }
     }
 
     Ok(())
+}
+
+fn special_trigger_from_data(
+    db: &GeneratedDatabase,
+    trigger_key: &str,
+) -> Result<SpecialTriggerDef, String> {
+    let row = db
+        .special_trigger_def
+        .get_by_key(trigger_key)
+        .ok_or_else(|| format!("missing special trigger {trigger_key}"))?;
+    Ok(SpecialTriggerDef {
+        key: row.key.clone(),
+        interval_seconds: row.interval_seconds.max(0.01),
+        stack_stat: StatDefId(row.stack_stat.0 as u32),
+        stack_delta: row.stack_delta,
+        stack_threshold: row.stack_threshold.max(0.0),
+        consume_stacks_on_trigger: row.consume_stacks_on_trigger,
+        duration_seconds: row.duration_seconds.max(0.0),
+        periodic_interval_seconds: row.periodic_interval_seconds.max(0.0),
+        damage_scale: row.damage_scale,
+        target_rule: row.target_rule.clone(),
+    })
 }
 
 fn apply_runtime_unit_equipment(
@@ -539,8 +564,12 @@ mod tests {
         assert_eq!(knight.primary_skill, Some(SkillDefId(17001)));
         assert_eq!(knight.behavior_rules.len(), 1);
         assert_eq!(
-            knight.special_triggers,
-            vec!["combat_tick_5s_moonlight_3".to_string()]
+            knight
+                .special_triggers
+                .iter()
+                .map(|trigger| trigger.key.as_str())
+                .collect::<Vec<_>>(),
+            vec!["combat_tick_5s_moonlight_3"]
         );
     }
 }

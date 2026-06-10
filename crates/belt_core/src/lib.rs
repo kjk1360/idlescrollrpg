@@ -72,8 +72,22 @@ pub struct UnitDef {
     pub primary_skill: Option<SkillDefId>,
     pub behavior_rules: Vec<BehaviorRule>,
     pub base_stats: StatBlock,
-    pub special_triggers: Vec<String>,
+    pub special_triggers: Vec<SpecialTriggerDef>,
     pub skill_cooldown_ticks: u32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpecialTriggerDef {
+    pub key: String,
+    pub interval_seconds: f32,
+    pub stack_stat: StatDefId,
+    pub stack_delta: f32,
+    pub stack_threshold: f32,
+    pub consume_stacks_on_trigger: bool,
+    pub duration_seconds: f32,
+    pub periodic_interval_seconds: f32,
+    pub damage_scale: f32,
+    pub target_rule: String,
 }
 
 #[derive(Debug, Clone)]
@@ -281,7 +295,7 @@ pub struct UnitState {
 
 #[derive(Debug, Clone)]
 pub struct SpecialTriggerState {
-    pub key: String,
+    pub def: SpecialTriggerDef,
     pub ticks_until_next: u32,
 }
 
@@ -413,6 +427,7 @@ struct PendingSpecialPeriodic {
     ticks_remaining: u32,
     interval_ticks: u32,
     damage_scale: f32,
+    target_rule: String,
 }
 
 #[derive(Debug, Clone)]
@@ -674,10 +689,10 @@ impl BattleWorld {
                 special_triggers: def
                     .special_triggers
                     .iter()
-                    .map(|key| SpecialTriggerState {
-                        key: key.clone(),
-                        ticks_until_next: special_trigger_interval_ticks(
-                            key,
+                    .map(|trigger| SpecialTriggerState {
+                        def: trigger.clone(),
+                        ticks_until_next: seconds_to_ticks(
+                            trigger.interval_seconds,
                             self.config.tick_duration,
                         ),
                     })
@@ -971,44 +986,52 @@ impl BattleWorld {
             }
 
             for trigger_index in 0..self.units[index].special_triggers.len() {
-                let key = self.units[index].special_triggers[trigger_index]
-                    .key
+                let trigger_def = self.units[index].special_triggers[trigger_index]
+                    .def
                     .clone();
-                if key != "combat_tick_5s_moonlight_3" {
-                    continue;
-                }
-
                 let trigger = &mut self.units[index].special_triggers[trigger_index];
                 trigger.ticks_until_next = trigger.ticks_until_next.saturating_sub(1);
                 if trigger.ticks_until_next > 0 {
                     continue;
                 }
                 trigger.ticks_until_next =
-                    special_trigger_interval_ticks(&key, self.config.tick_duration);
+                    seconds_to_ticks(trigger_def.interval_seconds, self.config.tick_duration);
 
-                let current = self.units[index].stats.get(STAT_MOONLIGHT) + 1.0;
-                self.units[index].stats.set(STAT_MOONLIGHT, current);
-                if current + f32::EPSILON < 3.0 {
+                let current =
+                    self.units[index].stats.get(trigger_def.stack_stat) + trigger_def.stack_delta;
+                self.units[index].stats.set(trigger_def.stack_stat, current);
+                if current + f32::EPSILON < trigger_def.stack_threshold {
                     continue;
                 }
 
-                self.units[index].stats.set(STAT_MOONLIGHT, 0.0);
-                started_periodics.push((self.units[index].id, key));
+                if trigger_def.consume_stacks_on_trigger {
+                    self.units[index].stats.set(trigger_def.stack_stat, 0.0);
+                }
+                started_periodics.push((self.units[index].id, trigger_def));
             }
         }
 
-        for (unit_id, key) in started_periodics {
+        for (unit_id, trigger_def) in started_periodics {
             self.events.push(BattleEvent::SpecialTriggered {
                 unit_id,
-                trigger_key: key,
+                trigger_key: trigger_def.key.clone(),
             });
-            self.pending_special_periodics.push(PendingSpecialPeriodic {
-                source: unit_id,
-                ticks_until_next: 0,
-                ticks_remaining: seconds_to_ticks(10.0, self.config.tick_duration),
-                interval_ticks: seconds_to_ticks(0.5, self.config.tick_duration),
-                damage_scale: 1.0,
-            });
+            if trigger_def.duration_seconds > 0.0 && trigger_def.periodic_interval_seconds > 0.0 {
+                self.pending_special_periodics.push(PendingSpecialPeriodic {
+                    source: unit_id,
+                    ticks_until_next: 0,
+                    ticks_remaining: seconds_to_ticks(
+                        trigger_def.duration_seconds,
+                        self.config.tick_duration,
+                    ),
+                    interval_ticks: seconds_to_ticks(
+                        trigger_def.periodic_interval_seconds,
+                        self.config.tick_duration,
+                    ),
+                    damage_scale: trigger_def.damage_scale,
+                    target_rule: trigger_def.target_rule,
+                });
+            }
         }
     }
 
@@ -1028,7 +1051,9 @@ impl BattleWorld {
             periodic.ticks_until_next = periodic.ticks_until_next.saturating_sub(1);
 
             if periodic.ticks_until_next == 0 {
-                if let Some(target) = closest_target(&snapshot, source) {
+                if let Some(target) =
+                    special_periodic_target(&snapshot, source, &periodic.target_rule)
+                {
                     let damage = ((source.attack as f32) * periodic.damage_scale).round() as i32;
                     attacks.push((source.id, target.id, damage));
                 }
@@ -1135,6 +1160,17 @@ fn closest_target(units: &[UnitState], actor: &UnitState) -> Option<UnitState> {
         .cloned()
 }
 
+fn special_periodic_target(
+    units: &[UnitState],
+    actor: &UnitState,
+    target_rule: &str,
+) -> Option<UnitState> {
+    match target_rule {
+        "nearest_enemy" => closest_target(units, actor),
+        _ => closest_target(units, actor),
+    }
+}
+
 fn grid_from_belt(position: BeltPosition, x_offset: f32) -> GridPosition {
     GridPosition {
         x: (position.x + x_offset).round() as i32,
@@ -1210,13 +1246,6 @@ fn apply_stat_delta_to_units(units: &mut [UnitState], target: UnitId, stat: Stat
         let value = unit.stats.get(stat) + delta;
         unit.stats.set(stat, value);
         sync_legacy_fields_from_stats(unit);
-    }
-}
-
-fn special_trigger_interval_ticks(key: &str, tick_duration: f32) -> u32 {
-    match key {
-        "combat_tick_5s_moonlight_3" => seconds_to_ticks(5.0, tick_duration),
-        _ => 1,
     }
 }
 
@@ -1969,7 +1998,18 @@ mod tests {
             .iter_mut()
             .find(|def| def.id == UnitDefId(1))
             .expect("knight exists");
-        knight.special_triggers = vec!["combat_tick_5s_moonlight_3".to_string()];
+        knight.special_triggers = vec![SpecialTriggerDef {
+            key: "combat_tick_5s_moonlight_3".to_string(),
+            interval_seconds: 5.0,
+            stack_stat: STAT_MOONLIGHT,
+            stack_delta: 1.0,
+            stack_threshold: 3.0,
+            consume_stacks_on_trigger: true,
+            duration_seconds: 10.0,
+            periodic_interval_seconds: 0.5,
+            damage_scale: 1.0,
+            target_rule: "nearest_enemy".to_string(),
+        }];
         knight.base_stats.set(STAT_MOONLIGHT, 2.0);
 
         let mut world = BattleWorld::new(config);

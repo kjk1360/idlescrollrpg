@@ -378,3 +378,19 @@ pub struct UnitSpecialOptionLoadout {
     pub unit: RowId,
     pub special_options: Vec<RowId>,
 }
+
+#[derive(Debug, Clone)]
+pub struct SpecialTriggerDef {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub interval_seconds: f32,
+    pub stack_stat: RowId,
+    pub stack_delta: f32,
+    pub stack_threshold: f32,
+    pub consume_stacks_on_trigger: bool,
+    pub duration_seconds: f32,
+    pub periodic_interval_seconds: f32,
+    pub damage_scale: f32,
+    pub target_rule: String,
+}

@@ -44,6 +44,7 @@ pub struct GeneratedDatabase {
     pub special_option_def: GeneratedTable<SpecialOptionDef>,
     pub special_option_stat_delta: GeneratedTable<SpecialOptionStatDelta>,
     pub unit_special_option_loadout: GeneratedTable<UnitSpecialOptionLoadout>,
+    pub special_trigger_def: GeneratedTable<SpecialTriggerDef>,
 }
 
 #[derive(Debug, Clone)]
@@ -118,6 +119,7 @@ impl GeneratedDatabase {
             special_option_def: load_special_option_def(project)?,
             special_option_stat_delta: load_special_option_stat_delta(project)?,
             unit_special_option_loadout: load_unit_special_option_loadout(project)?,
+            special_trigger_def: load_special_trigger_def(project)?,
         })
     }
 }
@@ -854,6 +856,42 @@ fn load_unit_special_option_loadout(
                 FieldId(322),
                 "unit_special_option_loadout.special_options",
             )?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_special_trigger_def(
+    project: &DataProject,
+) -> Result<GeneratedTable<SpecialTriggerDef>, String> {
+    let rows = table_rows(project, TableId(35))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(SpecialTriggerDef {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(330), "special_trigger_def.name")?,
+            interval_seconds: read_f32(row, FieldId(331), "special_trigger_def.interval_seconds")?,
+            stack_stat: read_row(row, FieldId(332), "special_trigger_def.stack_stat")?,
+            stack_delta: read_f32(row, FieldId(333), "special_trigger_def.stack_delta")?,
+            stack_threshold: read_f32(row, FieldId(334), "special_trigger_def.stack_threshold")?,
+            consume_stacks_on_trigger: read_bool(
+                row,
+                FieldId(335),
+                "special_trigger_def.consume_stacks_on_trigger",
+            )?,
+            duration_seconds: read_f32(row, FieldId(336), "special_trigger_def.duration_seconds")?,
+            periodic_interval_seconds: read_f32(
+                row,
+                FieldId(337),
+                "special_trigger_def.periodic_interval_seconds",
+            )?,
+            damage_scale: read_f32(row, FieldId(338), "special_trigger_def.damage_scale")?,
+            target_rule: read_string(row, FieldId(339), "special_trigger_def.target_rule")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());

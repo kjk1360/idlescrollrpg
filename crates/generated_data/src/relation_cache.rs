@@ -59,6 +59,7 @@ pub struct GeneratedRelationCache {
     pub special_option_stat_delta_stat: HashMap<RowId, RowId>,
     pub unit_special_option_loadout_unit: HashMap<RowId, RowId>,
     pub unit_special_option_loadout_special_options: HashMap<RowId, Vec<RowId>>,
+    pub special_trigger_def_stack_stat: HashMap<RowId, RowId>,
 }
 
 impl GeneratedRelationCache {
@@ -595,6 +596,17 @@ impl GeneratedRelationCache {
                 .unit_special_option_loadout_special_options
                 .insert(row.id, row.special_options.clone());
         }
+        for row in &db.special_trigger_def.rows {
+            if db.stat_def.get_by_id(row.stack_stat).is_none() {
+                return Err(format!(
+                    "missing relation target for special_trigger_def.stack_stat from {:?} to {:?}",
+                    row.id, row.stack_stat
+                ));
+            }
+            cache
+                .special_trigger_def_stack_stat
+                .insert(row.id, row.stack_stat);
+        }
         Ok(cache)
     }
 
@@ -821,5 +833,9 @@ impl GeneratedRelationCache {
         self.unit_special_option_loadout_special_options
             .get(&source)
             .map(Vec::as_slice)
+    }
+
+    pub fn get_special_trigger_def_stack_stat(&self, source: RowId) -> Option<RowId> {
+        self.special_trigger_def_stack_stat.get(&source).copied()
     }
 }

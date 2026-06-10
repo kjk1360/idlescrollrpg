@@ -1844,5 +1844,103 @@
         "required": false
       }
     ]
+  },
+  {
+    "id": 35,
+    "key": "special_trigger_def",
+    "display_name": "Special Trigger Def",
+    "fields": [
+      {
+        "id": 330,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 331,
+        "key": "interval_seconds",
+        "display_name": "Interval Seconds",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 332,
+        "key": "stack_stat",
+        "display_name": "Stack Stat",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 23
+        },
+        "required": true
+      },
+      {
+        "id": 333,
+        "key": "stack_delta",
+        "display_name": "Stack Delta",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 334,
+        "key": "stack_threshold",
+        "display_name": "Stack Threshold",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 335,
+        "key": "consume_stacks_on_trigger",
+        "display_name": "Consume Stacks On Trigger",
+        "kind": {
+          "kind": "bool"
+        },
+        "required": true
+      },
+      {
+        "id": 336,
+        "key": "duration_seconds",
+        "display_name": "Duration Seconds",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 337,
+        "key": "periodic_interval_seconds",
+        "display_name": "Periodic Interval Seconds",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 338,
+        "key": "damage_scale",
+        "display_name": "Damage Scale",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 339,
+        "key": "target_rule",
+        "display_name": "Target Rule",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      }
+    ]
   }
 ]

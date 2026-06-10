@@ -95,6 +95,8 @@
 - Equipment stat options affect combat only when their `stat_key` exists in `stat_def`; display/crafting-only option keys are ignored by combat runtime.
 - Added combat special trigger runtime v1 for `combat_tick_5s_moonlight_3`: every 5 seconds it gains Moonlight, consumes 3 stacks, starts a 10-second periodic attack state, and hits the nearest enemy for 100% attack roughly every 0.5 seconds.
 - Battle events now include `SpecialTriggered` so preview/UI layers can react to equipment special option triggers.
+- Added `special_trigger_def` table so special option `trigger_key` values resolve to authored interval, stack stat, stack threshold, consume policy, duration, periodic interval, damage scale, and target rule data.
+- `combat_tick_5s_moonlight_3` is now data-authored through `special_trigger_def`; the runtime still supports a narrow trigger shape, but its numbers and target rule come from data.
 
 ## Current Stable CLI Flow
 
@@ -310,7 +312,7 @@ The next production-facing step is to expose the local account state in the UI a
 
 - Account-state API endpoints in `belt_tools play` for preview/test workflows.
 - Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
-- Move special trigger behavior out of hardcoded trigger keys into structured trigger/effect data tables.
+- Broaden `special_trigger_def` into composable trigger/effect tables instead of the current single periodic-damage trigger shape.
 - Extend equipment special options from `on_equip` stat, granted-skill, and trigger-key application into skill mutation and conditional effects.
 - Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
 

@@ -1,0 +1,48 @@
+[
+  {
+    "id": 35001,
+    "key": "combat_tick_5s_moonlight_3",
+    "cells": {
+      "330": {
+        "kind": "string",
+        "value": "Moonlight Eclipse Trigger"
+      },
+      "331": {
+        "kind": "f32",
+        "value": 5.0
+      },
+      "332": {
+        "kind": "row",
+        "value": 23006
+      },
+      "333": {
+        "kind": "f32",
+        "value": 1.0
+      },
+      "334": {
+        "kind": "f32",
+        "value": 3.0
+      },
+      "335": {
+        "kind": "bool",
+        "value": true
+      },
+      "336": {
+        "kind": "f32",
+        "value": 10.0
+      },
+      "337": {
+        "kind": "f32",
+        "value": 0.5
+      },
+      "338": {
+        "kind": "f32",
+        "value": 1.0
+      },
+      "339": {
+        "kind": "string",
+        "value": "nearest_enemy"
+      }
+    }
+  }
+]
