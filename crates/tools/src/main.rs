@@ -1,6 +1,9 @@
 use belt_core::{sample_battle_config, BattleEvent, BattleWorld};
 use data_studio_core::{sample_project, DataProject, ProjectFingerprints, ProjectStatus, RowId};
-use game_data_adapter::battle_config_from_project;
+use game_data_adapter::{
+    battle_config_from_project, battle_config_from_project_with_runtime_equipment,
+    RuntimeStatOption, RuntimeUnitEquipment,
+};
 use generated_data::relation_cache::GeneratedRelationCache;
 use generated_data::table_accessors::GeneratedDatabase;
 use serde::{Deserialize, Serialize};
@@ -119,7 +122,11 @@ fn simulate(args: &[String]) -> Result<(), String> {
 
     let project_for_rewards = loaded_project.as_ref().map(|(project, _)| project);
     let config = if let Some(project) = project_for_rewards {
-        battle_config_from_project(project, map_key)?
+        let runtime_equipment = account_state
+            .as_ref()
+            .map(runtime_equipment_modifiers_from_account_state)
+            .unwrap_or_default();
+        battle_config_from_project_with_runtime_equipment(project, map_key, &runtime_equipment)?
     } else {
         sample_battle_config()
     };
@@ -341,8 +348,19 @@ struct AccountState {
     last_energy_update_unix: i64,
     inventory: Vec<AccountItemStack>,
     #[serde(default)]
+    heroes: Vec<AccountHero>,
+    #[serde(default)]
     equipment: Vec<AccountEquipmentInstance>,
     mail: Vec<AccountMail>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct AccountHero {
+    hero_id: String,
+    unit_key: String,
+    display_name: String,
+    #[serde(default)]
+    equipment_slots: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -802,6 +820,47 @@ fn migrate_equipment_stacks_to_instances(
     }
     state.inventory = remaining_inventory;
     state.equipment.extend(migrated);
+    Ok(())
+}
+
+fn ensure_default_account_heroes(
+    project: &DataProject,
+    state: &mut AccountState,
+) -> Result<(), String> {
+    if !state.heroes.is_empty() {
+        return Ok(());
+    }
+
+    let db = GeneratedDatabase::from_project(project)?;
+    let cache = GeneratedRelationCache::build(&db)?;
+    let Some(map) = db.map_def.rows.first() else {
+        return Ok(());
+    };
+    let Some(party_id) = cache.get_map_def_party(map.id) else {
+        return Ok(());
+    };
+    let Some(member_ids) = cache.get_unit_group_members(party_id) else {
+        return Ok(());
+    };
+
+    for member_id in member_ids {
+        let Some(member) = db.unit_group_member.get_by_id(*member_id) else {
+            continue;
+        };
+        let Some(unit_id) = cache.get_unit_group_member_unit(member.id) else {
+            continue;
+        };
+        let Some(unit) = db.unit_def.get_by_id(unit_id) else {
+            continue;
+        };
+        state.heroes.push(AccountHero {
+            hero_id: format!("hero_{}", unit.key),
+            unit_key: unit.key.clone(),
+            display_name: unit.name.clone(),
+            equipment_slots: HashMap::new(),
+        });
+    }
+
     Ok(())
 }
 
@@ -1550,6 +1609,7 @@ fn load_or_create_account_state(
         let mut state: AccountState = serde_json::from_str(&content)
             .map_err(|error| format!("failed to parse {}: {error}", path.display()))?;
         migrate_equipment_stacks_to_instances(project, &mut state, current_unix_time())?;
+        ensure_default_account_heroes(project, &mut state)?;
         return Ok(state);
     }
 
@@ -1559,13 +1619,16 @@ fn load_or_create_account_state(
         .rows
         .first()
         .ok_or_else(|| "missing account energy config".to_string())?;
-    Ok(AccountState {
+    let mut state = AccountState {
         energy: energy_config.max_energy,
         last_energy_update_unix: 0,
         inventory: Vec::new(),
+        heroes: Vec::new(),
         equipment: Vec::new(),
         mail: Vec::new(),
-    })
+    };
+    ensure_default_account_heroes(project, &mut state)?;
+    Ok(state)
 }
 
 fn save_account_state(path: &Path, state: &AccountState) -> Result<(), String> {
@@ -1580,6 +1643,99 @@ fn save_account_state(path: &Path, state: &AccountState) -> Result<(), String> {
 
 fn account_state_path_for_project(project_path: &Path) -> PathBuf {
     project_path.join("account_state.json")
+}
+
+fn runtime_equipment_modifiers_from_account_state(
+    state: &AccountState,
+) -> Vec<RuntimeUnitEquipment> {
+    state
+        .heroes
+        .iter()
+        .filter_map(|hero| {
+            let mut stat_options = Vec::new();
+            let mut special_option_keys = Vec::new();
+            for equipment_id in hero.equipment_slots.values() {
+                let Some(equipment) = state
+                    .equipment
+                    .iter()
+                    .find(|equipment| &equipment.instance_id == equipment_id)
+                else {
+                    continue;
+                };
+                stat_options.extend(equipment.options.iter().map(|option| RuntimeStatOption {
+                    stat_key: option.stat_key.clone(),
+                    value: option.value as f32,
+                }));
+                special_option_keys.extend(
+                    equipment
+                        .special_options
+                        .iter()
+                        .map(|option| option.option_key.clone()),
+                );
+            }
+            if stat_options.is_empty() && special_option_keys.is_empty() {
+                return None;
+            }
+            Some(RuntimeUnitEquipment {
+                unit_key: hero.unit_key.clone(),
+                stat_options,
+                special_option_keys,
+            })
+        })
+        .collect()
+}
+
+pub(crate) fn runtime_equipment_modifiers_for_project(
+    project_path: &Path,
+) -> Result<Vec<RuntimeUnitEquipment>, String> {
+    let project = DataProject::load_from_dir(project_path).map_err(|error| error.to_string())?;
+    let path = account_state_path_for_project(project_path);
+    let state = load_or_create_account_state(&project, &path)?;
+    Ok(runtime_equipment_modifiers_from_account_state(&state))
+}
+
+fn equip_account_hero(
+    state: &mut AccountState,
+    hero_id: &str,
+    slot_key: &str,
+    equipment_instance_id: &str,
+) -> Result<(), String> {
+    let equipment_exists = state
+        .equipment
+        .iter()
+        .any(|equipment| equipment.instance_id == equipment_instance_id);
+    if !equipment_exists {
+        return Err(format!(
+            "missing equipment instance {equipment_instance_id}"
+        ));
+    }
+
+    for hero in &mut state.heroes {
+        hero.equipment_slots
+            .retain(|_, equipped_id| equipped_id != equipment_instance_id);
+    }
+
+    let hero = state
+        .heroes
+        .iter_mut()
+        .find(|hero| hero.hero_id == hero_id)
+        .ok_or_else(|| format!("missing hero {hero_id}"))?;
+    hero.equipment_slots
+        .insert(slot_key.to_string(), equipment_instance_id.to_string());
+    Ok(())
+}
+
+fn unequip_account_hero(
+    state: &mut AccountState,
+    hero_id: &str,
+    slot_key: &str,
+) -> Result<Option<String>, String> {
+    let hero = state
+        .heroes
+        .iter_mut()
+        .find(|hero| hero.hero_id == hero_id)
+        .ok_or_else(|| format!("missing hero {hero_id}"))?;
+    Ok(hero.equipment_slots.remove(slot_key))
 }
 
 pub(crate) fn account_state_snapshot_for_api(
@@ -1608,6 +1764,40 @@ pub(crate) fn account_state_snapshot_for_api(
                 "category": item.map(|item| item.category.as_str()).unwrap_or("unknown"),
                 "rarity": item.map(|item| item.rarity.as_str()).unwrap_or("unknown"),
                 "stack_size": item.map(|item| item.stack_size).unwrap_or(1),
+            })
+        })
+        .collect::<Vec<_>>();
+    let heroes = state
+        .heroes
+        .iter()
+        .map(|hero| {
+            let mut slots = hero
+                .equipment_slots
+                .iter()
+                .map(|(slot_key, instance_id)| {
+                    let equipment = state
+                        .equipment
+                        .iter()
+                        .find(|equipment| &equipment.instance_id == instance_id);
+                    serde_json::json!({
+                        "slot_key": slot_key,
+                        "instance_id": instance_id,
+                        "name": equipment.map(|equipment| equipment.display_name.as_str()).unwrap_or("missing equipment"),
+                        "item_key": equipment.map(|equipment| equipment.item_key.as_str()).unwrap_or("missing"),
+                        "rarity": equipment.map(|equipment| equipment.rarity.as_str()).unwrap_or("unknown"),
+                    })
+                })
+                .collect::<Vec<_>>();
+            slots.sort_by(|left, right| {
+                left.get("slot_key")
+                    .and_then(serde_json::Value::as_str)
+                    .cmp(&right.get("slot_key").and_then(serde_json::Value::as_str))
+            });
+            serde_json::json!({
+                "hero_id": hero.hero_id,
+                "unit_key": hero.unit_key,
+                "name": hero.display_name,
+                "equipment_slots": slots,
             })
         })
         .collect::<Vec<_>>();
@@ -1834,6 +2024,7 @@ pub(crate) fn account_state_snapshot_for_api(
         "now_unix": now_unix,
         "last_energy_update_unix": state.last_energy_update_unix,
         "inventory": inventory,
+        "heroes": heroes,
         "equipment": equipment,
         "mail": mail,
         "storage_tabs": storage_tabs,
@@ -1988,6 +2179,43 @@ pub(crate) fn craft_refinement_for_api(
     }))
 }
 
+pub(crate) fn equip_hero_for_api(
+    project_path: &Path,
+    hero_id: &str,
+    slot_key: &str,
+    equipment_instance_id: &str,
+) -> Result<serde_json::Value, String> {
+    let project = DataProject::load_from_dir(project_path).map_err(|error| error.to_string())?;
+    let path = account_state_path_for_project(project_path);
+    let mut state = load_or_create_account_state(&project, &path)?;
+    equip_account_hero(&mut state, hero_id, slot_key, equipment_instance_id)?;
+    save_account_state(&path, &state)?;
+    Ok(serde_json::json!({
+        "ok": true,
+        "message": format!("equipped {equipment_instance_id} to {hero_id}.{slot_key}"),
+        "account": account_state_snapshot_for_api(project_path)?,
+    }))
+}
+
+pub(crate) fn unequip_hero_for_api(
+    project_path: &Path,
+    hero_id: &str,
+    slot_key: &str,
+) -> Result<serde_json::Value, String> {
+    let project = DataProject::load_from_dir(project_path).map_err(|error| error.to_string())?;
+    let path = account_state_path_for_project(project_path);
+    let mut state = load_or_create_account_state(&project, &path)?;
+    let removed = unequip_account_hero(&mut state, hero_id, slot_key)?;
+    save_account_state(&path, &state)?;
+    Ok(serde_json::json!({
+        "ok": true,
+        "message": removed
+            .map(|instance_id| format!("unequipped {instance_id} from {hero_id}.{slot_key}"))
+            .unwrap_or_else(|| format!("{hero_id}.{slot_key} was already empty")),
+        "account": account_state_snapshot_for_api(project_path)?,
+    }))
+}
+
 fn option_value<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
     args.windows(2)
         .find(|window| window[0] == flag)
@@ -2117,6 +2345,7 @@ mod tests {
             energy: 10,
             last_energy_update_unix: 1000,
             inventory: Vec::new(),
+            heroes: Vec::new(),
             equipment: Vec::new(),
             mail: Vec::new(),
         };
@@ -2137,6 +2366,7 @@ mod tests {
             energy: 119,
             last_energy_update_unix: 1000,
             inventory: Vec::new(),
+            heroes: Vec::new(),
             equipment: Vec::new(),
             mail: Vec::new(),
         };
@@ -2209,6 +2439,7 @@ mod tests {
                 item_key: "slime_gel".to_string(),
                 quantity: 6,
             }],
+            heroes: Vec::new(),
             equipment: Vec::new(),
             mail: Vec::new(),
         };
@@ -2244,6 +2475,7 @@ mod tests {
                     quantity: 10,
                 })
                 .collect(),
+            heroes: Vec::new(),
             equipment: Vec::new(),
             mail: Vec::new(),
         };
@@ -2274,6 +2506,7 @@ mod tests {
             energy: 100,
             last_energy_update_unix: 0,
             inventory: Vec::new(),
+            heroes: Vec::new(),
             equipment: Vec::new(),
             mail: vec![AccountMail {
                 item_key: "slime_gel".to_string(),
@@ -2297,6 +2530,7 @@ mod tests {
             energy: 100,
             last_energy_update_unix: 0,
             inventory: Vec::new(),
+            heroes: Vec::new(),
             equipment: Vec::new(),
             mail: vec![AccountMail {
                 item_key: "energy_tonic".to_string(),
@@ -2318,6 +2552,7 @@ mod tests {
             energy: 100,
             last_energy_update_unix: 0,
             inventory: Vec::new(),
+            heroes: Vec::new(),
             equipment: Vec::new(),
             mail: vec![
                 AccountMail {
@@ -2356,6 +2591,7 @@ mod tests {
                     quantity: 1,
                 },
             ],
+            heroes: Vec::new(),
             equipment: Vec::new(),
             mail: Vec::new(),
         };
@@ -2390,6 +2626,7 @@ mod tests {
                     quantity: 1,
                 },
             ],
+            heroes: Vec::new(),
             equipment: Vec::new(),
             mail: Vec::new(),
         };
@@ -2416,6 +2653,7 @@ mod tests {
                 item_key: "refinement_stone".to_string(),
                 quantity: 1,
             }],
+            heroes: Vec::new(),
             equipment: vec![AccountEquipmentInstance {
                 instance_id: "eq_test_basic_sword".to_string(),
                 item_key: "basic_sword".to_string(),
@@ -2445,6 +2683,53 @@ mod tests {
             state.equipment[0].special_options[0].option_key,
             "moonless_black_night"
         );
+    }
+
+    #[test]
+    fn equipped_hero_items_become_runtime_modifiers() {
+        let mut slots = HashMap::new();
+        slots.insert("main_hand".to_string(), "eq_test_sword".to_string());
+        let state = AccountState {
+            energy: 100,
+            last_energy_update_unix: 0,
+            inventory: Vec::new(),
+            heroes: vec![AccountHero {
+                hero_id: "hero_knight".to_string(),
+                unit_key: "knight".to_string(),
+                display_name: "Knight".to_string(),
+                equipment_slots: slots,
+            }],
+            equipment: vec![AccountEquipmentInstance {
+                instance_id: "eq_test_sword".to_string(),
+                item_key: "tempered_basic_sword".to_string(),
+                display_name: "Tempered Basic Sword".to_string(),
+                rarity: "uncommon".to_string(),
+                options: vec![AccountEquipmentOption {
+                    stat_key: "strength".to_string(),
+                    value: 2,
+                    rarity: "common".to_string(),
+                }],
+                special_options: vec![AccountEquipmentSpecialOption {
+                    option_key: "moonless_black_night".to_string(),
+                    name: "Moonless Black Night".to_string(),
+                    rarity: "legendary".to_string(),
+                    description: String::new(),
+                    trigger_key: "combat_tick_5s_moonlight_3".to_string(),
+                    effect_summary: String::new(),
+                    stat_deltas: Vec::new(),
+                    granted_skill_key: Some("knight_slash".to_string()),
+                }],
+            }],
+            mail: Vec::new(),
+        };
+
+        let modifiers = runtime_equipment_modifiers_from_account_state(&state);
+
+        assert_eq!(modifiers.len(), 1);
+        assert_eq!(modifiers[0].unit_key, "knight");
+        assert_eq!(modifiers[0].stat_options[0].stat_key, "strength");
+        assert_eq!(modifiers[0].stat_options[0].value, 2.0);
+        assert_eq!(modifiers[0].special_option_keys[0], "moonless_black_night");
     }
 }
 

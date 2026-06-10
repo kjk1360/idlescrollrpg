@@ -120,6 +120,12 @@ Implemented:
 - Refinement recipes can attach authored special options to the output equipment instance
 - `unit_special_option_loadout` exists as a temporary preview/runtime bridge until the real hero equipment assignment model is implemented
 - `game_data_adapter` applies special option `on_equip` stat deltas into `UnitDef.base_stats` and adds non-duplicate granted-skill behavior rules while building `BattleConfig`
+- account state now has `heroes`; new or migrated account states default heroes from the sample map party
+- heroes have equipment slots keyed by slot name, currently exercised through `main_hand`
+- `/api/account-hero/equip` and `/api/account-hero/unequip` mutate hero equipment slots
+- Operation UI can equip an equipment instance to a hero and show equipped slots
+- Play Preview and `simulate --account-state` convert equipped hero items into runtime equipment modifiers and apply their stat options and special option keys to battle config
+- equipment stat options only affect combat if their `stat_key` exists in `stat_def`; display/crafting-only option keys are ignored by combat runtime
 - Play Preview renders impact flashes on the combat line
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -506,7 +512,7 @@ Expose the local account-state loop in the tool UI and playable preview.
 
 Recommended order:
 
-1. Replace the temporary `unit_special_option_loadout` bridge with real hero equipment assignment once hero equipment slots are modeled.
+1. Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
 2. Extend equipment special option runtime from `on_equip` stat/granted-skill application into trigger timing, skill mutation, and conditional effects.
 3. Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
 4. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.

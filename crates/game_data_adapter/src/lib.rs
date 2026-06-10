@@ -18,10 +18,42 @@ pub fn battle_config_from_project(
     battle_config_from_generated(&db, &cache, map_key)
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct RuntimeUnitEquipment {
+    pub unit_key: String,
+    pub stat_options: Vec<RuntimeStatOption>,
+    pub special_option_keys: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RuntimeStatOption {
+    pub stat_key: String,
+    pub value: f32,
+}
+
+pub fn battle_config_from_project_with_runtime_equipment(
+    project: &DataProject,
+    map_key: &str,
+    equipment: &[RuntimeUnitEquipment],
+) -> Result<BattleConfig, String> {
+    let db = GeneratedDatabase::from_project(project)?;
+    let cache = GeneratedRelationCache::build(&db)?;
+    battle_config_from_generated_with_runtime_equipment(&db, &cache, map_key, equipment)
+}
+
 pub fn battle_config_from_generated(
     db: &GeneratedDatabase,
     cache: &GeneratedRelationCache,
     map_key: &str,
+) -> Result<BattleConfig, String> {
+    battle_config_from_generated_with_runtime_equipment(db, cache, map_key, &[])
+}
+
+pub fn battle_config_from_generated_with_runtime_equipment(
+    db: &GeneratedDatabase,
+    cache: &GeneratedRelationCache,
+    map_key: &str,
+    equipment: &[RuntimeUnitEquipment],
 ) -> Result<BattleConfig, String> {
     let mut unit_defs = db
         .unit_def
@@ -30,6 +62,7 @@ pub fn battle_config_from_generated(
         .map(|row| unit_def_from_data(db, row))
         .collect::<Result<Vec<_>, _>>()?;
     apply_unit_special_option_loadouts(db, &mut unit_defs)?;
+    apply_runtime_unit_equipment(db, &mut unit_defs, equipment)?;
     let skill_defs = db
         .skill_def
         .rows
@@ -292,6 +325,41 @@ fn apply_special_option_to_unit(
                 condition: BehaviorCondition::NearestEnemyInCastPattern,
                 conditions: Vec::new(),
             });
+        }
+    }
+
+    Ok(())
+}
+
+fn apply_runtime_unit_equipment(
+    db: &GeneratedDatabase,
+    unit_defs: &mut [UnitDef],
+    equipment: &[RuntimeUnitEquipment],
+) -> Result<(), String> {
+    for unit_equipment in equipment {
+        let unit_row = db
+            .unit_def
+            .get_by_key(&unit_equipment.unit_key)
+            .ok_or_else(|| format!("missing equipped unit {}", unit_equipment.unit_key))?;
+        let unit_def = unit_defs
+            .iter_mut()
+            .find(|unit| unit.id == UnitDefId(unit_row.id.0 as u32))
+            .ok_or_else(|| format!("missing unit def {}", unit_equipment.unit_key))?;
+
+        for option in &unit_equipment.stat_options {
+            if let Some(stat) = db.stat_def.get_by_key(&option.stat_key) {
+                let stat_id = StatDefId(stat.id.0 as u32);
+                let current = unit_def.base_stats.get(stat_id);
+                unit_def.base_stats.set(stat_id, current + option.value);
+            }
+        }
+
+        for option_key in &unit_equipment.special_option_keys {
+            let option = db
+                .special_option_def
+                .get_by_key(option_key)
+                .ok_or_else(|| format!("missing equipment special option {option_key}"))?;
+            apply_special_option_to_unit(db, unit_def, option.id)?;
         }
     }
 

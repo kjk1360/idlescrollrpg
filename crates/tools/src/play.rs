@@ -1,6 +1,6 @@
 use belt_core::{BattleEvent, BattleWorld, GridPosition, Team, UnitDefId};
 use data_studio_core::{CellValue, DataProject, FieldId, RowData, RowId, TableId};
-use game_data_adapter::battle_config_from_project;
+use game_data_adapter::battle_config_from_project_with_runtime_equipment;
 use serde_json::{json, Value};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -129,12 +129,19 @@ fn asset(request: &Request, state: &PlayServerState) -> Result<Vec<u8>, (String,
 fn api_play(state: &PlayServerState) -> Result<Vec<u8>, (String, u16)> {
     let project = DataProject::load_from_dir(&state.project_path)
         .map_err(|error| (error.to_string(), 500))?;
-    let playback = build_playback(&project, &state.map_key).map_err(|error| (error, 500))?;
+    let playback = build_playback(&project, &state.project_path, &state.map_key)
+        .map_err(|error| (error, 500))?;
     Ok(json_response(200, &playback))
 }
 
-fn build_playback(project: &DataProject, map_key: &str) -> Result<Value, String> {
-    let config = battle_config_from_project(project, map_key)?;
+fn build_playback(
+    project: &DataProject,
+    project_path: &std::path::Path,
+    map_key: &str,
+) -> Result<Value, String> {
+    let runtime_equipment = crate::runtime_equipment_modifiers_for_project(project_path)?;
+    let config =
+        battle_config_from_project_with_runtime_equipment(project, map_key, &runtime_equipment)?;
     let visuals = VisualLookup::new(project);
     let mut world = BattleWorld::new(config);
     let mut frames = Vec::new();

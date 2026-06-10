@@ -89,6 +89,10 @@
 - Refinement recipes can attach authored special options to the output equipment instance.
 - Added `unit_special_option_loadout` as a preview/runtime bridge table so authored special options can be applied to sample unit definitions before the hero equipment assignment model exists.
 - Battle config conversion now applies special option `on_equip` stat deltas to `UnitDef.base_stats` and can add non-duplicate granted-skill behavior rules.
+- Added account heroes with equipment slots, defaulting from the sample map party when an account state is created or migrated.
+- Added hero equip/unequip API and Operation UI controls for assigning equipment instances to a hero `main_hand` slot.
+- Play Preview and `simulate --account-state` can now convert equipped hero items into runtime equipment modifiers and apply stat options plus special option keys to battle config.
+- Equipment stat options affect combat only when their `stat_key` exists in `stat_def`; display/crafting-only option keys are ignored by combat runtime.
 
 ## Current Stable CLI Flow
 
@@ -303,7 +307,7 @@ The local account-state file is intentionally small and server-portable:
 The next production-facing step is to expose the local account state in the UI and make it behave like the later server-backed account model:
 
 - Account-state API endpoints in `belt_tools play` for preview/test workflows.
-- Replace the temporary `unit_special_option_loadout` bridge with the real hero equipment assignment path once hero inventory/equipment slots are implemented.
+- Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
 - Extend equipment special options from `on_equip` stat and granted-skill application into trigger runtime, skill mutation, and conditional effects.
 - Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
 

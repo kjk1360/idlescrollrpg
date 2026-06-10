@@ -159,6 +159,8 @@ fn route_request(request: &Request, state: &ServerState) -> Vec<u8> {
         ("POST", "/api/account-alchemy/craft") => api_account_alchemy_craft(request, state),
         ("POST", "/api/account-forge/craft") => api_account_forge_craft(request, state),
         ("POST", "/api/account-refinement/craft") => api_account_refinement_craft(request, state),
+        ("POST", "/api/account-hero/equip") => api_account_hero_equip(request, state),
+        ("POST", "/api/account-hero/unequip") => api_account_hero_unequip(request, state),
         ("POST", "/api/import/aseprite") => api_import_aseprite(request, state),
         ("POST", "/api/visual/slice-grid") => api_slice_sprite_grid(request, state),
         _ => Err(("not found".to_string(), 404)),
@@ -769,6 +771,36 @@ fn api_account_refinement_craft(
         .and_then(Value::as_i64)
         .unwrap_or_else(current_unix_time);
     let response = crate::craft_refinement_for_api(&state.project_path, recipe_key, now_unix)
+        .map_err(|error| (error, 500))?;
+    Ok(json_response(200, &response))
+}
+
+fn api_account_hero_equip(
+    request: &Request,
+    state: &ServerState,
+) -> Result<Vec<u8>, (String, u16)> {
+    let payload = parse_body(&request.body)?;
+    let hero_id = string_value(&payload, "hero_id")?;
+    let slot_key = string_value(&payload, "slot_key")?;
+    let equipment_instance_id = string_value(&payload, "equipment_instance_id")?;
+    let response = crate::equip_hero_for_api(
+        &state.project_path,
+        hero_id,
+        slot_key,
+        equipment_instance_id,
+    )
+    .map_err(|error| (error, 500))?;
+    Ok(json_response(200, &response))
+}
+
+fn api_account_hero_unequip(
+    request: &Request,
+    state: &ServerState,
+) -> Result<Vec<u8>, (String, u16)> {
+    let payload = parse_body(&request.body)?;
+    let hero_id = string_value(&payload, "hero_id")?;
+    let slot_key = string_value(&payload, "slot_key")?;
+    let response = crate::unequip_hero_for_api(&state.project_path, hero_id, slot_key)
         .map_err(|error| (error, 500))?;
     Ok(json_response(200, &response))
 }
@@ -2572,6 +2604,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
         <button onclick="refreshOperation()">Refresh</button>`;
       const storage = account.storage_tabs || [];
       const inventory = account.inventory || [];
+      const heroes = account.heroes || [];
       const equipment = account.equipment || [];
       const mail = account.mail || [];
       const alchemyRecipes = account.alchemy_recipes || [];
@@ -2638,6 +2671,24 @@ const INDEX_HTML: &str = r#"<!doctype html>
             </table>
           </div>
           <div class="operation-panel wide">
+            <div class="operation-head"><span>Heroes</span><span>${heroes.length}</span></div>
+            <table>
+              <thead><tr><th>Hero</th><th>Unit</th><th>Equipment Slots</th></tr></thead>
+              <tbody>
+                ${heroes.map(hero => `
+                  <tr>
+                    <td>${escapeHtml(hero.name)}<br><small>${escapeHtml(hero.hero_id)}</small></td>
+                    <td>${escapeHtml(hero.unit_key)}</td>
+                    <td>${(hero.equipment_slots || []).map(slot => `
+                      <div class="stat-line">
+                        <span>${escapeHtml(slot.slot_key)}: ${escapeHtml(slot.name)}</span>
+                        <button onclick="unequipHero('${escapeAttr(hero.hero_id)}', '${escapeAttr(slot.slot_key)}')">Unequip</button>
+                      </div>`).join('') || 'empty'}</td>
+                  </tr>`).join('') || '<tr><td colspan="3">empty</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+          <div class="operation-panel wide">
             <div class="operation-head"><span>Alchemy Furnace</span><span>${alchemyRecipes.length} recipes</span></div>
             <table>
               <thead><tr><th>Recipe</th><th>Ingredients</th><th>Output</th><th>Action</th></tr></thead>
@@ -2690,7 +2741,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
           <div class="operation-panel wide">
             <div class="operation-head"><span>Equipment Instances</span><span>${equipment.length}</span></div>
             <table>
-              <thead><tr><th>Equipment</th><th>Rarity</th><th>Stat Options</th><th>Special Options</th></tr></thead>
+              <thead><tr><th>Equipment</th><th>Rarity</th><th>Stat Options</th><th>Special Options</th><th>Equip</th></tr></thead>
               <tbody>
                 ${equipment.map(item => `
                   <tr>
@@ -2698,7 +2749,8 @@ const INDEX_HTML: &str = r#"<!doctype html>
                     <td>${escapeHtml(item.rarity)}</td>
                     <td>${(item.options || []).map(option => `${escapeHtml(option.stat_key)} +${option.value} <small>${escapeHtml(option.rarity)}</small>`).join('<br>') || 'none'}</td>
                     <td>${(item.special_options || []).map(option => `${escapeHtml(option.name)} <small>${escapeHtml(option.rarity)}</small><br><small>${escapeHtml(option.effect_summary)}</small>`).join('<br>') || 'none'}</td>
-                  </tr>`).join('') || '<tr><td colspan="4">empty</td></tr>'}
+                    <td>${heroes.map(hero => `<button onclick="equipHero('${escapeAttr(hero.hero_id)}', 'main_hand', '${escapeAttr(item.instance_id)}')">${escapeHtml(hero.name)}</button>`).join('') || 'no heroes'}</td>
+                  </tr>`).join('') || '<tr><td colspan="5">empty</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -2841,6 +2893,38 @@ const INDEX_HTML: &str = r#"<!doctype html>
           body: JSON.stringify({ recipe_key: recipeKey })
         });
         state.account = result.account;
+        await renderOperationDashboard();
+        log(result.message);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
+    async function equipHero(heroId, slotKey, equipmentInstanceId) {
+      try {
+        const result = await api('/api/account-hero/equip', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hero_id: heroId, slot_key: slotKey, equipment_instance_id: equipmentInstanceId })
+        });
+        state.account = result.account;
+        setOperationAction('forge', 'Hero Equipped', result.message || `Equipped ${equipmentInstanceId}.`);
+        await renderOperationDashboard();
+        log(result.message);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
+    async function unequipHero(heroId, slotKey) {
+      try {
+        const result = await api('/api/account-hero/unequip', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hero_id: heroId, slot_key: slotKey })
+        });
+        state.account = result.account;
+        setOperationAction('forge', 'Hero Unequipped', result.message || `Unequipped ${heroId}.${slotKey}.`);
         await renderOperationDashboard();
         log(result.message);
       } catch (error) {
