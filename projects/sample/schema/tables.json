@@ -1048,6 +1048,24 @@
           "kind": "f32"
         },
         "required": true
+      },
+      {
+        "id": 313,
+        "key": "stat_duration_ticks",
+        "display_name": "Stat Duration Ticks",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 314,
+        "key": "stat_tick_delta",
+        "display_name": "Stat Tick Delta",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
       }
     ]
   },

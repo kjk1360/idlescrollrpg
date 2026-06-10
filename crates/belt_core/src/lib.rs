@@ -188,6 +188,8 @@ pub struct SkillEffect {
     pub stat_target: ConditionSubject,
     pub stat: StatDefId,
     pub stat_delta: f32,
+    pub stat_duration_ticks: u32,
+    pub stat_tick_delta: f32,
     pub trigger_skill: Option<SkillDefId>,
     pub trigger_timing: Option<String>,
 }
@@ -356,6 +358,7 @@ pub struct BattleWorld {
     prepare_ticks_remaining: u32,
     pending_skill_steps: Vec<PendingSkillStep>,
     pending_impacts: Vec<PendingImpact>,
+    pending_stat_modifiers: Vec<PendingStatModifier>,
 }
 
 #[derive(Debug, Clone)]
@@ -374,6 +377,15 @@ struct PendingImpact {
     damage: i32,
     knockback_cells: i32,
     facing: Direction,
+    ticks_remaining: u32,
+}
+
+#[derive(Debug, Clone)]
+struct PendingStatModifier {
+    target: UnitId,
+    stat: StatDefId,
+    expire_delta: f32,
+    tick_delta: f32,
     ticks_remaining: u32,
 }
 
@@ -410,6 +422,7 @@ impl BattleWorld {
             prepare_ticks_remaining: 0,
             pending_skill_steps: Vec::new(),
             pending_impacts: Vec::new(),
+            pending_stat_modifiers: Vec::new(),
         };
 
         let party = world.config.party.clone();
@@ -461,6 +474,7 @@ impl BattleWorld {
 
         self.tick_pending_skill_steps();
         self.tick_pending_impacts();
+        self.tick_pending_stat_modifiers();
 
         let snapshot = self.units.clone();
         let mut actions = Vec::new();
@@ -566,6 +580,7 @@ impl BattleWorld {
             self.prepare_ticks_remaining = self.config.prepare_ticks;
             self.pending_skill_steps.clear();
             self.pending_impacts.clear();
+            self.pending_stat_modifiers.clear();
             self.reset_party_home_grids();
             for group in &wave.enemy_groups {
                 self.spawn_group(group, Team::Enemy, self.config.wave_spawn_x);
@@ -863,7 +878,7 @@ impl BattleWorld {
                 });
                 match effect.stat_target {
                     ConditionSubject::SelfUnit => {
-                        self.apply_stat_delta(caster.id, effect.stat, effect.stat_delta);
+                        self.apply_stat_effect(caster.id, effect);
                     }
                     ConditionSubject::Target => {
                         let targets = self
@@ -874,7 +889,7 @@ impl BattleWorld {
                             .map(|unit| unit.id)
                             .collect::<Vec<_>>();
                         for target in targets {
-                            self.apply_stat_delta(target, effect.stat, effect.stat_delta);
+                            self.apply_stat_effect(target, effect);
                         }
                     }
                 }
@@ -935,6 +950,41 @@ impl BattleWorld {
         }
     }
 
+    fn tick_pending_stat_modifiers(&mut self) {
+        let mut pending = Vec::new();
+        for mut modifier in self.pending_stat_modifiers.drain(..) {
+            let target_alive = self
+                .units
+                .iter()
+                .any(|unit| unit.id == modifier.target && unit.is_alive());
+            if !target_alive {
+                continue;
+            }
+            if modifier.tick_delta != 0.0 {
+                apply_stat_delta_to_units(
+                    &mut self.units,
+                    modifier.target,
+                    modifier.stat,
+                    modifier.tick_delta,
+                );
+            }
+            modifier.ticks_remaining = modifier.ticks_remaining.saturating_sub(1);
+            if modifier.ticks_remaining == 0 {
+                if modifier.expire_delta != 0.0 {
+                    apply_stat_delta_to_units(
+                        &mut self.units,
+                        modifier.target,
+                        modifier.stat,
+                        modifier.expire_delta,
+                    );
+                }
+            } else {
+                pending.push(modifier);
+            }
+        }
+        self.pending_stat_modifiers = pending;
+    }
+
     fn damage_unit(&mut self, attacker: UnitId, target: UnitId, damage: i32) {
         if let Some(target_unit) = self.units.iter_mut().find(|unit| unit.id == target) {
             if target_unit.is_alive() {
@@ -956,10 +1006,19 @@ impl BattleWorld {
     }
 
     fn apply_stat_delta(&mut self, target: UnitId, stat: StatDefId, delta: f32) {
-        if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == target) {
-            let value = unit.stats.get(stat) + delta;
-            unit.stats.set(stat, value);
-            sync_legacy_fields_from_stats(unit);
+        apply_stat_delta_to_units(&mut self.units, target, stat, delta);
+    }
+
+    fn apply_stat_effect(&mut self, target: UnitId, effect: &SkillEffect) {
+        self.apply_stat_delta(target, effect.stat, effect.stat_delta);
+        if effect.stat_duration_ticks > 0 {
+            self.pending_stat_modifiers.push(PendingStatModifier {
+                target,
+                stat: effect.stat,
+                expire_delta: -effect.stat_delta,
+                tick_delta: effect.stat_tick_delta,
+                ticks_remaining: effect.stat_duration_ticks,
+            });
         }
     }
 
@@ -1088,6 +1147,14 @@ fn condition_matches(
             };
             compare_values(left, condition.operator, right)
         }
+    }
+}
+
+fn apply_stat_delta_to_units(units: &mut [UnitState], target: UnitId, stat: StatDefId, delta: f32) {
+    if let Some(unit) = units.iter_mut().find(|unit| unit.id == target) {
+        let value = unit.stats.get(stat) + delta;
+        unit.stats.set(stat, value);
+        sync_legacy_fields_from_stats(unit);
     }
 }
 
@@ -1292,6 +1359,8 @@ pub fn sample_battle_config() -> BattleConfig {
                     stat_target: ConditionSubject::Target,
                     stat: STAT_CURRENT_HP,
                     stat_delta: 0.0,
+                    stat_duration_ticks: 0,
+                    stat_tick_delta: 0.0,
                     trigger_skill: None,
                     trigger_timing: None,
                 }],
@@ -1309,6 +1378,8 @@ pub fn sample_battle_config() -> BattleConfig {
                     stat_target: ConditionSubject::Target,
                     stat: STAT_CURRENT_HP,
                     stat_delta: 0.0,
+                    stat_duration_ticks: 0,
+                    stat_tick_delta: 0.0,
                     trigger_skill: None,
                     trigger_timing: None,
                 }],
@@ -1335,6 +1406,8 @@ pub fn sample_battle_config() -> BattleConfig {
                 stat_target: ConditionSubject::Target,
                 stat: STAT_CURRENT_HP,
                 stat_delta: 0.0,
+                stat_duration_ticks: 0,
+                stat_tick_delta: 0.0,
                 trigger_skill: None,
                 trigger_timing: None,
             }],
@@ -1361,6 +1434,8 @@ pub fn sample_battle_config() -> BattleConfig {
                     stat_target: ConditionSubject::Target,
                     stat: STAT_CURRENT_HP,
                     stat_delta: 0.0,
+                    stat_duration_ticks: 0,
+                    stat_tick_delta: 0.0,
                     trigger_skill: None,
                     trigger_timing: None,
                 },
@@ -1373,6 +1448,8 @@ pub fn sample_battle_config() -> BattleConfig {
                     stat_target: ConditionSubject::Target,
                     stat: STAT_BLEED_STACK,
                     stat_delta: 1.0,
+                    stat_duration_ticks: 0,
+                    stat_tick_delta: 0.0,
                     trigger_skill: None,
                     trigger_timing: None,
                 },
@@ -1782,5 +1859,90 @@ mod tests {
         assert_eq!(first_projectiles, 1);
         assert_eq!(knight_mana_after_first, 0.0);
         assert_eq!(second_projectiles, 0);
+    }
+
+    #[test]
+    fn timed_stat_delta_expires() {
+        let mut world = BattleWorld::new(sample_battle_config());
+        world.apply_stat_effect(
+            UnitId(1),
+            &SkillEffect {
+                kind: SkillEffectKind::StatDelta,
+                power: 0,
+                scaling: 0.0,
+                knockback_cells: 0,
+                impact_pattern: None,
+                stat_target: ConditionSubject::SelfUnit,
+                stat: STAT_BLEED_STACK,
+                stat_delta: 3.0,
+                stat_duration_ticks: 2,
+                stat_tick_delta: 0.0,
+                trigger_skill: None,
+                trigger_timing: None,
+            },
+        );
+
+        let bleed_after_apply = world
+            .units()
+            .iter()
+            .find(|unit| unit.id == UnitId(1))
+            .expect("knight spawned")
+            .stats
+            .get(STAT_BLEED_STACK);
+        assert_eq!(bleed_after_apply, 3.0);
+
+        world.tick_pending_stat_modifiers();
+        let bleed_after_one_tick = world
+            .units()
+            .iter()
+            .find(|unit| unit.id == UnitId(1))
+            .expect("knight spawned")
+            .stats
+            .get(STAT_BLEED_STACK);
+        assert_eq!(bleed_after_one_tick, 3.0);
+
+        world.tick_pending_stat_modifiers();
+        let bleed_after_expire = world
+            .units()
+            .iter()
+            .find(|unit| unit.id == UnitId(1))
+            .expect("knight spawned")
+            .stats
+            .get(STAT_BLEED_STACK);
+        assert_eq!(bleed_after_expire, 0.0);
+    }
+
+    #[test]
+    fn timed_stat_modifier_can_apply_tick_delta() {
+        let mut world = BattleWorld::new(sample_battle_config());
+        world.apply_stat_effect(
+            UnitId(1),
+            &SkillEffect {
+                kind: SkillEffectKind::StatDelta,
+                power: 0,
+                scaling: 0.0,
+                knockback_cells: 0,
+                impact_pattern: None,
+                stat_target: ConditionSubject::SelfUnit,
+                stat: STAT_CURRENT_MANA,
+                stat_delta: 0.0,
+                stat_duration_ticks: 2,
+                stat_tick_delta: 1.0,
+                trigger_skill: None,
+                trigger_timing: None,
+            },
+        );
+
+        world.tick_pending_stat_modifiers();
+        world.tick_pending_stat_modifiers();
+
+        let mana_after_ticks = world
+            .units()
+            .iter()
+            .find(|unit| unit.id == UnitId(1))
+            .expect("knight spawned")
+            .stats
+            .get(STAT_CURRENT_MANA);
+        assert_eq!(mana_after_ticks, 2.0);
     }
 }

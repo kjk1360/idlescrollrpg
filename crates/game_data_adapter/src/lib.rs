@@ -154,6 +154,8 @@ fn skill_effect_from_data(db: &GeneratedDatabase, row_id: RowId) -> Result<Skill
         },
         stat: StatDefId(row.stat.0 as u32),
         stat_delta: row.stat_delta,
+        stat_duration_ticks: row.stat_duration_ticks.max(0) as u32,
+        stat_tick_delta: row.stat_tick_delta,
         trigger_skill: if row.trigger_timing.is_empty() {
             None
         } else {

@@ -174,6 +174,8 @@ The first playable preview is available through `belt_tools play`:
 - Added sample slime bleed-stack application through `stat_delta`.
 - Added `skill_stat_cost` data and `skill_def.costs` relations for Stat-based skill resource costs.
 - Battle runtime checks skill costs before behavior-rule selection/fallback skill use and pays the caster's costs when the skill executes.
+- Added timed Stat modifiers through `skill_effect.stat_duration_ticks` and `skill_effect.stat_tick_delta`.
+- Timed Stat modifiers can expire by reversing the initial `stat_delta` and can also apply per-tick Stat changes while active.
 
 ## Locked Design Direction
 
@@ -214,7 +216,7 @@ The runtime is grid/tick based, primary skills execute immediate and delayed `sk
 - trigger timing runtime for conditional skill activation
 - richer behavior conditions such as ally/enemy counts, cooldown availability, lane checks, and enemies in pattern with stat filters
 - richer resource flows around skill costs, such as mana gain effects, generated UI presets, and cost preview labels
-- stat duration/decay rules for temporary stacks, shields, buffs, and debuffs
+- authoring presets and UI hints for temporary stacks, shields, buffs, debuffs, and over-time effects
 - dungeon reward result generation from `drop_table`
 - account energy spending/recovery simulation
 - battle simulation states to visual state machine keys

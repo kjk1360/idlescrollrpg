@@ -213,6 +213,8 @@ pub struct SkillEffect {
     pub stat_target: String,
     pub stat: RowId,
     pub stat_delta: f32,
+    pub stat_duration_ticks: i32,
+    pub stat_tick_delta: f32,
 }
 
 #[derive(Debug, Clone)]

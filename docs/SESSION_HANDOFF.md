@@ -87,6 +87,8 @@ Implemented:
 - sample slime tackle applies `bleed_stack +1`
 - `skill_stat_cost` and `skill_def.costs` exist for Stat-based skill resource costs
 - skill selection ignores skills the caster cannot pay for, and skill execution subtracts caster costs before effects run
+- `skill_effect.stat_duration_ticks` and `skill_effect.stat_tick_delta` support timed Stat modifiers
+- timed Stat modifiers can expire by reversing the initial `stat_delta` and can apply per-tick Stat changes while active
 - Play Preview renders area flashes as translucent animated red grid squares
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -297,6 +299,7 @@ Implemented:
 - stat-based behavior conditions using value, stat, and stat-ratio comparisons
 - stat-delta skill effects for stack/resource changes
 - stat-cost skill payment from `skill_def.costs`
+- timed stat modifiers for temporary stacks, buffs/debuffs, and over-time resource changes
 - effect cells from `CellPattern` relative `forward/side` offsets rotated by up/down/left/right facing
 - damage effects
 - `projectile_damage` effects with delayed impact damage
@@ -311,7 +314,7 @@ Not implemented yet:
 - trigger timing and conditional skill activation
 - richer behavior conditions such as ally/enemy counts, cooldown availability, lane checks, and enemies in pattern with stat filters
 - richer resource flows around skill costs, such as mana gain effects, generated UI presets, and cost preview labels
-- stat duration/decay rules for temporary stacks, shields, buffs, and debuffs
+- authoring presets and UI hints for temporary stacks, shields, buffs, debuffs, and over-time effects
 - skill authoring presets that generate `CellPattern` rows
 - dungeon reward settlement from `drop_table`
 - account energy spending/recovery simulation

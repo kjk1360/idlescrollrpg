@@ -510,6 +510,8 @@ fn load_skill_effect(project: &DataProject) -> Result<GeneratedTable<SkillEffect
             stat_target: read_string(row, FieldId(310), "skill_effect.stat_target")?,
             stat: read_row(row, FieldId(311), "skill_effect.stat")?,
             stat_delta: read_f32(row, FieldId(312), "skill_effect.stat_delta")?,
+            stat_duration_ticks: read_i32(row, FieldId(313), "skill_effect.stat_duration_ticks")?,
+            stat_tick_delta: read_f32(row, FieldId(314), "skill_effect.stat_tick_delta")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());
