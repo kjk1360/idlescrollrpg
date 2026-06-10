@@ -1,0 +1,31 @@
+[
+  {
+    "id": 27001,
+    "key": "slime_energy_tonic",
+    "cells": {
+      "250": {
+        "kind": "string",
+        "value": "Slime Energy Tonic"
+      },
+      "251": {
+        "kind": "row",
+        "value": 12003
+      },
+      "252": {
+        "kind": "i32",
+        "value": 1
+      },
+      "253": {
+        "kind": "rows",
+        "value": [
+          28001,
+          28002
+        ]
+      },
+      "254": {
+        "kind": "string",
+        "value": "alchemy_furnace"
+      }
+    }
+  }
+]

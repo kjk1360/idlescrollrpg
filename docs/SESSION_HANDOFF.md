@@ -100,6 +100,9 @@ Implemented:
 - `/api/account-energy/recover` persists real-time account energy recovery, and dispatch applies recovery before spending energy
 - account-state load/save paths remove expired local mail automatically
 - Play Preview and Data Studio Operation tab include the first Guild House visual shell with stacked expedition strips
+- first `alchemy_recipe` and `recipe_ingredient` data tables exist
+- `/api/account-alchemy/craft` mutates the local account-state file by consuming recipe ingredients and placing crafted output
+- Data Studio Operation tab shows Alchemy Furnace recipes, ingredient availability, craftable state, and a Craft action
 - Play Preview renders impact flashes on the combat line
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -246,6 +249,8 @@ projects/sample/
     drop_entry.json
     account_energy_config.json
     storage_tab_config.json
+    alchemy_recipe.json
+    recipe_ingredient.json
     skill_def.json
     skill_step.json
     skill_effect.json
@@ -457,8 +462,8 @@ Expose the local account-state loop in the tool UI and playable preview.
 
 Recommended order:
 
-1. Add first recipe tables and instant alchemy/forge/refinement commands.
-2. Add Operation UI sections for Alchemy Furnace, Forge, and Refinement Workbench.
+1. Add first forge/refinement commands that mutate the same local account-state file.
+2. Expand Operation UI sections for Forge and Refinement Workbench.
 3. Connect Operation actions to Guild House scene feedback states.
 4. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
 5. Keep chat/guild/ranking behind auction house priority.

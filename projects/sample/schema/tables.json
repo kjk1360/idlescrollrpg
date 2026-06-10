@@ -1412,5 +1412,94 @@
         "required": true
       }
     ]
+  },
+  {
+    "id": 27,
+    "key": "alchemy_recipe",
+    "display_name": "Alchemy Recipe",
+    "fields": [
+      {
+        "id": 250,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 251,
+        "key": "output_item",
+        "display_name": "Output Item",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 12
+        },
+        "required": true
+      },
+      {
+        "id": 252,
+        "key": "output_quantity",
+        "display_name": "Output Quantity",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 253,
+        "key": "ingredients",
+        "display_name": "Ingredients",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 28
+        },
+        "required": true
+      },
+      {
+        "id": 254,
+        "key": "device",
+        "display_name": "Device",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 28,
+    "key": "recipe_ingredient",
+    "display_name": "Recipe Ingredient",
+    "fields": [
+      {
+        "id": 260,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 261,
+        "key": "item",
+        "display_name": "Item",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 12
+        },
+        "required": true
+      },
+      {
+        "id": 262,
+        "key": "quantity",
+        "display_name": "Quantity",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      }
+    ]
   }
 ]

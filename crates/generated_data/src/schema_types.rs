@@ -290,3 +290,23 @@ pub struct SkillStatCost {
     pub stat: RowId,
     pub amount: f32,
 }
+
+#[derive(Debug, Clone)]
+pub struct AlchemyRecipe {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub output_item: RowId,
+    pub output_quantity: i32,
+    pub ingredients: Vec<RowId>,
+    pub device: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct RecipeIngredient {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub item: RowId,
+    pub quantity: i32,
+}

@@ -1,0 +1,38 @@
+[
+  {
+    "id": 28001,
+    "key": "slime_tonic_slime_gel",
+    "cells": {
+      "260": {
+        "kind": "string",
+        "value": "Slime Gel"
+      },
+      "261": {
+        "kind": "row",
+        "value": 12001
+      },
+      "262": {
+        "kind": "i32",
+        "value": 2
+      }
+    }
+  },
+  {
+    "id": 28002,
+    "key": "slime_tonic_iron_ore",
+    "cells": {
+      "260": {
+        "kind": "string",
+        "value": "Iron Ore"
+      },
+      "261": {
+        "kind": "row",
+        "value": 12002
+      },
+      "262": {
+        "kind": "i32",
+        "value": 1
+      }
+    }
+  }
+]

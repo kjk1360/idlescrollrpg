@@ -43,6 +43,9 @@ pub struct GeneratedRelationCache {
     pub condition_def_stat: HashMap<RowId, RowId>,
     pub condition_def_other_stat: HashMap<RowId, RowId>,
     pub skill_stat_cost_stat: HashMap<RowId, RowId>,
+    pub alchemy_recipe_output_item: HashMap<RowId, RowId>,
+    pub alchemy_recipe_ingredients: HashMap<RowId, Vec<RowId>>,
+    pub recipe_ingredient_item: HashMap<RowId, RowId>,
 }
 
 impl GeneratedRelationCache {
@@ -415,6 +418,39 @@ impl GeneratedRelationCache {
             }
             cache.skill_stat_cost_stat.insert(row.id, row.stat);
         }
+        for row in &db.alchemy_recipe.rows {
+            if db.item_def.get_by_id(row.output_item).is_none() {
+                return Err(format!(
+                    "missing relation target for alchemy_recipe.output_item from {:?} to {:?}",
+                    row.id, row.output_item
+                ));
+            }
+            cache
+                .alchemy_recipe_output_item
+                .insert(row.id, row.output_item);
+        }
+        for row in &db.alchemy_recipe.rows {
+            for target_id in &row.ingredients {
+                if db.recipe_ingredient.get_by_id(*target_id).is_none() {
+                    return Err(format!(
+                        "missing relation target for alchemy_recipe.ingredients from {:?} to {:?}",
+                        row.id, target_id
+                    ));
+                }
+            }
+            cache
+                .alchemy_recipe_ingredients
+                .insert(row.id, row.ingredients.clone());
+        }
+        for row in &db.recipe_ingredient.rows {
+            if db.item_def.get_by_id(row.item).is_none() {
+                return Err(format!(
+                    "missing relation target for recipe_ingredient.item from {:?} to {:?}",
+                    row.id, row.item
+                ));
+            }
+            cache.recipe_ingredient_item.insert(row.id, row.item);
+        }
         Ok(cache)
     }
 
@@ -564,5 +600,19 @@ impl GeneratedRelationCache {
 
     pub fn get_skill_stat_cost_stat(&self, source: RowId) -> Option<RowId> {
         self.skill_stat_cost_stat.get(&source).copied()
+    }
+
+    pub fn get_alchemy_recipe_output_item(&self, source: RowId) -> Option<RowId> {
+        self.alchemy_recipe_output_item.get(&source).copied()
+    }
+
+    pub fn get_alchemy_recipe_ingredients(&self, source: RowId) -> Option<&[RowId]> {
+        self.alchemy_recipe_ingredients
+            .get(&source)
+            .map(Vec::as_slice)
+    }
+
+    pub fn get_recipe_ingredient_item(&self, source: RowId) -> Option<RowId> {
+        self.recipe_ingredient_item.get(&source).copied()
     }
 }

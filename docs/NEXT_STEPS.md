@@ -67,6 +67,10 @@
 - Simplified combat from 3-lane grid tactics to 1D distance-based line combat with overlap allowed.
 - Added `skill_def.range`; skills fire when the target is within range, cooldown is ready, and costs can be paid.
 - Kept `CellPattern` data for compatibility, but current runtime skill judgment is range-based.
+- Added first `alchemy_recipe` and `recipe_ingredient` data tables.
+- Added instant Alchemy Furnace crafting that consumes account inventory ingredients and writes crafted output back to the same local account-state file.
+- Data Studio Operation tab now shows Alchemy Furnace recipes, ingredient availability, craftable state, and a Craft action.
+- Added `POST /api/account-alchemy/craft` for local account-state mutation.
 
 ## Current Stable CLI Flow
 
@@ -190,6 +194,7 @@ The first playable preview is available through `belt_tools play`:
 - `/api/account-energy/recover` persists real-time account energy recovery, and dungeon dispatch applies recovery before spending energy.
 - Account-state load/save paths now remove expired local mail automatically.
 - Play Preview and Data Studio Operation tab now include the first Guild House visual shell with stacked expedition strips.
+- Data Studio Operation tab can craft `alchemy_furnace` recipes through `/api/account-alchemy/craft`, consuming ingredients and persisting crafted output.
 
 ## Locked Design Direction
 
@@ -255,7 +260,7 @@ The local account-state file is intentionally small and server-portable:
 The next production-facing step is to expose the local account state in the UI and make it behave like the later server-backed account model:
 
 - Account-state API endpoints in `belt_tools play` for preview/test workflows.
-- First recipe tables and instant alchemy/forge/refinement commands that mutate the same account-state file.
+- First forge/refinement commands that mutate the same account-state file.
 - Connect Operation actions to Guild House scene feedback states.
 
 ## Server Direction

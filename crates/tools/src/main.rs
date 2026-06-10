@@ -765,6 +765,105 @@ fn apply_account_energy_recovery(
     Ok(recovery)
 }
 
+fn inventory_quantity(state: &AccountState, item_key: &str) -> i32 {
+    state
+        .inventory
+        .iter()
+        .filter(|stack| stack.item_key == item_key)
+        .map(|stack| stack.quantity.max(0))
+        .sum()
+}
+
+fn consume_inventory_item(
+    state: &mut AccountState,
+    item_key: &str,
+    quantity: i32,
+) -> Result<(), String> {
+    if quantity <= 0 {
+        return Ok(());
+    }
+    let available = inventory_quantity(state, item_key);
+    if available < quantity {
+        return Err(format!(
+            "not enough {item_key}: required={quantity} available={available}"
+        ));
+    }
+
+    let mut remaining = quantity;
+    for stack in state
+        .inventory
+        .iter_mut()
+        .filter(|stack| stack.item_key == item_key)
+    {
+        if remaining <= 0 {
+            break;
+        }
+        let take = stack.quantity.min(remaining);
+        stack.quantity -= take;
+        remaining -= take;
+    }
+    state.inventory.retain(|stack| stack.quantity > 0);
+    Ok(())
+}
+
+fn craft_alchemy_recipe(
+    project: &DataProject,
+    state: &mut AccountState,
+    recipe_key: &str,
+    now_unix: i64,
+) -> Result<AccountRewardSettlement, String> {
+    let db = GeneratedDatabase::from_project(project)?;
+    let recipe = db
+        .alchemy_recipe
+        .get_by_key(recipe_key)
+        .ok_or_else(|| format!("missing alchemy recipe {recipe_key}"))?;
+    if recipe.device != "alchemy_furnace" {
+        return Err(format!(
+            "unsupported recipe device {} for {}",
+            recipe.device, recipe.key
+        ));
+    }
+
+    let mut ingredients = Vec::new();
+    for ingredient_id in &recipe.ingredients {
+        let ingredient = db
+            .recipe_ingredient
+            .get_by_id(*ingredient_id)
+            .ok_or_else(|| format!("missing recipe ingredient {:?}", ingredient_id))?;
+        let item = db
+            .item_def
+            .get_by_id(ingredient.item)
+            .ok_or_else(|| format!("missing ingredient item {:?}", ingredient.item))?;
+        let required = ingredient.quantity.max(0);
+        let available = inventory_quantity(state, &item.key);
+        if available < required {
+            return Err(format!(
+                "not enough {}: required={} available={}",
+                item.name, required, available
+            ));
+        }
+        ingredients.push((item.key.clone(), required));
+    }
+
+    for (item_key, quantity) in ingredients {
+        consume_inventory_item(state, &item_key, quantity)?;
+    }
+
+    let output_item = db
+        .item_def
+        .get_by_id(recipe.output_item)
+        .ok_or_else(|| format!("missing output item {:?}", recipe.output_item))?;
+    let reward = RewardStack {
+        item_key: output_item.key.clone(),
+        item_name: output_item.name.clone(),
+        category: output_item.category.clone(),
+        rarity: output_item.rarity.clone(),
+        stack_size: output_item.stack_size.max(1),
+        quantity: recipe.output_quantity.max(0),
+    };
+    apply_rewards_to_account_state(project, state, &[reward], now_unix)
+}
+
 #[derive(Debug, Clone)]
 struct DeterministicRng {
     state: u64,
@@ -1148,6 +1247,48 @@ pub(crate) fn account_state_snapshot_for_api(
             })
         })
         .collect::<Vec<_>>();
+    let alchemy_recipes = db
+        .alchemy_recipe
+        .rows
+        .iter()
+        .filter(|recipe| recipe.device == "alchemy_furnace")
+        .map(|recipe| {
+            let output = db.item_def.get_by_id(recipe.output_item);
+            let ingredients = recipe
+                .ingredients
+                .iter()
+                .filter_map(|ingredient_id| db.recipe_ingredient.get_by_id(*ingredient_id))
+                .map(|ingredient| {
+                    let item = db.item_def.get_by_id(ingredient.item);
+                    let item_key = item.map(|item| item.key.as_str()).unwrap_or("");
+                    let available = inventory_quantity(&state, item_key);
+                    serde_json::json!({
+                        "item_key": item_key,
+                        "name": item.map(|item| item.name.as_str()).unwrap_or("missing item"),
+                        "quantity": ingredient.quantity,
+                        "available": available,
+                        "enough": available >= ingredient.quantity,
+                    })
+                })
+                .collect::<Vec<_>>();
+            let craftable = ingredients.iter().all(|ingredient| {
+                ingredient
+                    .get("enough")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(false)
+            });
+            serde_json::json!({
+                "key": recipe.key,
+                "name": recipe.name,
+                "output_item_key": output.map(|item| item.key.as_str()).unwrap_or(""),
+                "output_name": output.map(|item| item.name.as_str()).unwrap_or("missing item"),
+                "output_quantity": recipe.output_quantity,
+                "device": recipe.device,
+                "ingredients": ingredients,
+                "craftable": craftable,
+            })
+        })
+        .collect::<Vec<_>>();
 
     Ok(serde_json::json!({
         "ok": true,
@@ -1165,6 +1306,7 @@ pub(crate) fn account_state_snapshot_for_api(
         "inventory": inventory,
         "mail": mail,
         "storage_tabs": storage_tabs,
+        "alchemy_recipes": alchemy_recipes,
     }))
 }
 
@@ -1252,6 +1394,25 @@ pub(crate) fn delete_mail_for_api(
     Ok(serde_json::json!({
         "ok": true,
         "message": format!("deleted mail #{} ({}) x{}", mail_index, removed.item_key, removed.quantity),
+        "account": account_state_snapshot_for_api(project_path)?,
+    }))
+}
+
+pub(crate) fn craft_alchemy_for_api(
+    project_path: &Path,
+    recipe_key: &str,
+    now_unix: i64,
+) -> Result<serde_json::Value, String> {
+    let project = DataProject::load_from_dir(project_path).map_err(|error| error.to_string())?;
+    let path = account_state_path_for_project(project_path);
+    let mut state = load_or_create_account_state(&project, &path)?;
+    purge_expired_mail(&mut state, now_unix);
+    let settlement = craft_alchemy_recipe(&project, &mut state, recipe_key, now_unix)?;
+    save_account_state(&path, &state)?;
+    Ok(serde_json::json!({
+        "ok": true,
+        "message": format!("crafted alchemy recipe {recipe_key}"),
+        "settlement": account_settlement_lines(&settlement),
         "account": account_state_snapshot_for_api(project_path)?,
     }))
 }
@@ -1599,6 +1760,35 @@ mod tests {
         assert_eq!(removed, 1);
         assert_eq!(state.mail.len(), 1);
         assert_eq!(state.mail[0].item_key, "energy_tonic");
+    }
+
+    #[test]
+    fn alchemy_recipe_consumes_ingredients_and_places_output() {
+        let project = sample_project_for_test();
+        let mut state = AccountState {
+            energy: 100,
+            last_energy_update_unix: 0,
+            inventory: vec![
+                AccountItemStack {
+                    item_key: "slime_gel".to_string(),
+                    quantity: 2,
+                },
+                AccountItemStack {
+                    item_key: "iron_ore".to_string(),
+                    quantity: 1,
+                },
+            ],
+            mail: Vec::new(),
+        };
+
+        let settlement = craft_alchemy_recipe(&project, &mut state, "slime_energy_tonic", 1000)
+            .expect("craft alchemy");
+
+        assert_eq!(settlement.placed[0].item_key, "energy_tonic");
+        assert_eq!(settlement.placed[0].quantity, 1);
+        assert_eq!(inventory_quantity(&state, "slime_gel"), 0);
+        assert_eq!(inventory_quantity(&state, "iron_ore"), 0);
+        assert_eq!(inventory_quantity(&state, "energy_tonic"), 1);
     }
 }
 
