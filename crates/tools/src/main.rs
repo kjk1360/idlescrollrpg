@@ -363,6 +363,17 @@ struct AccountRewardSettlement {
     inventory_slots: HashMap<String, i32>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct EnergyRecovery {
+    current: i32,
+    recovered: i32,
+    after_recovery: i32,
+    max_energy: i32,
+    recover_seconds: i32,
+    recover_amount: i32,
+    seconds_until_next_recovery: i64,
+}
+
 fn energy_preview(
     project: &DataProject,
     map_key: &str,
@@ -684,6 +695,67 @@ fn delete_account_mail(state: &mut AccountState, mail_index: usize) -> Result<Ac
         return Err(format!("unknown mail index {mail_index}"));
     }
     Ok(state.mail.remove(mail_index))
+}
+
+fn preview_account_energy_recovery(
+    project: &DataProject,
+    state: &AccountState,
+    now_unix: i64,
+) -> Result<EnergyRecovery, String> {
+    let db = GeneratedDatabase::from_project(project)?;
+    let config = db
+        .account_energy_config
+        .rows
+        .first()
+        .ok_or_else(|| "missing account energy config".to_string())?;
+    let max_energy = config.max_energy.max(0);
+    let current = state.energy.clamp(0, max_energy);
+    let recover_seconds = config.recover_seconds.max(1);
+    let recover_amount = config.recover_amount.max(0);
+    let elapsed = (now_unix - state.last_energy_update_unix).max(0);
+    let recovered = if current >= max_energy {
+        0
+    } else {
+        ((elapsed / recover_seconds as i64) as i32) * recover_amount
+    };
+    let after_recovery = (current + recovered).min(max_energy);
+    let seconds_until_next_recovery = if after_recovery >= max_energy {
+        0
+    } else {
+        let remainder = elapsed % recover_seconds as i64;
+        (recover_seconds as i64 - remainder).max(0)
+    };
+
+    Ok(EnergyRecovery {
+        current,
+        recovered: after_recovery - current,
+        after_recovery,
+        max_energy,
+        recover_seconds,
+        recover_amount,
+        seconds_until_next_recovery,
+    })
+}
+
+fn apply_account_energy_recovery(
+    project: &DataProject,
+    state: &mut AccountState,
+    now_unix: i64,
+) -> Result<EnergyRecovery, String> {
+    let recovery = preview_account_energy_recovery(project, state, now_unix)?;
+    if recovery.recovered <= 0 {
+        return Ok(recovery);
+    }
+
+    state.energy = recovery.after_recovery;
+    if state.energy >= recovery.max_energy {
+        state.last_energy_update_unix = now_unix;
+    } else {
+        let recovered_ticks = (recovery.recovered / recovery.recover_amount.max(1)).max(0) as i64;
+        state.last_energy_update_unix += recovered_ticks * recovery.recover_seconds as i64;
+    }
+
+    Ok(recovery)
 }
 
 #[derive(Debug, Clone)]
@@ -1011,6 +1083,8 @@ pub(crate) fn account_state_snapshot_for_api(
     let path = account_state_path_for_project(project_path);
     let state = load_or_create_account_state(&project, &path)?;
     let db = GeneratedDatabase::from_project(&project)?;
+    let now_unix = current_unix_time();
+    let energy_recovery = preview_account_energy_recovery(&project, &state, now_unix)?;
     let slots = inventory_slots_by_tab(&db, &state)?;
     let inventory = state
         .inventory
@@ -1068,6 +1142,13 @@ pub(crate) fn account_state_snapshot_for_api(
         "ok": true,
         "path": path,
         "energy": state.energy,
+        "energy_after_recovery": energy_recovery.after_recovery,
+        "recoverable_energy": energy_recovery.recovered,
+        "max_energy": energy_recovery.max_energy,
+        "recover_seconds": energy_recovery.recover_seconds,
+        "recover_amount": energy_recovery.recover_amount,
+        "seconds_until_next_recovery": energy_recovery.seconds_until_next_recovery,
+        "now_unix": now_unix,
         "last_energy_update_unix": state.last_energy_update_unix,
         "inventory": inventory,
         "mail": mail,
@@ -1082,6 +1163,9 @@ pub(crate) fn dispatch_account_for_api(
     now_unix: i64,
 ) -> Result<serde_json::Value, String> {
     let account_path = account_state_path_for_project(project_path);
+    let project = DataProject::load_from_dir(project_path).map_err(|error| error.to_string())?;
+    let state = load_or_create_account_state(&project, &account_path)?;
+    let elapsed_seconds = (now_unix - state.last_energy_update_unix).max(0);
     let args = vec![
         "--project".to_string(),
         project_path.to_string_lossy().to_string(),
@@ -1092,6 +1176,8 @@ pub(crate) fn dispatch_account_for_api(
         "--account-state".to_string(),
         account_path.to_string_lossy().to_string(),
         "--write-account-state".to_string(),
+        "--elapsed-seconds".to_string(),
+        elapsed_seconds.to_string(),
         "--now-unix".to_string(),
         now_unix.to_string(),
     ];
@@ -1113,6 +1199,23 @@ pub(crate) fn claim_mail_for_api(
         "ok": true,
         "message": format!("claimed mail #{mail_index}"),
         "settlement": account_settlement_lines(&settlement),
+        "account": account_state_snapshot_for_api(project_path)?,
+    }))
+}
+
+pub(crate) fn recover_energy_for_api(
+    project_path: &Path,
+    now_unix: i64,
+) -> Result<serde_json::Value, String> {
+    let project = DataProject::load_from_dir(project_path).map_err(|error| error.to_string())?;
+    let path = account_state_path_for_project(project_path);
+    let mut state = load_or_create_account_state(&project, &path)?;
+    let recovery = apply_account_energy_recovery(&project, &mut state, now_unix)?;
+    save_account_state(&path, &state)?;
+    Ok(serde_json::json!({
+        "ok": true,
+        "message": format!("recovered {} energy", recovery.recovered),
+        "recovered": recovery.recovered,
         "account": account_state_snapshot_for_api(project_path)?,
     }))
 }
@@ -1253,6 +1356,43 @@ mod tests {
         assert_eq!(energy.after_recovery, 8);
         assert_eq!(energy.cost, 8);
         assert_eq!(energy.after_dispatch(), 0);
+    }
+
+    #[test]
+    fn account_energy_recovery_applies_elapsed_time() {
+        let project = sample_project_for_test();
+        let mut state = AccountState {
+            energy: 10,
+            last_energy_update_unix: 1000,
+            inventory: Vec::new(),
+            mail: Vec::new(),
+        };
+
+        let recovery =
+            apply_account_energy_recovery(&project, &mut state, 1900).expect("energy recovery");
+
+        assert_eq!(recovery.recovered, 3);
+        assert_eq!(recovery.after_recovery, 13);
+        assert_eq!(state.energy, 13);
+        assert_eq!(state.last_energy_update_unix, 1900);
+    }
+
+    #[test]
+    fn account_energy_recovery_caps_at_max() {
+        let project = sample_project_for_test();
+        let mut state = AccountState {
+            energy: 119,
+            last_energy_update_unix: 1000,
+            inventory: Vec::new(),
+            mail: Vec::new(),
+        };
+
+        let recovery =
+            apply_account_energy_recovery(&project, &mut state, 1900).expect("energy recovery");
+
+        assert_eq!(recovery.recovered, 1);
+        assert_eq!(state.energy, 120);
+        assert_eq!(state.last_energy_update_unix, 1900);
     }
 
     #[test]

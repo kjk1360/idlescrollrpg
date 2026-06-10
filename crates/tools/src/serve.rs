@@ -153,6 +153,7 @@ fn route_request(request: &Request, state: &ServerState) -> Vec<u8> {
         ("POST", "/api/data-build") => api_data_build(state),
         ("POST", "/api/simulate") => api_simulate(request, state),
         ("POST", "/api/account-dispatch") => api_account_dispatch(request, state),
+        ("POST", "/api/account-energy/recover") => api_account_energy_recover(request, state),
         ("POST", "/api/account-mail/claim") => api_account_mail_claim(request, state),
         ("POST", "/api/account-mail/delete") => api_account_mail_delete(request, state),
         ("POST", "/api/import/aseprite") => api_import_aseprite(request, state),
@@ -682,6 +683,20 @@ fn api_account_dispatch(request: &Request, state: &ServerState) -> Result<Vec<u8
             "account": snapshot,
         }),
     ))
+}
+
+fn api_account_energy_recover(
+    request: &Request,
+    state: &ServerState,
+) -> Result<Vec<u8>, (String, u16)> {
+    let payload = parse_body(&request.body)?;
+    let now_unix = payload
+        .get("now_unix")
+        .and_then(Value::as_i64)
+        .unwrap_or_else(current_unix_time);
+    let response = crate::recover_energy_for_api(&state.project_path, now_unix)
+        .map_err(|error| (error, 500))?;
+    Ok(json_response(200, &response))
 }
 
 fn api_account_mail_claim(
@@ -2305,6 +2320,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
       $('sheetMeta').textContent = `local account / ${account.path}`;
       $('sheetTools').innerHTML = `
         <button class="primary" onclick="dispatchDungeon()">Dispatch Dungeon</button>
+        <button onclick="recoverEnergy()">Recover Energy</button>
         <button onclick="refreshOperation()">Refresh</button>`;
       const storage = account.storage_tabs || [];
       const inventory = account.inventory || [];
@@ -2313,10 +2329,12 @@ const INDEX_HTML: &str = r#"<!doctype html>
       $('grid').innerHTML = `
         <div class="operation-grid">
           <div class="operation-panel">
-            <div class="operation-head"><span>Energy</span><span>${account.energy}</span></div>
+            <div class="operation-head"><span>Energy</span><span>${account.energy_after_recovery}/${account.max_energy}</span></div>
             <div class="operation-body">
-              <div class="stat-line"><span>Last Update</span><span>${account.last_energy_update_unix}</span></div>
-              <div class="stat-line"><span>Mode</span><span>local first</span></div>
+              <div class="stat-line"><span>Stored</span><span>${account.energy}</span></div>
+              <div class="stat-line"><span>Recoverable</span><span>${account.recoverable_energy}</span></div>
+              <div class="stat-line"><span>Next</span><span>${formatDuration(account.seconds_until_next_recovery)}</span></div>
+              <div class="stat-line"><span>Rate</span><span>${account.recover_amount}/${formatDuration(account.recover_seconds)}</span></div>
             </div>
           </div>
           ${storage.map(tab => `
@@ -2393,6 +2411,21 @@ const INDEX_HTML: &str = r#"<!doctype html>
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ map_key: 'endless_left_road', seed: Date.now() })
+        });
+        state.account = result.account;
+        await renderOperationDashboard();
+        log(result.message);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
+    async function recoverEnergy() {
+      try {
+        const result = await api('/api/account-energy/recover', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}'
         });
         state.account = result.account;
         await renderOperationDashboard();

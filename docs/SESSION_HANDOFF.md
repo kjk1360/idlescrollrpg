@@ -97,6 +97,7 @@ Implemented:
 - Data Studio Operation tab displays local account energy, warehouse slots, inventory stacks, and overflow mail
 - `/api/account-state` returns the local account-state snapshot and `/api/account-dispatch` runs dungeon dispatch with writeback
 - `/api/account-mail/claim` and `/api/account-mail/delete` mutate local overflow mail from the Operation tab
+- `/api/account-energy/recover` persists real-time account energy recovery, and dispatch applies recovery before spending energy
 - Play Preview renders impact flashes on the combat line
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -445,9 +446,9 @@ Expose the local account-state loop in the tool UI and playable preview.
 
 Recommended order:
 
-1. Add elapsed real-time energy recovery display and recovery writeback.
-2. Add mail expiry cleanup on account-state load/save.
-3. Add first recipe tables and instant alchemy/forge/refinement commands.
+1. Add mail expiry cleanup on account-state load/save.
+2. Add first recipe tables and instant alchemy/forge/refinement commands.
+3. Add Operation UI sections for Alchemy Furnace, Forge, and Refinement Workbench.
 4. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
 5. Keep chat/guild/ranking behind auction house priority.
 6. Connect battle simulation states to visual state machine keys.
