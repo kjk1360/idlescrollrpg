@@ -3,9 +3,11 @@ use data_studio_core::{sample_project, DataProject, ProjectFingerprints, Project
 use game_data_adapter::battle_config_from_project;
 use generated_data::relation_cache::GeneratedRelationCache;
 use generated_data::table_accessors::GeneratedDatabase;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 mod aseprite;
 mod play;
@@ -64,11 +66,14 @@ fn help() {
     println!("  --occupied-material-slots <n> Existing occupied material storage slots");
     println!("  --occupied-equipment-slots <n> Existing occupied equipment storage slots");
     println!("  --occupied-consumable-slots <n> Existing occupied consumable storage slots");
+    println!("  --account-state <path> Load local account state JSON for simulate");
+    println!("  --write-account-state Save energy, inventory, and overflow mail after simulate");
+    println!("  --now-unix <n>  Deterministic unix time for account-state writeback");
 }
 
 fn simulate(args: &[String]) -> Result<(), String> {
     let map_key = option_value(args, "--map").unwrap_or("endless_left_road");
-    let current_energy = option_value(args, "--current-energy")
+    let current_energy_override = option_value(args, "--current-energy")
         .map(parse_i32)
         .transpose()?;
     let elapsed_seconds = option_value(args, "--elapsed-seconds")
@@ -79,19 +84,48 @@ fn simulate(args: &[String]) -> Result<(), String> {
         .map(parse_u64)
         .transpose()?
         .unwrap_or(1);
+    let now_unix = option_value(args, "--now-unix")
+        .map(parse_i64)
+        .transpose()?
+        .unwrap_or_else(current_unix_time);
+    let write_account_state = has_flag(args, "--write-account-state");
     let occupied_slots = occupied_slots_from_args(args)?;
-    let project_for_rewards = if option_value(args, "--project").is_some() {
-        let (project, _) = load_project(args)?;
-        Some(project)
+    let loaded_project = if option_value(args, "--project").is_some() {
+        Some(load_project(args)?)
     } else {
         None
     };
-    let config = if let Some(project) = &project_for_rewards {
+    let account_state_path = option_value(args, "--account-state")
+        .map(PathBuf::from)
+        .or_else(|| {
+            if !write_account_state {
+                return None;
+            }
+            loaded_project
+                .as_ref()
+                .and_then(|(_, path)| path.as_ref().map(|path| path.join("account_state.json")))
+        });
+
+    let mut account_state = match (&loaded_project, &account_state_path) {
+        (Some((project, _)), Some(path)) => Some(load_or_create_account_state(project, path)?),
+        (None, Some(_)) => {
+            return Err(
+                "--account-state requires --project so item and energy data can be resolved"
+                    .to_string(),
+            )
+        }
+        _ => None,
+    };
+
+    let project_for_rewards = loaded_project.as_ref().map(|(project, _)| project);
+    let config = if let Some(project) = project_for_rewards {
         battle_config_from_project(project, map_key)?
     } else {
         sample_battle_config()
     };
-    if let Some(project) = &project_for_rewards {
+    if let Some(project) = project_for_rewards {
+        let current_energy =
+            current_energy_override.or_else(|| account_state.as_ref().map(|state| state.energy));
         let energy = energy_preview(project, map_key, current_energy, elapsed_seconds)?;
         if energy.after_recovery < energy.cost {
             return Err(format!(
@@ -106,6 +140,10 @@ fn simulate(args: &[String]) -> Result<(), String> {
             energy.cost,
             energy.after_dispatch()
         );
+        if let Some(state) = account_state.as_mut() {
+            state.energy = energy.after_dispatch();
+            state.last_energy_update_unix = now_unix;
+        }
     }
     let mut world = BattleWorld::new(config);
     let mut wave_clears = 0;
@@ -154,7 +192,7 @@ fn simulate(args: &[String]) -> Result<(), String> {
 
     println!();
     println!("summary: kills={kills}, wave_clears={wave_clears}, living_players={living_players}");
-    if let Some(project) = &project_for_rewards {
+    if let Some(project) = project_for_rewards {
         let rewards = if map_cleared {
             settle_rewards(project, map_key, seed)?
         } else {
@@ -163,6 +201,20 @@ fn simulate(args: &[String]) -> Result<(), String> {
         print_rewards(&rewards);
         let storage = settle_storage(project, &rewards, &occupied_slots)?;
         print_storage_settlement(&storage);
+        if let Some(state) = account_state.as_mut() {
+            let account_settlement =
+                apply_rewards_to_account_state(project, state, &rewards, now_unix)?;
+            print_account_settlement(&account_settlement);
+            if write_account_state {
+                let path = account_state_path
+                    .as_ref()
+                    .ok_or_else(|| "missing account state path".to_string())?;
+                save_account_state(path, state)?;
+                println!("account_state: saved {}", path.display());
+            } else if let Some(path) = &account_state_path {
+                println!("account_state: preview only {}", path.display());
+            }
+        }
     }
     Ok(())
 }
@@ -281,6 +333,34 @@ struct StorageTabSettlement {
     occupied_before: i32,
     used_slots: i32,
     placed_quantity: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct AccountState {
+    energy: i32,
+    last_energy_update_unix: i64,
+    inventory: Vec<AccountItemStack>,
+    mail: Vec<AccountMail>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct AccountItemStack {
+    item_key: String,
+    quantity: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct AccountMail {
+    item_key: String,
+    quantity: i32,
+    expires_at_unix: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AccountRewardSettlement {
+    placed: Vec<RewardStack>,
+    overflow_mail: Vec<RewardStack>,
+    inventory_slots: HashMap<String, i32>,
 }
 
 fn energy_preview(
@@ -436,6 +516,140 @@ fn settle_storage(
     })
 }
 
+fn apply_rewards_to_account_state(
+    project: &DataProject,
+    state: &mut AccountState,
+    rewards: &[RewardStack],
+    now_unix: i64,
+) -> Result<AccountRewardSettlement, String> {
+    let db = GeneratedDatabase::from_project(project)?;
+    let mut placed = Vec::new();
+    let mut overflow_mail = Vec::new();
+
+    for reward in rewards {
+        let tab = db
+            .storage_tab_config
+            .rows
+            .iter()
+            .find(|tab| tab.item_category == reward.category);
+        let Some(tab) = tab else {
+            push_account_mail(state, reward, reward.quantity, now_unix);
+            overflow_mail.push(reward.clone());
+            continue;
+        };
+
+        let capacity = tab.base_capacity.max(0);
+        let mut remaining = reward.quantity.max(0);
+        let mut placed_quantity = 0;
+
+        for stack in state
+            .inventory
+            .iter_mut()
+            .filter(|stack| stack.item_key == reward.item_key)
+        {
+            if remaining <= 0 {
+                break;
+            }
+            let free_quantity = (reward.stack_size.max(1) - stack.quantity).max(0);
+            let add = free_quantity.min(remaining);
+            stack.quantity += add;
+            remaining -= add;
+            placed_quantity += add;
+        }
+
+        while remaining > 0 {
+            let used_slots = inventory_slots_for_category(&db, state, &reward.category)?;
+            if used_slots >= capacity {
+                break;
+            }
+            let add = remaining.min(reward.stack_size.max(1));
+            state.inventory.push(AccountItemStack {
+                item_key: reward.item_key.clone(),
+                quantity: add,
+            });
+            remaining -= add;
+            placed_quantity += add;
+        }
+
+        if placed_quantity > 0 {
+            let mut placed_reward = reward.clone();
+            placed_reward.quantity = placed_quantity;
+            placed.push(placed_reward);
+        }
+        if remaining > 0 {
+            push_account_mail(state, reward, remaining, now_unix);
+            let mut overflow = reward.clone();
+            overflow.quantity = remaining;
+            overflow_mail.push(overflow);
+        }
+    }
+
+    Ok(AccountRewardSettlement {
+        placed,
+        overflow_mail,
+        inventory_slots: inventory_slots_by_tab(&db, state)?,
+    })
+}
+
+fn push_account_mail(state: &mut AccountState, reward: &RewardStack, quantity: i32, now_unix: i64) {
+    state.mail.push(AccountMail {
+        item_key: reward.item_key.clone(),
+        quantity: quantity.max(0),
+        expires_at_unix: now_unix + 86_400,
+    });
+}
+
+fn inventory_slots_for_category(
+    db: &GeneratedDatabase,
+    state: &AccountState,
+    category: &str,
+) -> Result<i32, String> {
+    state.inventory.iter().try_fold(0, |slots, stack| {
+        let item = db.item_def.get_by_key(&stack.item_key).ok_or_else(|| {
+            format!(
+                "account inventory references missing item {}",
+                stack.item_key
+            )
+        })?;
+        Ok(if item.category == category {
+            slots + 1
+        } else {
+            slots
+        })
+    })
+}
+
+fn inventory_slots_by_tab(
+    db: &GeneratedDatabase,
+    state: &AccountState,
+) -> Result<HashMap<String, i32>, String> {
+    let mut slots = db
+        .storage_tab_config
+        .rows
+        .iter()
+        .map(|tab| (tab.tab_key.clone(), 0))
+        .collect::<HashMap<_, _>>();
+
+    for stack in &state.inventory {
+        let item = db.item_def.get_by_key(&stack.item_key).ok_or_else(|| {
+            format!(
+                "account inventory references missing item {}",
+                stack.item_key
+            )
+        })?;
+        if let Some(tab) = db
+            .storage_tab_config
+            .rows
+            .iter()
+            .find(|tab| tab.item_category == item.category)
+        {
+            *slots.entry(tab.tab_key.clone()).or_insert(0) += 1;
+        }
+    }
+
+    Ok(slots)
+}
+
 #[derive(Debug, Clone)]
 struct DeterministicRng {
     state: u64,
@@ -512,6 +726,44 @@ fn storage_settlement_lines(settlement: &StorageSettlement) -> Vec<String> {
             )
         }));
     }
+    lines
+}
+
+fn print_account_settlement(settlement: &AccountRewardSettlement) {
+    for line in account_settlement_lines(settlement) {
+        println!("{line}");
+    }
+}
+
+fn account_settlement_lines(settlement: &AccountRewardSettlement) -> Vec<String> {
+    let mut lines = vec!["account_state settlement:".to_string()];
+    if settlement.placed.is_empty() {
+        lines.push("- inventory placed: none".to_string());
+    } else {
+        lines.extend(settlement.placed.iter().map(|reward| {
+            format!(
+                "- inventory placed: {} x{} [{}]",
+                reward.item_name, reward.quantity, reward.category
+            )
+        }));
+    }
+    if settlement.overflow_mail.is_empty() {
+        lines.push("- mail added: none".to_string());
+    } else {
+        lines.extend(settlement.overflow_mail.iter().map(|reward| {
+            format!(
+                "- mail added: {} x{} [{} / expires in 1 day]",
+                reward.item_name, reward.quantity, reward.category
+            )
+        }));
+    }
+    let mut slot_lines = settlement
+        .inventory_slots
+        .iter()
+        .map(|(tab, slots)| format!("- inventory slots: {tab}={slots}"))
+        .collect::<Vec<_>>();
+    slot_lines.sort();
+    lines.extend(slot_lines);
     lines
 }
 
@@ -677,10 +929,49 @@ fn load_project(args: &[String]) -> Result<(DataProject, Option<PathBuf>), Strin
     }
 }
 
+fn load_or_create_account_state(
+    project: &DataProject,
+    path: &Path,
+) -> Result<AccountState, String> {
+    if path.exists() {
+        let content = fs::read_to_string(path)
+            .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+        return serde_json::from_str(&content)
+            .map_err(|error| format!("failed to parse {}: {error}", path.display()));
+    }
+
+    let db = GeneratedDatabase::from_project(project)?;
+    let energy_config = db
+        .account_energy_config
+        .rows
+        .first()
+        .ok_or_else(|| "missing account energy config".to_string())?;
+    Ok(AccountState {
+        energy: energy_config.max_energy,
+        last_energy_update_unix: 0,
+        inventory: Vec::new(),
+        mail: Vec::new(),
+    })
+}
+
+fn save_account_state(path: &Path, state: &AccountState) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("failed to create {}: {error}", parent.display()))?;
+    }
+    let content = serde_json::to_string_pretty(state)
+        .map_err(|error| format!("failed to serialize account state: {error}"))?;
+    write_file(path, &content)
+}
+
 fn option_value<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
     args.windows(2)
         .find(|window| window[0] == flag)
         .map(|window| window[1].as_str())
+}
+
+fn has_flag(args: &[String], flag: &str) -> bool {
+    args.iter().any(|arg| arg == flag)
 }
 
 fn parse_i32(value: &str) -> Result<i32, String> {
@@ -699,6 +990,13 @@ fn parse_u64(value: &str) -> Result<u64, String> {
     value
         .parse::<u64>()
         .map_err(|error| format!("invalid u64 value {value}: {error}"))
+}
+
+fn current_unix_time() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs() as i64)
+        .unwrap_or(0)
 }
 
 fn occupied_slots_from_args(args: &[String]) -> Result<HashMap<String, i32>, String> {
@@ -836,6 +1134,72 @@ mod tests {
         assert_eq!(material.used_slots, 1);
         assert_eq!(material.placed_quantity, 10);
         assert_eq!(settlement.overflow_mail[0].quantity, 5);
+    }
+
+    #[test]
+    fn account_state_fills_partial_stack_before_new_slot() {
+        let project = sample_project_for_test();
+        let mut state = AccountState {
+            energy: 100,
+            last_energy_update_unix: 0,
+            inventory: vec![AccountItemStack {
+                item_key: "slime_gel".to_string(),
+                quantity: 6,
+            }],
+            mail: Vec::new(),
+        };
+        let rewards = vec![RewardStack {
+            item_key: "slime_gel".to_string(),
+            item_name: "Slime Gel".to_string(),
+            category: "material".to_string(),
+            rarity: "common".to_string(),
+            stack_size: 10,
+            quantity: 7,
+        }];
+
+        let settlement =
+            apply_rewards_to_account_state(&project, &mut state, &rewards, 1000).expect("settle");
+
+        assert_eq!(state.inventory.len(), 2);
+        assert_eq!(state.inventory[0].quantity, 10);
+        assert_eq!(state.inventory[1].quantity, 3);
+        assert_eq!(settlement.placed[0].quantity, 7);
+        assert!(settlement.overflow_mail.is_empty());
+        assert!(state.mail.is_empty());
+    }
+
+    #[test]
+    fn account_state_sends_overflow_to_expiring_mail() {
+        let project = sample_project_for_test();
+        let mut state = AccountState {
+            energy: 100,
+            last_energy_update_unix: 0,
+            inventory: (0..39)
+                .map(|_| AccountItemStack {
+                    item_key: "slime_gel".to_string(),
+                    quantity: 10,
+                })
+                .collect(),
+            mail: Vec::new(),
+        };
+        let rewards = vec![RewardStack {
+            item_key: "slime_gel".to_string(),
+            item_name: "Slime Gel".to_string(),
+            category: "material".to_string(),
+            rarity: "common".to_string(),
+            stack_size: 10,
+            quantity: 15,
+        }];
+
+        let settlement =
+            apply_rewards_to_account_state(&project, &mut state, &rewards, 1000).expect("settle");
+
+        assert_eq!(state.inventory.len(), 40);
+        assert_eq!(settlement.placed[0].quantity, 10);
+        assert_eq!(settlement.overflow_mail[0].quantity, 5);
+        assert_eq!(state.mail[0].item_key, "slime_gel");
+        assert_eq!(state.mail[0].quantity, 5);
+        assert_eq!(state.mail[0].expires_at_unix, 87_400);
     }
 }
 

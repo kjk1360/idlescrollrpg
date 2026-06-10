@@ -92,6 +92,8 @@ Implemented:
 - timed Stat modifiers can expire by reversing the initial `stat_delta` and can apply per-tick Stat changes while active
 - `belt_tools simulate` previews account energy dispatch cost/recovery and deterministic `drop_table` rewards on map clear
 - `belt_tools simulate` previews reward storage settlement by tab and one-day overflow mail output
+- `belt_tools simulate` can load/save local account state JSON with energy, inventory stacks, and one-day overflow mail
+- account-state reward writeback fills partial stacks before opening new slots and sends capacity overflow to mail
 - Play Preview renders impact flashes on the combat line
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -166,6 +168,7 @@ cargo run -p belt_tools -- simulate
 cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road
 cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road --current-energy 4 --elapsed-seconds 1200 --seed 1
 cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road --seed 1 --occupied-material-slots 40
+cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road --seed 1 --account-state projects\sample\account_state.json --write-account-state
 cargo run -p belt_tools -- data-status --project projects\sample
 cargo run -p belt_tools -- validate --project projects\sample
 cargo run -p belt_tools -- view --project projects\sample --view map_wave_preview
@@ -409,17 +412,37 @@ Validated endpoints:
 - `GET /`
 - `GET /api/play`
 
+## Account-State Format
+
+Local account-state files are JSON and intentionally map cleanly to a later server-backed account model:
+
+```json
+{
+  "energy": 92,
+  "last_energy_update_unix": 1000,
+  "inventory": [
+    { "item_key": "slime_gel", "quantity": 3 },
+    { "item_key": "energy_tonic", "quantity": 1 }
+  ],
+  "mail": [
+    { "item_key": "slime_gel", "quantity": 5, "expires_at_unix": 87400 }
+  ]
+}
+```
+
+Use `--account-state <path>` to preview settlement against a file and `--write-account-state` to persist dispatch energy, placed inventory stacks, and one-day overflow mail. If `--write-account-state` is used without `--account-state`, the default path is `<project>\account_state.json`.
+
 ## Recommended Next Task
 
-Improve sprite asset editing and visual preview authoring.
+Expose the local account-state loop in the tool UI and playable preview.
 
 Recommended order:
 
-1. Execute `skill_step` by tick offset using `cell_pattern`.
-2. Apply `skill_effect` damage and knockback.
-3. Add behavior/target rule runtime.
-4. Add persistent inventory writeback, stack merging with existing partial stacks, and overflow mail expiration state.
-5. Add account energy persistence and consumable energy restore handling.
+1. Add account-state load/save API endpoints to `belt_tools serve`.
+2. Add Warehouse UI for material/equipment/consumable inventory slots.
+3. Add local overflow mail UI with remaining expiry time and claim/delete actions.
+4. Add energy display and dungeon dispatch button that writes to account state.
+5. Add first recipe tables and instant alchemy/forge/refinement commands.
 6. Connect battle simulation states to visual state machine keys.
 7. Package and verify the updated `belt_tools.exe` again.
 

@@ -89,6 +89,7 @@ cargo run -p belt_tools -- import-aseprite --project projects\sample --file C:\p
 cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road
 cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road --current-energy 4 --elapsed-seconds 1200 --seed 1
 cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road --seed 1 --occupied-material-slots 40
+cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road --seed 1 --account-state projects\sample\account_state.json --write-account-state
 cargo run -p belt_tools -- serve --project projects\sample --addr 127.0.0.1:7878
 cargo run -p belt_tools -- play --project projects\sample --map endless_left_road --addr 127.0.0.1:7879
 ```
@@ -180,6 +181,8 @@ The first playable preview is available through `belt_tools play`:
 - Timed Stat modifiers can expire by reversing the initial `stat_delta` and can also apply per-tick Stat changes while active.
 - `belt_tools simulate` now previews account energy dispatch cost/recovery and deterministic `drop_table` rewards on map clear.
 - `belt_tools simulate` now previews reward storage settlement by storage tab and sends overflow quantities to one-day overflow mail output.
+- `belt_tools simulate` can load/save local account state JSON with energy, inventory stacks, and expiring overflow mail.
+- Account-state reward writeback fills partial inventory stacks before opening new slots and sends capacity overflow to one-day mail.
 
 ## Locked Design Direction
 
@@ -210,6 +213,36 @@ The first playable preview is available through `belt_tools play`:
 - Alchemy Furnace registers one recipe per output item and crafts non-equipment items instantly.
 - Forge crafts equipment from a consumable equipment recipe plus required material slots.
 - Refinement Workbench cubing uses one equipment slot and one material slot for option rerolls/mutation.
+
+## Current Account-State Format
+
+The local account-state file is intentionally small and server-portable:
+
+```json
+{
+  "energy": 92,
+  "last_energy_update_unix": 1000,
+  "inventory": [
+    { "item_key": "slime_gel", "quantity": 3 },
+    { "item_key": "energy_tonic", "quantity": 1 }
+  ],
+  "mail": [
+    { "item_key": "slime_gel", "quantity": 5, "expires_at_unix": 87400 }
+  ]
+}
+```
+
+`--write-account-state` defaults to `projects\sample\account_state.json` when `--project projects\sample` is used. Without `--write-account-state`, `--account-state <path>` only previews the account settlement.
+
+## Immediate Next Milestone: Operation Account Loop v1
+
+The next production-facing step is to expose the local account state in the UI and make it behave like the later server-backed account model:
+
+- Warehouse UI that reads account inventory stacks by material/equipment/consumable tab.
+- Local overflow mail UI with remaining expiry time and claim/delete actions.
+- Energy display that recovers by elapsed real time and can be spent by dungeon dispatch.
+- Account-state API endpoints in `belt_tools serve` and `belt_tools play` for preview/test workflows.
+- First recipe tables and instant alchemy/forge/refinement commands that mutate the same account-state file.
 
 ## Immediate Next Milestone: Combat Skill Runtime v1
 
