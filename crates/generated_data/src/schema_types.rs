@@ -310,3 +310,25 @@ pub struct RecipeIngredient {
     pub item: RowId,
     pub quantity: i32,
 }
+
+#[derive(Debug, Clone)]
+pub struct ForgeRecipe {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub recipe_item: RowId,
+    pub output_item: RowId,
+    pub output_quantity: i32,
+    pub ingredients: Vec<RowId>,
+    pub device: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ForgeIngredient {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub item: RowId,
+    pub quantity: i32,
+    pub slot_kind: String,
+}

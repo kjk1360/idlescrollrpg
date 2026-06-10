@@ -102,5 +102,57 @@
         "value": "Consumable equipment recipe for furnace crafting."
       }
     }
+  },
+  {
+    "id": 12005,
+    "key": "iron_ingot",
+    "cells": {
+      "100": {
+        "kind": "string",
+        "value": "Iron Ingot"
+      },
+      "101": {
+        "kind": "string",
+        "value": "material"
+      },
+      "102": {
+        "kind": "string",
+        "value": "common"
+      },
+      "103": {
+        "kind": "i32",
+        "value": 10
+      },
+      "104": {
+        "kind": "string",
+        "value": "Refined metal for basic equipment forging."
+      }
+    }
+  },
+  {
+    "id": 12006,
+    "key": "basic_sword",
+    "cells": {
+      "100": {
+        "kind": "string",
+        "value": "Basic Sword"
+      },
+      "101": {
+        "kind": "string",
+        "value": "equipment"
+      },
+      "102": {
+        "kind": "string",
+        "value": "common"
+      },
+      "103": {
+        "kind": "i32",
+        "value": 1
+      },
+      "104": {
+        "kind": "string",
+        "value": "Starter forged weapon."
+      }
+    }
   }
 ]

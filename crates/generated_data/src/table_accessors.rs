@@ -38,6 +38,8 @@ pub struct GeneratedDatabase {
     pub skill_stat_cost: GeneratedTable<SkillStatCost>,
     pub alchemy_recipe: GeneratedTable<AlchemyRecipe>,
     pub recipe_ingredient: GeneratedTable<RecipeIngredient>,
+    pub forge_recipe: GeneratedTable<ForgeRecipe>,
+    pub forge_ingredient: GeneratedTable<ForgeIngredient>,
 }
 
 #[derive(Debug, Clone)]
@@ -106,6 +108,8 @@ impl GeneratedDatabase {
             skill_stat_cost: load_skill_stat_cost(project)?,
             alchemy_recipe: load_alchemy_recipe(project)?,
             recipe_ingredient: load_recipe_ingredient(project)?,
+            forge_recipe: load_forge_recipe(project)?,
+            forge_ingredient: load_forge_ingredient(project)?,
         })
     }
 }
@@ -702,6 +706,48 @@ fn load_recipe_ingredient(
             name: read_string(row, FieldId(260), "recipe_ingredient.name")?,
             item: read_row(row, FieldId(261), "recipe_ingredient.item")?,
             quantity: read_i32(row, FieldId(262), "recipe_ingredient.quantity")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_forge_recipe(project: &DataProject) -> Result<GeneratedTable<ForgeRecipe>, String> {
+    let rows = table_rows(project, TableId(29))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(ForgeRecipe {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(270), "forge_recipe.name")?,
+            recipe_item: read_row(row, FieldId(271), "forge_recipe.recipe_item")?,
+            output_item: read_row(row, FieldId(272), "forge_recipe.output_item")?,
+            output_quantity: read_i32(row, FieldId(273), "forge_recipe.output_quantity")?,
+            ingredients: read_rows(row, FieldId(274), "forge_recipe.ingredients")?,
+            device: read_string(row, FieldId(275), "forge_recipe.device")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_forge_ingredient(project: &DataProject) -> Result<GeneratedTable<ForgeIngredient>, String> {
+    let rows = table_rows(project, TableId(30))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(ForgeIngredient {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(280), "forge_ingredient.name")?,
+            item: read_row(row, FieldId(281), "forge_ingredient.item")?,
+            quantity: read_i32(row, FieldId(282), "forge_ingredient.quantity")?,
+            slot_kind: read_string(row, FieldId(283), "forge_ingredient.slot_kind")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());

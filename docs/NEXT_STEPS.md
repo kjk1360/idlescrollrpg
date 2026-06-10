@@ -71,6 +71,10 @@
 - Added instant Alchemy Furnace crafting that consumes account inventory ingredients and writes crafted output back to the same local account-state file.
 - Data Studio Operation tab now shows Alchemy Furnace recipes, ingredient availability, craftable state, and a Craft action.
 - Added `POST /api/account-alchemy/craft` for local account-state mutation.
+- Added first `forge_recipe` and `forge_ingredient` data tables.
+- Added instant Forge crafting that consumes an equipment recipe item plus material slots and writes equipment output back to the same local account-state file.
+- Data Studio Operation tab now shows Forge recipes, slot requirements, craftable state, and a Forge action.
+- Added `POST /api/account-forge/craft` for local account-state mutation.
 
 ## Current Stable CLI Flow
 
@@ -260,7 +264,7 @@ The local account-state file is intentionally small and server-portable:
 The next production-facing step is to expose the local account state in the UI and make it behave like the later server-backed account model:
 
 - Account-state API endpoints in `belt_tools play` for preview/test workflows.
-- First forge/refinement commands that mutate the same account-state file.
+- First refinement commands that mutate the same account-state file.
 - Connect Operation actions to Guild House scene feedback states.
 
 ## Server Direction

@@ -1,0 +1,46 @@
+[
+  {
+    "id": 30001,
+    "key": "basic_sword_iron_ingot",
+    "cells": {
+      "280": {
+        "kind": "string",
+        "value": "Basic Sword Iron Ingot"
+      },
+      "281": {
+        "kind": "row",
+        "value": 12005
+      },
+      "282": {
+        "kind": "i32",
+        "value": 2
+      },
+      "283": {
+        "kind": "string",
+        "value": "metal"
+      }
+    }
+  },
+  {
+    "id": 30002,
+    "key": "basic_sword_slime_gel",
+    "cells": {
+      "280": {
+        "kind": "string",
+        "value": "Basic Sword Binding Gel"
+      },
+      "281": {
+        "kind": "row",
+        "value": 12001
+      },
+      "282": {
+        "kind": "i32",
+        "value": 1
+      },
+      "283": {
+        "kind": "string",
+        "value": "binder"
+      }
+    }
+  }
+]

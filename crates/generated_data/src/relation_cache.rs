@@ -46,6 +46,10 @@ pub struct GeneratedRelationCache {
     pub alchemy_recipe_output_item: HashMap<RowId, RowId>,
     pub alchemy_recipe_ingredients: HashMap<RowId, Vec<RowId>>,
     pub recipe_ingredient_item: HashMap<RowId, RowId>,
+    pub forge_recipe_recipe_item: HashMap<RowId, RowId>,
+    pub forge_recipe_output_item: HashMap<RowId, RowId>,
+    pub forge_recipe_ingredients: HashMap<RowId, Vec<RowId>>,
+    pub forge_ingredient_item: HashMap<RowId, RowId>,
 }
 
 impl GeneratedRelationCache {
@@ -451,6 +455,50 @@ impl GeneratedRelationCache {
             }
             cache.recipe_ingredient_item.insert(row.id, row.item);
         }
+        for row in &db.forge_recipe.rows {
+            if db.item_def.get_by_id(row.recipe_item).is_none() {
+                return Err(format!(
+                    "missing relation target for forge_recipe.recipe_item from {:?} to {:?}",
+                    row.id, row.recipe_item
+                ));
+            }
+            cache
+                .forge_recipe_recipe_item
+                .insert(row.id, row.recipe_item);
+        }
+        for row in &db.forge_recipe.rows {
+            if db.item_def.get_by_id(row.output_item).is_none() {
+                return Err(format!(
+                    "missing relation target for forge_recipe.output_item from {:?} to {:?}",
+                    row.id, row.output_item
+                ));
+            }
+            cache
+                .forge_recipe_output_item
+                .insert(row.id, row.output_item);
+        }
+        for row in &db.forge_recipe.rows {
+            for target_id in &row.ingredients {
+                if db.forge_ingredient.get_by_id(*target_id).is_none() {
+                    return Err(format!(
+                        "missing relation target for forge_recipe.ingredients from {:?} to {:?}",
+                        row.id, target_id
+                    ));
+                }
+            }
+            cache
+                .forge_recipe_ingredients
+                .insert(row.id, row.ingredients.clone());
+        }
+        for row in &db.forge_ingredient.rows {
+            if db.item_def.get_by_id(row.item).is_none() {
+                return Err(format!(
+                    "missing relation target for forge_ingredient.item from {:?} to {:?}",
+                    row.id, row.item
+                ));
+            }
+            cache.forge_ingredient_item.insert(row.id, row.item);
+        }
         Ok(cache)
     }
 
@@ -614,5 +662,23 @@ impl GeneratedRelationCache {
 
     pub fn get_recipe_ingredient_item(&self, source: RowId) -> Option<RowId> {
         self.recipe_ingredient_item.get(&source).copied()
+    }
+
+    pub fn get_forge_recipe_recipe_item(&self, source: RowId) -> Option<RowId> {
+        self.forge_recipe_recipe_item.get(&source).copied()
+    }
+
+    pub fn get_forge_recipe_output_item(&self, source: RowId) -> Option<RowId> {
+        self.forge_recipe_output_item.get(&source).copied()
+    }
+
+    pub fn get_forge_recipe_ingredients(&self, source: RowId) -> Option<&[RowId]> {
+        self.forge_recipe_ingredients
+            .get(&source)
+            .map(Vec::as_slice)
+    }
+
+    pub fn get_forge_ingredient_item(&self, source: RowId) -> Option<RowId> {
+        self.forge_ingredient_item.get(&source).copied()
     }
 }

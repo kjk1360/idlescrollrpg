@@ -1,0 +1,35 @@
+[
+  {
+    "id": 29001,
+    "key": "basic_sword_forge",
+    "cells": {
+      "270": {
+        "kind": "string",
+        "value": "Basic Sword Forge"
+      },
+      "271": {
+        "kind": "row",
+        "value": 12004
+      },
+      "272": {
+        "kind": "row",
+        "value": 12006
+      },
+      "273": {
+        "kind": "i32",
+        "value": 1
+      },
+      "274": {
+        "kind": "rows",
+        "value": [
+          30001,
+          30002
+        ]
+      },
+      "275": {
+        "kind": "string",
+        "value": "forge"
+      }
+    }
+  }
+]

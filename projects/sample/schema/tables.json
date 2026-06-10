@@ -1501,5 +1501,113 @@
         "required": true
       }
     ]
+  },
+  {
+    "id": 29,
+    "key": "forge_recipe",
+    "display_name": "Forge Recipe",
+    "fields": [
+      {
+        "id": 270,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 271,
+        "key": "recipe_item",
+        "display_name": "Recipe Item",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 12
+        },
+        "required": true
+      },
+      {
+        "id": 272,
+        "key": "output_item",
+        "display_name": "Output Item",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 12
+        },
+        "required": true
+      },
+      {
+        "id": 273,
+        "key": "output_quantity",
+        "display_name": "Output Quantity",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 274,
+        "key": "ingredients",
+        "display_name": "Ingredients",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 30
+        },
+        "required": true
+      },
+      {
+        "id": 275,
+        "key": "device",
+        "display_name": "Device",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 30,
+    "key": "forge_ingredient",
+    "display_name": "Forge Ingredient",
+    "fields": [
+      {
+        "id": 280,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 281,
+        "key": "item",
+        "display_name": "Item",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 12
+        },
+        "required": true
+      },
+      {
+        "id": 282,
+        "key": "quantity",
+        "display_name": "Quantity",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 283,
+        "key": "slot_kind",
+        "display_name": "Slot Kind",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      }
+    ]
   }
 ]
