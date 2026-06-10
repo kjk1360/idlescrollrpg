@@ -1,0 +1,24 @@
+[
+  {
+    "id": 33001,
+    "key": "moonless_black_night_moonlight",
+    "cells": {
+      "310": {
+        "kind": "string",
+        "value": "Moonless Black Night Moonlight"
+      },
+      "311": {
+        "kind": "row",
+        "value": 23006
+      },
+      "312": {
+        "kind": "f32",
+        "value": 1.0
+      },
+      "313": {
+        "kind": "string",
+        "value": "on_equip"
+      }
+    }
+  }
+]

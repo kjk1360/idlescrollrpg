@@ -2690,14 +2690,15 @@ const INDEX_HTML: &str = r#"<!doctype html>
           <div class="operation-panel wide">
             <div class="operation-head"><span>Equipment Instances</span><span>${equipment.length}</span></div>
             <table>
-              <thead><tr><th>Equipment</th><th>Rarity</th><th>Options</th></tr></thead>
+              <thead><tr><th>Equipment</th><th>Rarity</th><th>Stat Options</th><th>Special Options</th></tr></thead>
               <tbody>
                 ${equipment.map(item => `
                   <tr>
                     <td>${escapeHtml(item.name)}<br><small>${escapeHtml(item.instance_id)}</small></td>
                     <td>${escapeHtml(item.rarity)}</td>
                     <td>${(item.options || []).map(option => `${escapeHtml(option.stat_key)} +${option.value} <small>${escapeHtml(option.rarity)}</small>`).join('<br>') || 'none'}</td>
-                  </tr>`).join('') || '<tr><td colspan="3">empty</td></tr>'}
+                    <td>${(item.special_options || []).map(option => `${escapeHtml(option.name)} <small>${escapeHtml(option.rarity)}</small><br><small>${escapeHtml(option.effect_summary)}</small>`).join('<br>') || 'none'}</td>
+                  </tr>`).join('') || '<tr><td colspan="4">empty</td></tr>'}
               </tbody>
             </table>
           </div>

@@ -1,0 +1,38 @@
+[
+  {
+    "id": 32001,
+    "key": "moonless_black_night",
+    "cells": {
+      "300": {
+        "kind": "string",
+        "value": "Moonless Black Night"
+      },
+      "301": {
+        "kind": "string",
+        "value": "legendary"
+      },
+      "302": {
+        "kind": "string",
+        "value": "Grants Moonlight. Every 5 seconds gain 1 current Moonlight. At 3 stacks, consume Moonlight to trigger Eclipse and Moon's Wrath."
+      },
+      "303": {
+        "kind": "rows",
+        "value": [
+          33001
+        ]
+      },
+      "304": {
+        "kind": "row",
+        "value": 17001
+      },
+      "305": {
+        "kind": "string",
+        "value": "combat_tick_5s_moonlight_3"
+      },
+      "306": {
+        "kind": "string",
+        "value": "Consumes 3 Moonlight to apply Moon's Wrath for 10 seconds; while active, every 0.5 seconds hit a random enemy for 100% attack."
+      }
+    }
+  }
+]

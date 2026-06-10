@@ -114,6 +114,10 @@ Implemented:
 - Forge equipment output creates equipment instances instead of equipment item stacks
 - Refinement consumes an equipment instance, preserves existing options, adds the recipe effect option, and creates a new equipment instance
 - Data Studio Operation tab shows Equipment Instances separately from stack inventory
+- `special_option_def` and `special_option_stat_delta` tables exist for named non-stat-only equipment special options
+- sample special option `moonless_black_night` exists with rarity, trigger key, effect summary, Moonlight stat delta, and granted skill reference
+- equipment instances store stat options and special options as separate collections
+- Refinement recipes can attach authored special options to the output equipment instance
 - Play Preview renders impact flashes on the combat line
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -470,6 +474,19 @@ Local account-state files are JSON and intentionally map cleanly to a later serv
       "rarity": "common",
       "options": [
         { "stat_key": "strength", "value": 1, "rarity": "common" }
+      ],
+      "special_options": [
+        {
+          "option_key": "moonless_black_night",
+          "name": "Moonless Black Night",
+          "rarity": "legendary",
+          "trigger_key": "combat_tick_5s_moonlight_3",
+          "effect_summary": "Consumes 3 Moonlight to apply Moon's Wrath for 10 seconds.",
+          "stat_deltas": [
+            { "stat_key": "moonlight", "value": 1.0, "condition": "on_equip" }
+          ],
+          "granted_skill_key": "knight_slash"
+        }
       ]
     }
   ],
@@ -487,11 +504,12 @@ Expose the local account-state loop in the tool UI and playable preview.
 
 Recommended order:
 
-1. Add authored equipment option definition tables and refinement effect rules for reroll/mutation instead of the current fixed sample option.
-2. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
-3. Keep chat/guild/ranking behind auction house priority.
-4. Connect battle simulation states to visual state machine keys.
-5. Package and verify the updated `belt_tools.exe` again.
+1. Connect equipment special options to combat stat/skill/trigger runtime so options can grant stats, skills, skill mutations, and conditional effects.
+2. Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
+3. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
+4. Keep chat/guild/ranking behind auction house priority.
+5. Connect battle simulation states to visual state machine keys.
+6. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats
 

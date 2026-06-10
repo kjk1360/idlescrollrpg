@@ -1680,6 +1680,132 @@
           "kind": "string"
         },
         "required": true
+      },
+      {
+        "id": 297,
+        "key": "special_options",
+        "display_name": "Special Options",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 32
+        },
+        "required": false
+      }
+    ]
+  },
+  {
+    "id": 32,
+    "key": "special_option_def",
+    "display_name": "Special Option Def",
+    "fields": [
+      {
+        "id": 300,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 301,
+        "key": "rarity",
+        "display_name": "Rarity",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 302,
+        "key": "description",
+        "display_name": "Description",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 303,
+        "key": "stat_deltas",
+        "display_name": "Stat Deltas",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 33
+        },
+        "required": false
+      },
+      {
+        "id": 304,
+        "key": "granted_skill",
+        "display_name": "Granted Skill",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 17
+        },
+        "required": false
+      },
+      {
+        "id": 305,
+        "key": "trigger_key",
+        "display_name": "Trigger Key",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 306,
+        "key": "effect_summary",
+        "display_name": "Effect Summary",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 33,
+    "key": "special_option_stat_delta",
+    "display_name": "Special Option Stat Delta",
+    "fields": [
+      {
+        "id": 310,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 311,
+        "key": "stat",
+        "display_name": "Stat",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 23
+        },
+        "required": true
+      },
+      {
+        "id": 312,
+        "key": "value",
+        "display_name": "Value",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 313,
+        "key": "condition",
+        "display_name": "Condition",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
       }
     ]
   }

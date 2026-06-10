@@ -41,6 +41,8 @@ pub struct GeneratedDatabase {
     pub forge_recipe: GeneratedTable<ForgeRecipe>,
     pub forge_ingredient: GeneratedTable<ForgeIngredient>,
     pub refinement_recipe: GeneratedTable<RefinementRecipe>,
+    pub special_option_def: GeneratedTable<SpecialOptionDef>,
+    pub special_option_stat_delta: GeneratedTable<SpecialOptionStatDelta>,
 }
 
 #[derive(Debug, Clone)]
@@ -112,6 +114,8 @@ impl GeneratedDatabase {
             forge_recipe: load_forge_recipe(project)?,
             forge_ingredient: load_forge_ingredient(project)?,
             refinement_recipe: load_refinement_recipe(project)?,
+            special_option_def: load_special_option_def(project)?,
+            special_option_stat_delta: load_special_option_stat_delta(project)?,
         })
     }
 }
@@ -775,6 +779,54 @@ fn load_refinement_recipe(
             output_item: read_row(row, FieldId(294), "refinement_recipe.output_item")?,
             effect_kind: read_string(row, FieldId(295), "refinement_recipe.effect_kind")?,
             device: read_string(row, FieldId(296), "refinement_recipe.device")?,
+            special_options: read_rows(row, FieldId(297), "refinement_recipe.special_options")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_special_option_def(
+    project: &DataProject,
+) -> Result<GeneratedTable<SpecialOptionDef>, String> {
+    let rows = table_rows(project, TableId(32))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(SpecialOptionDef {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(300), "special_option_def.name")?,
+            rarity: read_string(row, FieldId(301), "special_option_def.rarity")?,
+            description: read_string(row, FieldId(302), "special_option_def.description")?,
+            stat_deltas: read_rows(row, FieldId(303), "special_option_def.stat_deltas")?,
+            granted_skill: read_row(row, FieldId(304), "special_option_def.granted_skill")?,
+            trigger_key: read_string(row, FieldId(305), "special_option_def.trigger_key")?,
+            effect_summary: read_string(row, FieldId(306), "special_option_def.effect_summary")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_special_option_stat_delta(
+    project: &DataProject,
+) -> Result<GeneratedTable<SpecialOptionStatDelta>, String> {
+    let rows = table_rows(project, TableId(33))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(SpecialOptionStatDelta {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(310), "special_option_stat_delta.name")?,
+            stat: read_row(row, FieldId(311), "special_option_stat_delta.stat")?,
+            value: read_f32(row, FieldId(312), "special_option_stat_delta.value")?,
+            condition: read_string(row, FieldId(313), "special_option_stat_delta.condition")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());

@@ -1,5 +1,5 @@
 use belt_core::{sample_battle_config, BattleEvent, BattleWorld};
-use data_studio_core::{sample_project, DataProject, ProjectFingerprints, ProjectStatus};
+use data_studio_core::{sample_project, DataProject, ProjectFingerprints, ProjectStatus, RowId};
 use game_data_adapter::battle_config_from_project;
 use generated_data::relation_cache::GeneratedRelationCache;
 use generated_data::table_accessors::GeneratedDatabase;
@@ -335,7 +335,7 @@ struct StorageTabSettlement {
     placed_quantity: i32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct AccountState {
     energy: i32,
     last_energy_update_unix: i64,
@@ -351,13 +351,16 @@ struct AccountItemStack {
     quantity: i32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct AccountEquipmentInstance {
     instance_id: String,
     item_key: String,
     display_name: String,
     rarity: String,
+    #[serde(default)]
     options: Vec<AccountEquipmentOption>,
+    #[serde(default)]
+    special_options: Vec<AccountEquipmentSpecialOption>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -365,6 +368,25 @@ struct AccountEquipmentOption {
     stat_key: String,
     value: i32,
     rarity: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+struct AccountEquipmentSpecialOption {
+    option_key: String,
+    name: String,
+    rarity: String,
+    description: String,
+    trigger_key: String,
+    effect_summary: String,
+    stat_deltas: Vec<AccountSpecialOptionStatDelta>,
+    granted_skill_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+struct AccountSpecialOptionStatDelta {
+    stat_key: String,
+    value: f32,
+    condition: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -579,7 +601,7 @@ fn apply_rewards_to_account_state(
                 }
                 let sequence = state.equipment.len() + placed_quantity as usize + 1;
                 state.equipment.push(equipment_instance_from_reward(
-                    reward, now_unix, sequence, None,
+                    reward, now_unix, sequence, None, None,
                 ));
                 remaining -= 1;
                 placed_quantity += 1;
@@ -652,6 +674,7 @@ fn equipment_instance_from_reward(
     now_unix: i64,
     sequence: usize,
     inherited_options: Option<Vec<AccountEquipmentOption>>,
+    inherited_special_options: Option<Vec<AccountEquipmentSpecialOption>>,
 ) -> AccountEquipmentInstance {
     AccountEquipmentInstance {
         instance_id: format!("eq_{}_{}_{}", now_unix.max(0), reward.item_key, sequence),
@@ -669,6 +692,7 @@ fn equipment_instance_from_reward(
                 rarity: reward.rarity.clone(),
             }]
         }),
+        special_options: inherited_special_options.unwrap_or_default(),
     }
 }
 
@@ -682,6 +706,56 @@ fn consume_equipment_instance(
         .position(|equipment| equipment.item_key == item_key)
         .ok_or_else(|| format!("missing equipment instance {item_key}"))?;
     Ok(state.equipment.remove(index))
+}
+
+fn special_options_from_recipe(
+    db: &GeneratedDatabase,
+    option_ids: &[RowId],
+) -> Result<Vec<AccountEquipmentSpecialOption>, String> {
+    option_ids
+        .iter()
+        .map(|option_id| {
+            let option = db
+                .special_option_def
+                .get_by_id(*option_id)
+                .ok_or_else(|| format!("missing special option {:?}", option_id))?;
+            let stat_deltas = option
+                .stat_deltas
+                .iter()
+                .map(|delta_id| {
+                    let delta = db
+                        .special_option_stat_delta
+                        .get_by_id(*delta_id)
+                        .ok_or_else(|| {
+                            format!("missing special option stat delta {:?}", delta_id)
+                        })?;
+                    let stat = db
+                        .stat_def
+                        .get_by_id(delta.stat)
+                        .ok_or_else(|| format!("missing stat {:?}", delta.stat))?;
+                    Ok(AccountSpecialOptionStatDelta {
+                        stat_key: stat.key.clone(),
+                        value: delta.value,
+                        condition: delta.condition.clone(),
+                    })
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            let granted_skill_key = db
+                .skill_def
+                .get_by_id(option.granted_skill)
+                .map(|skill| skill.key.clone());
+            Ok(AccountEquipmentSpecialOption {
+                option_key: option.key.clone(),
+                name: option.name.clone(),
+                rarity: option.rarity.clone(),
+                description: option.description.clone(),
+                trigger_key: option.trigger_key.clone(),
+                effect_summary: option.effect_summary.clone(),
+                stat_deltas,
+                granted_skill_key,
+            })
+        })
+        .collect()
 }
 
 fn equipment_quantity(state: &AccountState, item_key: &str) -> i32 {
@@ -719,7 +793,7 @@ fn migrate_equipment_stacks_to_instances(
                     quantity: 1,
                 };
                 migrated.push(equipment_instance_from_reward(
-                    &reward, now_unix, sequence, None,
+                    &reward, now_unix, sequence, None, None,
                 ));
             }
         } else {
@@ -1147,6 +1221,8 @@ fn craft_refinement_recipe(
         value: 1,
         rarity: output_item.rarity.clone(),
     });
+    let mut inherited_special_options = consumed_equipment.special_options;
+    inherited_special_options.extend(special_options_from_recipe(&db, &recipe.special_options)?);
     let reward = RewardStack {
         item_key: output_item.key.clone(),
         item_name: output_item.name.clone(),
@@ -1176,6 +1252,7 @@ fn craft_refinement_recipe(
         now_unix,
         sequence,
         Some(inherited_options),
+        Some(inherited_special_options),
     ));
     Ok(AccountRewardSettlement {
         placed: vec![reward],
@@ -1551,6 +1628,24 @@ pub(crate) fn account_state_snapshot_for_api(
                         "stat_key": option.stat_key,
                         "value": option.value,
                         "rarity": option.rarity,
+                    })
+                }).collect::<Vec<_>>(),
+                "special_options": equipment.special_options.iter().map(|option| {
+                    serde_json::json!({
+                        "option_key": option.option_key,
+                        "name": option.name,
+                        "rarity": option.rarity,
+                        "description": option.description,
+                        "trigger_key": option.trigger_key,
+                        "effect_summary": option.effect_summary,
+                        "granted_skill_key": option.granted_skill_key,
+                        "stat_deltas": option.stat_deltas.iter().map(|delta| {
+                            serde_json::json!({
+                                "stat_key": delta.stat_key,
+                                "value": delta.value,
+                                "condition": delta.condition,
+                            })
+                        }).collect::<Vec<_>>(),
                     })
                 }).collect::<Vec<_>>(),
             })
@@ -2331,6 +2426,7 @@ mod tests {
                     value: 1,
                     rarity: "common".to_string(),
                 }],
+                special_options: Vec::new(),
             }],
             mail: Vec::new(),
         };
@@ -2344,6 +2440,11 @@ mod tests {
         assert_eq!(inventory_quantity(&state, "refinement_stone"), 0);
         assert_eq!(equipment_quantity(&state, "tempered_basic_sword"), 1);
         assert_eq!(state.equipment[0].options.len(), 2);
+        assert_eq!(state.equipment[0].special_options.len(), 1);
+        assert_eq!(
+            state.equipment[0].special_options[0].option_key,
+            "moonless_black_night"
+        );
     }
 }
 

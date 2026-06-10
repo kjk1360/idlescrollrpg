@@ -83,6 +83,10 @@
 - Forge equipment output now creates equipment instances instead of equipment item stacks.
 - Refinement now consumes an equipment instance, preserves its existing options, adds the recipe effect option, and writes a new equipment instance.
 - Operation UI now shows Equipment Instances and their options separately from stack inventory.
+- Added `special_option_def` and `special_option_stat_delta` data tables for named non-stat-only equipment special options.
+- Added sample special option `moonless_black_night`, with rarity, trigger key, effect summary, Moonlight stat delta, and granted skill reference.
+- Equipment instances now store stat options and special options as separate collections.
+- Refinement recipes can attach authored special options to the output equipment instance.
 
 ## Current Stable CLI Flow
 
@@ -268,6 +272,19 @@ The local account-state file is intentionally small and server-portable:
       "rarity": "common",
       "options": [
         { "stat_key": "strength", "value": 1, "rarity": "common" }
+      ],
+      "special_options": [
+        {
+          "option_key": "moonless_black_night",
+          "name": "Moonless Black Night",
+          "rarity": "legendary",
+          "trigger_key": "combat_tick_5s_moonlight_3",
+          "effect_summary": "Consumes 3 Moonlight to apply Moon's Wrath for 10 seconds.",
+          "stat_deltas": [
+            { "stat_key": "moonlight", "value": 1.0, "condition": "on_equip" }
+          ],
+          "granted_skill_key": "knight_slash"
+        }
       ]
     }
   ],
@@ -284,7 +301,8 @@ The local account-state file is intentionally small and server-portable:
 The next production-facing step is to expose the local account state in the UI and make it behave like the later server-backed account model:
 
 - Account-state API endpoints in `belt_tools play` for preview/test workflows.
-- Add authored equipment option definition tables and refinement effect rules for reroll/mutation instead of the current fixed sample option.
+- Connect equipment special options to combat stat/skill/trigger runtime so options can grant stats, skills, skill mutations, and conditional effects.
+- Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
 
 ## Server Direction
 

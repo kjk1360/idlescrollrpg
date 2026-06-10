@@ -58,5 +58,17 @@
       "214": { "kind": "f32", "value": 999999.0 },
       "215": { "kind": "string", "value": "status" }
     }
+  },
+  {
+    "id": 23006,
+    "key": "moonlight",
+    "cells": {
+      "210": { "kind": "string", "value": "Moonlight" },
+      "211": { "kind": "string", "value": "f32" },
+      "212": { "kind": "f32", "value": 0.0 },
+      "213": { "kind": "f32", "value": 0.0 },
+      "214": { "kind": "f32", "value": 999999.0 },
+      "215": { "kind": "string", "value": "special_stack" }
+    }
   }
 ]

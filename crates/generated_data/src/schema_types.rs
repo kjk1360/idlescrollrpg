@@ -344,4 +344,28 @@ pub struct RefinementRecipe {
     pub output_item: RowId,
     pub effect_kind: String,
     pub device: String,
+    pub special_options: Vec<RowId>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SpecialOptionDef {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub rarity: String,
+    pub description: String,
+    pub stat_deltas: Vec<RowId>,
+    pub granted_skill: RowId,
+    pub trigger_key: String,
+    pub effect_summary: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SpecialOptionStatDelta {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub stat: RowId,
+    pub value: f32,
+    pub condition: String,
 }

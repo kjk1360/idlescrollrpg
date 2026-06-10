@@ -53,6 +53,10 @@ pub struct GeneratedRelationCache {
     pub refinement_recipe_input_equipment: HashMap<RowId, RowId>,
     pub refinement_recipe_material_item: HashMap<RowId, RowId>,
     pub refinement_recipe_output_item: HashMap<RowId, RowId>,
+    pub refinement_recipe_special_options: HashMap<RowId, Vec<RowId>>,
+    pub special_option_def_stat_deltas: HashMap<RowId, Vec<RowId>>,
+    pub special_option_def_granted_skill: HashMap<RowId, RowId>,
+    pub special_option_stat_delta_stat: HashMap<RowId, RowId>,
 }
 
 impl GeneratedRelationCache {
@@ -532,6 +536,45 @@ impl GeneratedRelationCache {
                 .refinement_recipe_output_item
                 .insert(row.id, row.output_item);
         }
+        for row in &db.refinement_recipe.rows {
+            for target_id in &row.special_options {
+                if db.special_option_def.get_by_id(*target_id).is_none() {
+                    return Err(format!("missing relation target for refinement_recipe.special_options from {:?} to {:?}", row.id, target_id));
+                }
+            }
+            cache
+                .refinement_recipe_special_options
+                .insert(row.id, row.special_options.clone());
+        }
+        for row in &db.special_option_def.rows {
+            for target_id in &row.stat_deltas {
+                if db.special_option_stat_delta.get_by_id(*target_id).is_none() {
+                    return Err(format!("missing relation target for special_option_def.stat_deltas from {:?} to {:?}", row.id, target_id));
+                }
+            }
+            cache
+                .special_option_def_stat_deltas
+                .insert(row.id, row.stat_deltas.clone());
+        }
+        for row in &db.special_option_def.rows {
+            if db.skill_def.get_by_id(row.granted_skill).is_none() {
+                return Err(format!("missing relation target for special_option_def.granted_skill from {:?} to {:?}", row.id, row.granted_skill));
+            }
+            cache
+                .special_option_def_granted_skill
+                .insert(row.id, row.granted_skill);
+        }
+        for row in &db.special_option_stat_delta.rows {
+            if db.stat_def.get_by_id(row.stat).is_none() {
+                return Err(format!(
+                    "missing relation target for special_option_stat_delta.stat from {:?} to {:?}",
+                    row.id, row.stat
+                ));
+            }
+            cache
+                .special_option_stat_delta_stat
+                .insert(row.id, row.stat);
+        }
         Ok(cache)
     }
 
@@ -725,5 +768,25 @@ impl GeneratedRelationCache {
 
     pub fn get_refinement_recipe_output_item(&self, source: RowId) -> Option<RowId> {
         self.refinement_recipe_output_item.get(&source).copied()
+    }
+
+    pub fn get_refinement_recipe_special_options(&self, source: RowId) -> Option<&[RowId]> {
+        self.refinement_recipe_special_options
+            .get(&source)
+            .map(Vec::as_slice)
+    }
+
+    pub fn get_special_option_def_stat_deltas(&self, source: RowId) -> Option<&[RowId]> {
+        self.special_option_def_stat_deltas
+            .get(&source)
+            .map(Vec::as_slice)
+    }
+
+    pub fn get_special_option_def_granted_skill(&self, source: RowId) -> Option<RowId> {
+        self.special_option_def_granted_skill.get(&source).copied()
+    }
+
+    pub fn get_special_option_stat_delta_stat(&self, source: RowId) -> Option<RowId> {
+        self.special_option_stat_delta_stat.get(&source).copied()
     }
 }
