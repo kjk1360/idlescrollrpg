@@ -48,6 +48,7 @@ pub struct GeneratedDatabase {
     pub special_trigger_condition: GeneratedTable<SpecialTriggerCondition>,
     pub special_trigger_effect: GeneratedTable<SpecialTriggerEffect>,
     pub special_option_skill_mutation: GeneratedTable<SpecialOptionSkillMutation>,
+    pub refinement_effect: GeneratedTable<RefinementEffect>,
 }
 
 #[derive(Debug, Clone)]
@@ -126,6 +127,7 @@ impl GeneratedDatabase {
             special_trigger_condition: load_special_trigger_condition(project)?,
             special_trigger_effect: load_special_trigger_effect(project)?,
             special_option_skill_mutation: load_special_option_skill_mutation(project)?,
+            refinement_effect: load_refinement_effect(project)?,
         })
     }
 }
@@ -790,6 +792,7 @@ fn load_refinement_recipe(
             effect_kind: read_string(row, FieldId(295), "refinement_recipe.effect_kind")?,
             device: read_string(row, FieldId(296), "refinement_recipe.device")?,
             special_options: read_rows(row, FieldId(297), "refinement_recipe.special_options")?,
+            effects: read_rows(row, FieldId(298), "refinement_recipe.effects")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());
@@ -1020,6 +1023,30 @@ fn load_special_option_skill_mutation(
                 FieldId(385),
                 "special_option_skill_mutation.range_delta",
             )?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_refinement_effect(
+    project: &DataProject,
+) -> Result<GeneratedTable<RefinementEffect>, String> {
+    let rows = table_rows(project, TableId(39))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(RefinementEffect {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(390), "refinement_effect.name")?,
+            effect_kind: read_string(row, FieldId(391), "refinement_effect.effect_kind")?,
+            stat_key: read_string(row, FieldId(392), "refinement_effect.stat_key")?,
+            stat_value: read_i32(row, FieldId(393), "refinement_effect.stat_value")?,
+            stat_rarity: read_string(row, FieldId(394), "refinement_effect.stat_rarity")?,
+            special_options: read_rows(row, FieldId(395), "refinement_effect.special_options")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());

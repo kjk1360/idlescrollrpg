@@ -2751,14 +2751,26 @@ const INDEX_HTML: &str = r#"<!doctype html>
             <table>
               <thead><tr><th>Recipe</th><th>Input</th><th>Material</th><th>Output</th><th>Action</th></tr></thead>
               <tbody>
-                ${refinementRecipes.map(recipe => `
+                ${refinementRecipes.map(recipe => {
+                  const effects = (recipe.effects || []).map(effect => {
+                    if (effect.effect_kind === 'add_stat_option') {
+                      return `${escapeHtml(effect.stat_key)} +${effect.stat_value} <small>${escapeHtml(effect.stat_rarity || '')}</small>`;
+                    }
+                    if (effect.effect_kind === 'add_special_option') {
+                      const names = (effect.special_options || []).map(option => escapeHtml(option.name)).join(', ');
+                      return `special: ${names || escapeHtml(effect.name)}`;
+                    }
+                    return escapeHtml(effect.name || effect.effect_kind || '');
+                  }).join('<br>') || escapeHtml(recipe.effect_kind || '');
+                  return `
                   <tr>
-                    <td>${escapeHtml(recipe.name)}<br><small>${escapeHtml(recipe.effect_kind)}</small></td>
+                    <td>${escapeHtml(recipe.name)}<br><small>${effects}</small></td>
                     <td>${escapeHtml(recipe.input_name)} ${recipe.input_available}/1</td>
                     <td>${escapeHtml(recipe.material_name)} ${recipe.material_available}/${recipe.material_quantity}</td>
                     <td>${escapeHtml(recipe.output_name)}</td>
                     <td><button onclick="craftRefinement('${escapeAttr(recipe.key)}')" ${recipe.craftable ? '' : 'disabled'}>Refine</button></td>
-                  </tr>`).join('') || '<tr><td colspan="5">empty</td></tr>'}
+                  </tr>`;
+                }).join('') || '<tr><td colspan="5">empty</td></tr>'}
               </tbody>
             </table>
           </div>

@@ -345,6 +345,7 @@ pub struct RefinementRecipe {
     pub effect_kind: String,
     pub device: String,
     pub special_options: Vec<RowId>,
+    pub effects: Vec<RowId>,
 }
 
 #[derive(Debug, Clone)]
@@ -439,4 +440,16 @@ pub struct SpecialOptionSkillMutation {
     pub damage_scale_delta: f32,
     pub cooldown_ticks_delta: i32,
     pub range_delta: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct RefinementEffect {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub effect_kind: String,
+    pub stat_key: String,
+    pub stat_value: i32,
+    pub stat_rarity: String,
+    pub special_options: Vec<RowId>,
 }

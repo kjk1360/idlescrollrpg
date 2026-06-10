@@ -81,7 +81,9 @@
 - Added `POST /api/account-refinement/craft` for local account-state mutation.
 - Added account-level equipment instances with stable instance ids and option lists.
 - Forge equipment output now creates equipment instances instead of equipment item stacks.
-- Refinement now consumes an equipment instance, preserves its existing options, adds the recipe effect option, and writes a new equipment instance.
+- Refinement now consumes an equipment instance, preserves its existing options, applies data-authored refinement effects, and writes a new equipment instance.
+- Added `refinement_effect` and `refinement_recipe.effects`; effect kind `add_stat_option` appends a stat option and `add_special_option` appends authored equipment special options.
+- Data Studio Operation tab now displays refinement recipe effect rows instead of only the legacy `effect_kind` label.
 - Operation UI now shows Equipment Instances and their options separately from stack inventory.
 - Added `special_option_def` and `special_option_stat_delta` data tables for named non-stat-only equipment special options.
 - Added sample special option `moonless_black_night`, with rarity, trigger key, effect summary, Moonlight stat delta, and granted skill reference.
@@ -328,7 +330,7 @@ The next production-facing step is to expose the local account state in the UI a
 - Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
 - Add richer condition presets and buff/debuff authoring hints to the composable special trigger tables.
 - Extend equipment special option mutations beyond `damage_scale_add` into effect add/remove/replace, projectile/AOE conversion, and richer conditional mutation presets.
-- Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
+- Extend refinement effect rules beyond deterministic add-stat/add-special-option into reroll pools, mutation weights, option removal/replacement, and lock/no-more-cubing outcomes.
 
 ## Server Direction
 

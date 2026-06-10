@@ -1,0 +1,64 @@
+[
+  {
+    "id": 39001,
+    "key": "temper_add_fixed_strength",
+    "cells": {
+      "390": {
+        "kind": "string",
+        "value": "Temper Add Fixed Strength"
+      },
+      "391": {
+        "kind": "string",
+        "value": "add_stat_option"
+      },
+      "392": {
+        "kind": "string",
+        "value": "fixed_upgrade"
+      },
+      "393": {
+        "kind": "i32",
+        "value": 1
+      },
+      "394": {
+        "kind": "string",
+        "value": "uncommon"
+      },
+      "395": {
+        "kind": "rows",
+        "value": []
+      }
+    }
+  },
+  {
+    "id": 39002,
+    "key": "temper_add_moonless_black_night",
+    "cells": {
+      "390": {
+        "kind": "string",
+        "value": "Temper Add Moonless Black Night"
+      },
+      "391": {
+        "kind": "string",
+        "value": "add_special_option"
+      },
+      "392": {
+        "kind": "string",
+        "value": ""
+      },
+      "393": {
+        "kind": "i32",
+        "value": 0
+      },
+      "394": {
+        "kind": "string",
+        "value": ""
+      },
+      "395": {
+        "kind": "rows",
+        "value": [
+          32001
+        ]
+      }
+    }
+  }
+]

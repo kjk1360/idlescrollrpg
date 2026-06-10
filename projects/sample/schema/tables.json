@@ -1690,6 +1690,16 @@
           "target_table": 32
         },
         "required": false
+      },
+      {
+        "id": 298,
+        "key": "effects",
+        "display_name": "Effects",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 39
+        },
+        "required": false
       }
     ]
   },
@@ -2220,6 +2230,68 @@
           "kind": "f32"
         },
         "required": true
+      }
+    ]
+  },
+  {
+    "id": 39,
+    "key": "refinement_effect",
+    "display_name": "Refinement Effect",
+    "fields": [
+      {
+        "id": 390,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 391,
+        "key": "effect_kind",
+        "display_name": "Effect Kind",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 392,
+        "key": "stat_key",
+        "display_name": "Stat Key",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 393,
+        "key": "stat_value",
+        "display_name": "Stat Value",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 394,
+        "key": "stat_rarity",
+        "display_name": "Stat Rarity",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 395,
+        "key": "special_options",
+        "display_name": "Special Options",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 32
+        },
+        "required": false
       }
     ]
   }

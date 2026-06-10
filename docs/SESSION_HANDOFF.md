@@ -112,7 +112,9 @@ Implemented:
 - Data Studio Operation tab shows Refinement Workbench recipes, input equipment, material requirements, craftable state, and a Refine action
 - account state has an `equipment` array with equipment instance ids and option lists
 - Forge equipment output creates equipment instances instead of equipment item stacks
-- Refinement consumes an equipment instance, preserves existing options, adds the recipe effect option, and creates a new equipment instance
+- Refinement consumes an equipment instance, preserves existing options, applies data-authored refinement effects, and creates a new equipment instance
+- `refinement_effect` and `refinement_recipe.effects` exist; effect kind `add_stat_option` appends a stat option and `add_special_option` appends authored equipment special options
+- Data Studio Operation tab displays refinement recipe effect rows instead of only the legacy `effect_kind` label
 - Data Studio Operation tab shows Equipment Instances separately from stack inventory
 - `special_option_def` and `special_option_stat_delta` tables exist for named non-stat-only equipment special options
 - sample special option `moonless_black_night` exists with rarity, trigger key, effect summary, Moonlight stat delta, and granted skill reference
@@ -294,6 +296,7 @@ projects/sample/
     forge_recipe.json
     forge_ingredient.json
     refinement_recipe.json
+    refinement_effect.json
     skill_def.json
     skill_step.json
     skill_effect.json
@@ -532,7 +535,7 @@ Recommended order:
 1. Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
 2. Add richer condition presets and buff/debuff authoring hints to the composable special trigger tables.
 3. Extend equipment special option mutations beyond `damage_scale_add` into effect add/remove/replace, projectile/AOE conversion, and richer conditional mutation presets.
-4. Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
+4. Extend refinement effect rules beyond deterministic add-stat/add-special-option into reroll pools, mutation weights, option removal/replacement, and lock/no-more-cubing outcomes.
 5. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
 6. Keep chat/guild/ranking behind auction house priority.
 7. Connect battle simulation states to visual state machine keys.

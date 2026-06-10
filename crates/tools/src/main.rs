@@ -776,6 +776,50 @@ fn special_options_from_recipe(
         .collect()
 }
 
+fn apply_refinement_effects(
+    db: &GeneratedDatabase,
+    effect_ids: &[RowId],
+    output_rarity: &str,
+    options: &mut Vec<AccountEquipmentOption>,
+    special_options: &mut Vec<AccountEquipmentSpecialOption>,
+) -> Result<(), String> {
+    for effect_id in effect_ids {
+        let effect = db
+            .refinement_effect
+            .get_by_id(*effect_id)
+            .ok_or_else(|| format!("missing refinement effect {:?}", effect_id))?;
+        match effect.effect_kind.as_str() {
+            "add_stat_option" => {
+                if effect.stat_key.is_empty() {
+                    return Err(format!(
+                        "refinement effect {} requires stat_key",
+                        effect.key
+                    ));
+                }
+                options.push(AccountEquipmentOption {
+                    stat_key: effect.stat_key.clone(),
+                    value: effect.stat_value,
+                    rarity: if effect.stat_rarity.is_empty() {
+                        output_rarity.to_string()
+                    } else {
+                        effect.stat_rarity.clone()
+                    },
+                });
+            }
+            "add_special_option" => {
+                special_options.extend(special_options_from_recipe(db, &effect.special_options)?);
+            }
+            other => {
+                return Err(format!(
+                    "unsupported refinement effect kind {other} in {}",
+                    effect.key
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn equipment_quantity(state: &AccountState, item_key: &str) -> i32 {
     state
         .equipment
@@ -1275,13 +1319,24 @@ fn craft_refinement_recipe(
     consume_inventory_item(state, &material.key, required_material)?;
 
     let mut inherited_options = consumed_equipment.options;
-    inherited_options.push(AccountEquipmentOption {
-        stat_key: recipe.effect_kind.clone(),
-        value: 1,
-        rarity: output_item.rarity.clone(),
-    });
     let mut inherited_special_options = consumed_equipment.special_options;
-    inherited_special_options.extend(special_options_from_recipe(&db, &recipe.special_options)?);
+    if recipe.effects.is_empty() {
+        inherited_options.push(AccountEquipmentOption {
+            stat_key: recipe.effect_kind.clone(),
+            value: 1,
+            rarity: output_item.rarity.clone(),
+        });
+        inherited_special_options
+            .extend(special_options_from_recipe(&db, &recipe.special_options)?);
+    } else {
+        apply_refinement_effects(
+            &db,
+            &recipe.effects,
+            &output_item.rarity,
+            &mut inherited_options,
+            &mut inherited_special_options,
+        )?;
+    }
     let reward = RewardStack {
         item_key: output_item.key.clone(),
         item_name: output_item.name.clone(),
@@ -1985,6 +2040,33 @@ pub(crate) fn account_state_snapshot_for_api(
             let input = db.item_def.get_by_id(recipe.input_equipment);
             let material = db.item_def.get_by_id(recipe.material_item);
             let output = db.item_def.get_by_id(recipe.output_item);
+            let effects = recipe
+                .effects
+                .iter()
+                .filter_map(|effect_id| db.refinement_effect.get_by_id(*effect_id))
+                .map(|effect| {
+                    let special_options = special_options_from_recipe(&db, &effect.special_options)
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|option| {
+                            serde_json::json!({
+                                "option_key": option.option_key,
+                                "name": option.name,
+                                "rarity": option.rarity,
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    serde_json::json!({
+                        "key": effect.key,
+                        "name": effect.name,
+                        "effect_kind": effect.effect_kind,
+                        "stat_key": effect.stat_key,
+                        "stat_value": effect.stat_value,
+                        "stat_rarity": effect.stat_rarity,
+                        "special_options": special_options,
+                    })
+                })
+                .collect::<Vec<_>>();
             let input_key = input.map(|item| item.key.as_str()).unwrap_or("");
             let material_key = material.map(|item| item.key.as_str()).unwrap_or("");
             let input_available = equipment_quantity(&state, input_key);
@@ -2004,6 +2086,7 @@ pub(crate) fn account_state_snapshot_for_api(
                 "output_item_key": output.map(|item| item.key.as_str()).unwrap_or(""),
                 "output_name": output.map(|item| item.name.as_str()).unwrap_or("missing item"),
                 "effect_kind": recipe.effect_kind,
+                "effects": effects,
                 "device": recipe.device,
                 "craftable": craftable,
             })
@@ -2678,6 +2761,9 @@ mod tests {
         assert_eq!(inventory_quantity(&state, "refinement_stone"), 0);
         assert_eq!(equipment_quantity(&state, "tempered_basic_sword"), 1);
         assert_eq!(state.equipment[0].options.len(), 2);
+        assert!(state.equipment[0].options.iter().any(|option| {
+            option.stat_key == "fixed_upgrade" && option.value == 1 && option.rarity == "uncommon"
+        }));
         assert_eq!(state.equipment[0].special_options.len(), 1);
         assert_eq!(
             state.equipment[0].special_options[0].option_key,

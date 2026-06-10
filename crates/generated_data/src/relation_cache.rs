@@ -54,6 +54,7 @@ pub struct GeneratedRelationCache {
     pub refinement_recipe_material_item: HashMap<RowId, RowId>,
     pub refinement_recipe_output_item: HashMap<RowId, RowId>,
     pub refinement_recipe_special_options: HashMap<RowId, Vec<RowId>>,
+    pub refinement_recipe_effects: HashMap<RowId, Vec<RowId>>,
     pub special_option_def_stat_deltas: HashMap<RowId, Vec<RowId>>,
     pub special_option_def_granted_skill: HashMap<RowId, RowId>,
     pub special_option_def_skill_mutations: HashMap<RowId, Vec<RowId>>,
@@ -67,6 +68,7 @@ pub struct GeneratedRelationCache {
     pub special_trigger_effect_stat: HashMap<RowId, RowId>,
     pub special_trigger_effect_trigger_skill: HashMap<RowId, RowId>,
     pub special_option_skill_mutation_target_skill: HashMap<RowId, RowId>,
+    pub refinement_effect_special_options: HashMap<RowId, Vec<RowId>>,
 }
 
 impl GeneratedRelationCache {
@@ -556,6 +558,19 @@ impl GeneratedRelationCache {
                 .refinement_recipe_special_options
                 .insert(row.id, row.special_options.clone());
         }
+        for row in &db.refinement_recipe.rows {
+            for target_id in &row.effects {
+                if db.refinement_effect.get_by_id(*target_id).is_none() {
+                    return Err(format!(
+                        "missing relation target for refinement_recipe.effects from {:?} to {:?}",
+                        row.id, target_id
+                    ));
+                }
+            }
+            cache
+                .refinement_recipe_effects
+                .insert(row.id, row.effects.clone());
+        }
         for row in &db.special_option_def.rows {
             for target_id in &row.stat_deltas {
                 if db.special_option_stat_delta.get_by_id(*target_id).is_none() {
@@ -686,6 +701,16 @@ impl GeneratedRelationCache {
             cache
                 .special_option_skill_mutation_target_skill
                 .insert(row.id, row.target_skill);
+        }
+        for row in &db.refinement_effect.rows {
+            for target_id in &row.special_options {
+                if db.special_option_def.get_by_id(*target_id).is_none() {
+                    return Err(format!("missing relation target for refinement_effect.special_options from {:?} to {:?}", row.id, target_id));
+                }
+            }
+            cache
+                .refinement_effect_special_options
+                .insert(row.id, row.special_options.clone());
         }
         Ok(cache)
     }
@@ -888,6 +913,12 @@ impl GeneratedRelationCache {
             .map(Vec::as_slice)
     }
 
+    pub fn get_refinement_recipe_effects(&self, source: RowId) -> Option<&[RowId]> {
+        self.refinement_recipe_effects
+            .get(&source)
+            .map(Vec::as_slice)
+    }
+
     pub fn get_special_option_def_stat_deltas(&self, source: RowId) -> Option<&[RowId]> {
         self.special_option_def_stat_deltas
             .get(&source)
@@ -955,5 +986,11 @@ impl GeneratedRelationCache {
         self.special_option_skill_mutation_target_skill
             .get(&source)
             .copied()
+    }
+
+    pub fn get_refinement_effect_special_options(&self, source: RowId) -> Option<&[RowId]> {
+        self.refinement_effect_special_options
+            .get(&source)
+            .map(Vec::as_slice)
     }
 }
