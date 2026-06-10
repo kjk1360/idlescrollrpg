@@ -1714,6 +1714,30 @@ const INDEX_HTML: &str = r#"<!doctype html>
         linear-gradient(180deg, rgba(88, 58, 38, 0.88), rgba(28, 19, 14, 0.96) 58%, #4a2f20 58%),
         repeating-linear-gradient(92deg, transparent 0 38px, rgba(255,255,255,0.04) 39px 41px);
     }
+    .guild-scene::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 180ms ease;
+    }
+    .guild-scene.action-alchemy::after {
+      opacity: 1;
+      background: radial-gradient(circle at 39% 69%, rgba(112, 235, 164, 0.38), transparent 24%);
+    }
+    .guild-scene.action-forge::after {
+      opacity: 1;
+      background: radial-gradient(circle at 18% 72%, rgba(255, 108, 49, 0.42), transparent 24%);
+    }
+    .guild-scene.action-refinement::after {
+      opacity: 1;
+      background: radial-gradient(circle at 49% 66%, rgba(150, 190, 255, 0.38), transparent 23%);
+    }
+    .guild-scene.action-dispatch::after {
+      opacity: 1;
+      background: radial-gradient(circle at 64% 50%, rgba(227, 205, 134, 0.34), transparent 26%);
+    }
     .guild-title {
       position: absolute;
       left: 24px;
@@ -1727,6 +1751,12 @@ const INDEX_HTML: &str = r#"<!doctype html>
       color: #d9c3a4;
       font-size: 12px;
       text-align: center;
+      z-index: 1;
+      transition: filter 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+    }
+    .guild-object.active {
+      filter: brightness(1.35);
+      transform: translateY(-2px);
     }
     .guild-forge {
       left: 12%;
@@ -1760,6 +1790,67 @@ const INDEX_HTML: &str = r#"<!doctype html>
       width: 150px;
       height: 62px;
       background: linear-gradient(180deg, #81512e 0 24px, #5a321e 25px);
+    }
+    .guild-refinement {
+      left: 48%;
+      bottom: 34px;
+      width: 86px;
+      height: 54px;
+      border: 4px solid #8fa6c4;
+      background: radial-gradient(circle at 50% 35%, rgba(156, 201, 255, 0.72), rgba(34, 42, 52, 0.96) 35%);
+    }
+    .guild-action-banner {
+      position: absolute;
+      left: 24px;
+      right: 24px;
+      top: 52px;
+      z-index: 2;
+      min-height: 44px;
+      padding: 9px 12px;
+      border: 1px solid rgba(242, 220, 194, 0.26);
+      background: rgba(20, 14, 10, 0.74);
+      color: #f2dcc2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .guild-action-banner small {
+      color: #bda88e;
+    }
+    .guild-spark {
+      position: absolute;
+      z-index: 2;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      opacity: 0;
+      animation: guildSpark 900ms ease-out infinite;
+    }
+    .action-alchemy .guild-spark {
+      left: 40%;
+      bottom: 118px;
+      background: #79f0ad;
+    }
+    .action-forge .guild-spark {
+      left: 19%;
+      bottom: 120px;
+      background: #ff7748;
+    }
+    .action-refinement .guild-spark {
+      left: 52%;
+      bottom: 103px;
+      background: #9ec8ff;
+    }
+    .action-dispatch .guild-spark {
+      left: 65%;
+      bottom: 203px;
+      background: #e8c96a;
+    }
+    @keyframes guildSpark {
+      0% { transform: translateY(10px) scale(0.55); opacity: 0; }
+      25% { opacity: 1; }
+      100% { transform: translateY(-30px) scale(1.2); opacity: 0; }
     }
     .operation-panel {
       border: 1px solid var(--line);
@@ -2132,7 +2223,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
     </main>
   </div>
   <script>
-    let state = { project: null, assets: [], account: null, mode: 'schema', selected: null, backStack: [], visual: { key: null, state: 'idle', started: 0 }, images: {} };
+    let state = { project: null, assets: [], account: null, mode: 'schema', selected: null, backStack: [], visual: { key: null, state: 'idle', started: 0 }, operationAction: null, images: {} };
     const $ = id => document.getElementById(id);
 
     async function api(path, options) {
@@ -2447,8 +2538,32 @@ const INDEX_HTML: &str = r#"<!doctype html>
       return account;
     }
 
+    function setOperationAction(kind, label, detail = '') {
+      state.operationAction = {
+        kind,
+        label,
+        detail,
+        expiresAt: Date.now() + 4200
+      };
+      setTimeout(() => {
+        if (state.mode === 'operation' && state.operationAction && state.operationAction.expiresAt <= Date.now()) {
+          renderOperationDashboard().catch(error => log(`error: ${error.message}`));
+        }
+      }, 4300);
+    }
+
+    function currentOperationAction() {
+      const action = state.operationAction;
+      if (!action || action.expiresAt <= Date.now()) {
+        state.operationAction = null;
+        return { kind: 'idle', label: 'Guild House Ready', detail: 'No active work feedback.' };
+      }
+      return action;
+    }
+
     async function renderOperationDashboard() {
       const account = state.account || await loadAccountState();
+      const action = currentOperationAction();
       $('sheetTitle').textContent = 'Operation';
       $('sheetMeta').textContent = `local account / ${account.path}`;
       $('sheetTools').innerHTML = `
@@ -2473,11 +2588,17 @@ const INDEX_HTML: &str = r#"<!doctype html>
               <div class="expedition-strip empty"><span>Party 5</span><span>empty</span></div>
               <div class="expedition-strip empty"><span>Party 6</span><span>empty</span></div>
             </div>
-            <div class="guild-scene">
+            <div class="guild-scene action-${escapeAttr(action.kind)}">
               <div class="guild-title">Guild House</div>
-              <div class="guild-object guild-forge">Forge</div>
-              <div class="guild-object guild-alchemy">Alchemy<br>Furnace</div>
-              <div class="guild-object guild-door">Dungeon<br>Door</div>
+              <div class="guild-action-banner">
+                <span>${escapeHtml(action.label)}</span>
+                <small>${escapeHtml(action.detail)}</small>
+              </div>
+              <div class="guild-spark"></div>
+              <div class="guild-object guild-forge ${action.kind === 'forge' ? 'active' : ''}">Forge</div>
+              <div class="guild-object guild-alchemy ${action.kind === 'alchemy' ? 'active' : ''}">Alchemy<br>Furnace</div>
+              <div class="guild-object guild-refinement ${action.kind === 'refinement' ? 'active' : ''}">Refinement<br>Workbench</div>
+              <div class="guild-object guild-door ${action.kind === 'dispatch' ? 'active' : ''}">Dungeon<br>Door</div>
               <div class="guild-object guild-bar">Tavern</div>
             </div>
           </div>
@@ -2613,6 +2734,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
           body: JSON.stringify({ map_key: 'endless_left_road', seed: Date.now() })
         });
         state.account = result.account;
+        setOperationAction('dispatch', 'Dungeon Dispatch Started', result.message || 'Party left through the dungeon door.');
         await renderOperationDashboard();
         log(result.message);
       } catch (error) {
@@ -2628,6 +2750,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
           body: '{}'
         });
         state.account = result.account;
+        setOperationAction('alchemy', 'Alchemy Furnace Complete', result.message || `Crafted ${recipeKey}.`);
         await renderOperationDashboard();
         log(result.message);
       } catch (error) {
@@ -2643,6 +2766,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
           body: JSON.stringify({ mail_index: mailIndex })
         });
         state.account = result.account;
+        setOperationAction('forge', 'Forge Complete', result.message || `Forged ${recipeKey}.`);
         await renderOperationDashboard();
         log(result.message);
       } catch (error) {
@@ -2659,6 +2783,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
           body: JSON.stringify({ mail_index: mailIndex })
         });
         state.account = result.account;
+        setOperationAction('refinement', 'Refinement Complete', result.message || `Refined ${recipeKey}.`);
         await renderOperationDashboard();
         log(result.message);
       } catch (error) {

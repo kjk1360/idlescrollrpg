@@ -100,6 +100,7 @@ Implemented:
 - `/api/account-energy/recover` persists real-time account energy recovery, and dispatch applies recovery before spending energy
 - account-state load/save paths remove expired local mail automatically
 - Play Preview and Data Studio Operation tab include the first Guild House visual shell with stacked expedition strips
+- Data Studio Operation tab shows short Guild House visual feedback for dungeon dispatch, Alchemy Furnace, Forge, and Refinement Workbench actions
 - first `alchemy_recipe` and `recipe_ingredient` data tables exist
 - `/api/account-alchemy/craft` mutates the local account-state file by consuming recipe ingredients and placing crafted output
 - Data Studio Operation tab shows Alchemy Furnace recipes, ingredient availability, craftable state, and a Craft action
@@ -471,12 +472,11 @@ Expose the local account-state loop in the tool UI and playable preview.
 
 Recommended order:
 
-1. Connect Operation actions to Guild House scene feedback states.
-2. Add equipment instance and option data so refinement can reroll/mutate real item options instead of converting one item key into another.
-3. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
-4. Keep chat/guild/ranking behind auction house priority.
-5. Connect battle simulation states to visual state machine keys.
-7. Package and verify the updated `belt_tools.exe` again.
+1. Add equipment instance and option data so refinement can reroll/mutate real item options instead of converting one item key into another.
+2. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
+3. Keep chat/guild/ranking behind auction house priority.
+4. Connect battle simulation states to visual state machine keys.
+5. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats
 

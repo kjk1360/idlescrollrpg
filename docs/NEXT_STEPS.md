@@ -202,6 +202,7 @@ The first playable preview is available through `belt_tools play`:
 - `/api/account-energy/recover` persists real-time account energy recovery, and dungeon dispatch applies recovery before spending energy.
 - Account-state load/save paths now remove expired local mail automatically.
 - Play Preview and Data Studio Operation tab now include the first Guild House visual shell with stacked expedition strips.
+- Data Studio Operation tab now shows short Guild House visual feedback for dungeon dispatch, Alchemy Furnace, Forge, and Refinement Workbench actions.
 - Data Studio Operation tab can craft `alchemy_furnace` recipes through `/api/account-alchemy/craft`, consuming ingredients and persisting crafted output.
 
 ## Locked Design Direction
@@ -268,7 +269,6 @@ The local account-state file is intentionally small and server-portable:
 The next production-facing step is to expose the local account state in the UI and make it behave like the later server-backed account model:
 
 - Account-state API endpoints in `belt_tools play` for preview/test workflows.
-- Connect Operation actions to Guild House scene feedback states.
 - Add equipment instance and option data so refinement can reroll/mutate real item options instead of converting one item key into another.
 
 ## Server Direction
