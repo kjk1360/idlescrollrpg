@@ -88,6 +88,7 @@ cargo run -p belt_tools -- data-build --project projects\sample --out build\samp
 cargo run -p belt_tools -- import-aseprite --project projects\sample --file C:\path\unit.aseprite
 cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road
 cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road --current-energy 4 --elapsed-seconds 1200 --seed 1
+cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road --seed 1 --occupied-material-slots 40
 cargo run -p belt_tools -- serve --project projects\sample --addr 127.0.0.1:7878
 cargo run -p belt_tools -- play --project projects\sample --map endless_left_road --addr 127.0.0.1:7879
 ```
@@ -178,6 +179,7 @@ The first playable preview is available through `belt_tools play`:
 - Added timed Stat modifiers through `skill_effect.stat_duration_ticks` and `skill_effect.stat_tick_delta`.
 - Timed Stat modifiers can expire by reversing the initial `stat_delta` and can also apply per-tick Stat changes while active.
 - `belt_tools simulate` now previews account energy dispatch cost/recovery and deterministic `drop_table` rewards on map clear.
+- `belt_tools simulate` now previews reward storage settlement by storage tab and sends overflow quantities to one-day overflow mail output.
 
 ## Locked Design Direction
 
@@ -218,7 +220,7 @@ The runtime is tick-based 1D line combat. Primary skills execute immediate and d
 - richer behavior conditions such as ally/enemy counts, cooldown availability, distance checks, and target stat filters
 - richer resource flows around skill costs, such as mana gain effects, generated UI presets, and cost preview labels
 - authoring presets and UI hints for temporary stacks, shields, buffs, debuffs, and over-time effects
-- reward inventory settlement beyond preview output, including storage capacity overflow handling
+- persistent inventory writeback, stack merging with existing partial stacks, and overflow mail expiration state
 - account energy persistence and consumable energy restore handling
 - battle simulation states to visual state machine keys
 - line-combat skill authoring presets for single-target, nearest enemy, self, ally, and all-enemies effects

@@ -3,6 +3,7 @@ use data_studio_core::{sample_project, DataProject, ProjectFingerprints, Project
 use game_data_adapter::battle_config_from_project;
 use generated_data::relation_cache::GeneratedRelationCache;
 use generated_data::table_accessors::GeneratedDatabase;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -60,6 +61,9 @@ fn help() {
     println!("  --current-energy <n>  Account energy before elapsed recovery in simulate");
     println!("  --elapsed-seconds <n> Account energy recovery seconds before simulate");
     println!("  --seed <n>       Deterministic reward seed for simulate");
+    println!("  --occupied-material-slots <n> Existing occupied material storage slots");
+    println!("  --occupied-equipment-slots <n> Existing occupied equipment storage slots");
+    println!("  --occupied-consumable-slots <n> Existing occupied consumable storage slots");
 }
 
 fn simulate(args: &[String]) -> Result<(), String> {
@@ -75,6 +79,7 @@ fn simulate(args: &[String]) -> Result<(), String> {
         .map(parse_u64)
         .transpose()?
         .unwrap_or(1);
+    let occupied_slots = occupied_slots_from_args(args)?;
     let project_for_rewards = if option_value(args, "--project").is_some() {
         let (project, _) = load_project(args)?;
         Some(project)
@@ -156,6 +161,8 @@ fn simulate(args: &[String]) -> Result<(), String> {
             Vec::new()
         };
         print_rewards(&rewards);
+        let storage = settle_storage(project, &rewards, &occupied_slots)?;
+        print_storage_settlement(&storage);
     }
     Ok(())
 }
@@ -228,8 +235,11 @@ fn simulate_to_string(project: &DataProject, map_key: &str) -> Result<String, St
     if map_cleared {
         let rewards = settle_rewards(project, map_key, 1)?;
         lines.extend(reward_lines(&rewards));
+        let storage = settle_storage(project, &rewards, &HashMap::new())?;
+        lines.extend(storage_settlement_lines(&storage));
     } else {
         lines.push("rewards: none".to_string());
+        lines.push("storage: none".to_string());
     }
     Ok(lines.join("\n"))
 }
@@ -253,7 +263,24 @@ struct RewardStack {
     item_name: String,
     category: String,
     rarity: String,
+    stack_size: i32,
     quantity: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StorageSettlement {
+    tabs: Vec<StorageTabSettlement>,
+    overflow_mail: Vec<RewardStack>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StorageTabSettlement {
+    tab_key: String,
+    name: String,
+    capacity: i32,
+    occupied_before: i32,
+    used_slots: i32,
+    placed_quantity: i32,
 }
 
 fn energy_preview(
@@ -333,11 +360,80 @@ fn settle_rewards(
             item_name: item.name.clone(),
             category: item.category.clone(),
             rarity: item.rarity.clone(),
+            stack_size: item.stack_size.max(1),
             quantity,
         });
     }
 
     Ok(rewards)
+}
+
+fn settle_storage(
+    project: &DataProject,
+    rewards: &[RewardStack],
+    occupied_slots: &HashMap<String, i32>,
+) -> Result<StorageSettlement, String> {
+    let db = GeneratedDatabase::from_project(project)?;
+    let mut overflow_mail = Vec::new();
+    let mut tabs = db
+        .storage_tab_config
+        .rows
+        .iter()
+        .map(|tab| StorageTabSettlement {
+            tab_key: tab.tab_key.clone(),
+            name: tab.name.clone(),
+            capacity: tab.base_capacity.max(0),
+            occupied_before: occupied_slots
+                .get(&tab.tab_key)
+                .copied()
+                .unwrap_or(0)
+                .clamp(0, tab.base_capacity.max(0)),
+            used_slots: 0,
+            placed_quantity: 0,
+        })
+        .collect::<Vec<_>>();
+
+    for reward in rewards {
+        let Some(tab_config) = db
+            .storage_tab_config
+            .rows
+            .iter()
+            .find(|tab| tab.item_category == reward.category)
+        else {
+            overflow_mail.push(reward.clone());
+            continue;
+        };
+        let Some(tab) = tabs
+            .iter_mut()
+            .find(|tab| tab.tab_key == tab_config.tab_key)
+        else {
+            overflow_mail.push(reward.clone());
+            continue;
+        };
+
+        let free_slots = (tab.capacity - tab.occupied_before - tab.used_slots).max(0);
+        let required_slots = div_ceil_i32(reward.quantity.max(0), reward.stack_size.max(1));
+        let placed_slots = required_slots.min(free_slots);
+        let placed_quantity = if placed_slots >= required_slots {
+            reward.quantity
+        } else {
+            (placed_slots * reward.stack_size.max(1)).min(reward.quantity)
+        };
+        tab.used_slots += placed_slots;
+        tab.placed_quantity += placed_quantity;
+
+        let overflow_quantity = reward.quantity - placed_quantity;
+        if overflow_quantity > 0 {
+            let mut overflow = reward.clone();
+            overflow.quantity = overflow_quantity;
+            overflow_mail.push(overflow);
+        }
+    }
+
+    Ok(StorageSettlement {
+        tabs,
+        overflow_mail,
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -384,6 +480,38 @@ fn reward_lines(rewards: &[RewardStack]) -> Vec<String> {
             reward.item_name, reward.quantity, reward.category, reward.rarity
         )
     }));
+    lines
+}
+
+fn print_storage_settlement(settlement: &StorageSettlement) {
+    for line in storage_settlement_lines(settlement) {
+        println!("{line}");
+    }
+}
+
+fn storage_settlement_lines(settlement: &StorageSettlement) -> Vec<String> {
+    let mut lines = vec!["storage:".to_string()];
+    lines.extend(settlement.tabs.iter().map(|tab| {
+        format!(
+            "- {}: +{} item(s), +{} slot(s), occupied {}/{}",
+            tab.name,
+            tab.placed_quantity,
+            tab.used_slots,
+            tab.occupied_before + tab.used_slots,
+            tab.capacity
+        )
+    }));
+    if settlement.overflow_mail.is_empty() {
+        lines.push("overflow mail: none".to_string());
+    } else {
+        lines.push("overflow mail:".to_string());
+        lines.extend(settlement.overflow_mail.iter().map(|reward| {
+            format!(
+                "- {} x{} [{} / {}, expires in 1 day]",
+                reward.item_name, reward.quantity, reward.category, reward.rarity
+            )
+        }));
+    }
     lines
 }
 
@@ -573,6 +701,27 @@ fn parse_u64(value: &str) -> Result<u64, String> {
         .map_err(|error| format!("invalid u64 value {value}: {error}"))
 }
 
+fn occupied_slots_from_args(args: &[String]) -> Result<HashMap<String, i32>, String> {
+    [
+        ("--occupied-material-slots", "material"),
+        ("--occupied-equipment-slots", "equipment"),
+        ("--occupied-consumable-slots", "consumable"),
+    ]
+    .into_iter()
+    .filter_map(|(flag, tab_key)| {
+        option_value(args, flag)
+            .map(|value| parse_i32(value).map(|slots| (tab_key.to_string(), slots)))
+    })
+    .collect()
+}
+
+fn div_ceil_i32(value: i32, divisor: i32) -> i32 {
+    if value <= 0 {
+        return 0;
+    }
+    (value + divisor.max(1) - 1) / divisor.max(1)
+}
+
 fn write_file(path: &Path, content: &str) -> Result<(), String> {
     fs::write(path, content).map_err(|error| format!("failed to write {}: {error}", path.display()))
 }
@@ -647,6 +796,46 @@ mod tests {
 
         assert_eq!(first, second);
         assert!(first.iter().any(|reward| reward.item_key == "slime_gel"));
+    }
+
+    #[test]
+    fn storage_settlement_places_rewards_into_matching_tabs() {
+        let project = sample_project_for_test();
+        let rewards = settle_rewards(&project, "endless_left_road", 1).expect("reward");
+        let settlement =
+            settle_storage(&project, &rewards, &HashMap::new()).expect("storage settlement");
+
+        let material = settlement
+            .tabs
+            .iter()
+            .find(|tab| tab.tab_key == "material")
+            .expect("material tab");
+        assert!(material.placed_quantity > 0);
+        assert!(settlement.overflow_mail.is_empty());
+    }
+
+    #[test]
+    fn storage_settlement_overflows_to_mail_when_tab_is_full() {
+        let project = sample_project_for_test();
+        let rewards = vec![RewardStack {
+            item_key: "slime_gel".to_string(),
+            item_name: "Slime Gel".to_string(),
+            category: "material".to_string(),
+            rarity: "common".to_string(),
+            stack_size: 10,
+            quantity: 15,
+        }];
+        let occupied = HashMap::from([("material".to_string(), 39)]);
+        let settlement = settle_storage(&project, &rewards, &occupied).expect("storage settlement");
+
+        let material = settlement
+            .tabs
+            .iter()
+            .find(|tab| tab.tab_key == "material")
+            .expect("material tab");
+        assert_eq!(material.used_slots, 1);
+        assert_eq!(material.placed_quantity, 10);
+        assert_eq!(settlement.overflow_mail[0].quantity, 5);
     }
 }
 

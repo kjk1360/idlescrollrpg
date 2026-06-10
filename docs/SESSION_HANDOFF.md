@@ -91,6 +91,7 @@ Implemented:
 - `skill_effect.stat_duration_ticks` and `skill_effect.stat_tick_delta` support timed Stat modifiers
 - timed Stat modifiers can expire by reversing the initial `stat_delta` and can apply per-tick Stat changes while active
 - `belt_tools simulate` previews account energy dispatch cost/recovery and deterministic `drop_table` rewards on map clear
+- `belt_tools simulate` previews reward storage settlement by tab and one-day overflow mail output
 - Play Preview renders impact flashes on the combat line
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -164,6 +165,7 @@ cargo test
 cargo run -p belt_tools -- simulate
 cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road
 cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road --current-energy 4 --elapsed-seconds 1200 --seed 1
+cargo run -p belt_tools -- simulate --project projects\sample --map endless_left_road --seed 1 --occupied-material-slots 40
 cargo run -p belt_tools -- data-status --project projects\sample
 cargo run -p belt_tools -- validate --project projects\sample
 cargo run -p belt_tools -- view --project projects\sample --view map_wave_preview
@@ -304,6 +306,7 @@ Implemented:
 - timed stat modifiers for temporary stacks, buffs/debuffs, and over-time resource changes
 - account energy dispatch preview in `simulate`
 - deterministic `drop_table` reward preview in `simulate`
+- reward storage settlement and overflow mail preview in `simulate`
 - single-target line damage effects
 - `projectile_damage` effects with delayed impact damage
 - `skill_effect.impact_pattern` retained in data for compatibility, but projectile impact currently resolves against the selected target
@@ -319,7 +322,7 @@ Not implemented yet:
 - richer resource flows around skill costs, such as mana gain effects, generated UI presets, and cost preview labels
 - authoring presets and UI hints for temporary stacks, shields, buffs, debuffs, and over-time effects
 - line-combat skill authoring presets for single-target, nearest enemy, self, ally, and all-enemies effects
-- reward inventory settlement beyond preview output, including storage capacity overflow handling
+- persistent inventory writeback, stack merging with existing partial stacks, and overflow mail expiration state
 - account energy persistence and consumable energy restore handling
 
 ## Current Data Studio UI
@@ -415,7 +418,7 @@ Recommended order:
 1. Execute `skill_step` by tick offset using `cell_pattern`.
 2. Apply `skill_effect` damage and knockback.
 3. Add behavior/target rule runtime.
-4. Add reward inventory settlement and storage overflow/mail handling.
+4. Add persistent inventory writeback, stack merging with existing partial stacks, and overflow mail expiration state.
 5. Add account energy persistence and consumable energy restore handling.
 6. Connect battle simulation states to visual state machine keys.
 7. Package and verify the updated `belt_tools.exe` again.
