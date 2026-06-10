@@ -49,6 +49,7 @@ pub struct GeneratedDatabase {
     pub special_trigger_effect: GeneratedTable<SpecialTriggerEffect>,
     pub special_option_skill_mutation: GeneratedTable<SpecialOptionSkillMutation>,
     pub refinement_effect: GeneratedTable<RefinementEffect>,
+    pub refinement_option_pool_entry: GeneratedTable<RefinementOptionPoolEntry>,
 }
 
 #[derive(Debug, Clone)]
@@ -128,6 +129,7 @@ impl GeneratedDatabase {
             special_trigger_effect: load_special_trigger_effect(project)?,
             special_option_skill_mutation: load_special_option_skill_mutation(project)?,
             refinement_effect: load_refinement_effect(project)?,
+            refinement_option_pool_entry: load_refinement_option_pool_entry(project)?,
         })
     }
 }
@@ -1049,6 +1051,31 @@ fn load_refinement_effect(
             special_options: read_rows(row, FieldId(395), "refinement_effect.special_options")?,
             target_stat_key: read_string(row, FieldId(396), "refinement_effect.target_stat_key")?,
             remove_count: read_i32(row, FieldId(397), "refinement_effect.remove_count")?,
+            option_pool: read_rows(row, FieldId(398), "refinement_effect.option_pool")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_refinement_option_pool_entry(
+    project: &DataProject,
+) -> Result<GeneratedTable<RefinementOptionPoolEntry>, String> {
+    let rows = table_rows(project, TableId(40))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(RefinementOptionPoolEntry {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(400), "refinement_option_pool_entry.name")?,
+            stat_key: read_string(row, FieldId(401), "refinement_option_pool_entry.stat_key")?,
+            min_value: read_i32(row, FieldId(402), "refinement_option_pool_entry.min_value")?,
+            max_value: read_i32(row, FieldId(403), "refinement_option_pool_entry.max_value")?,
+            rarity: read_string(row, FieldId(404), "refinement_option_pool_entry.rarity")?,
+            weight: read_i32(row, FieldId(405), "refinement_option_pool_entry.weight")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());

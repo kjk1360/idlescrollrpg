@@ -69,6 +69,7 @@ pub struct GeneratedRelationCache {
     pub special_trigger_effect_trigger_skill: HashMap<RowId, RowId>,
     pub special_option_skill_mutation_target_skill: HashMap<RowId, RowId>,
     pub refinement_effect_special_options: HashMap<RowId, Vec<RowId>>,
+    pub refinement_effect_option_pool: HashMap<RowId, Vec<RowId>>,
 }
 
 impl GeneratedRelationCache {
@@ -712,6 +713,20 @@ impl GeneratedRelationCache {
                 .refinement_effect_special_options
                 .insert(row.id, row.special_options.clone());
         }
+        for row in &db.refinement_effect.rows {
+            for target_id in &row.option_pool {
+                if db
+                    .refinement_option_pool_entry
+                    .get_by_id(*target_id)
+                    .is_none()
+                {
+                    return Err(format!("missing relation target for refinement_effect.option_pool from {:?} to {:?}", row.id, target_id));
+                }
+            }
+            cache
+                .refinement_effect_option_pool
+                .insert(row.id, row.option_pool.clone());
+        }
         Ok(cache)
     }
 
@@ -990,6 +1005,12 @@ impl GeneratedRelationCache {
 
     pub fn get_refinement_effect_special_options(&self, source: RowId) -> Option<&[RowId]> {
         self.refinement_effect_special_options
+            .get(&source)
+            .map(Vec::as_slice)
+    }
+
+    pub fn get_refinement_effect_option_pool(&self, source: RowId) -> Option<&[RowId]> {
+        self.refinement_effect_option_pool
             .get(&source)
             .map(Vec::as_slice)
     }

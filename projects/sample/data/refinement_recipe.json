@@ -90,5 +90,49 @@
         ]
       }
     }
+  },
+  {
+    "id": 31003,
+    "key": "polish_tempered_basic_sword",
+    "cells": {
+      "290": {
+        "kind": "string",
+        "value": "Polish Tempered Basic Sword"
+      },
+      "291": {
+        "kind": "row",
+        "value": 12008
+      },
+      "292": {
+        "kind": "row",
+        "value": 12007
+      },
+      "293": {
+        "kind": "i32",
+        "value": 1
+      },
+      "294": {
+        "kind": "row",
+        "value": 12008
+      },
+      "295": {
+        "kind": "string",
+        "value": "random_polish"
+      },
+      "296": {
+        "kind": "string",
+        "value": "refinement_workbench"
+      },
+      "297": {
+        "kind": "rows",
+        "value": []
+      },
+      "298": {
+        "kind": "rows",
+        "value": [
+          39005
+        ]
+      }
+    }
   }
 ]

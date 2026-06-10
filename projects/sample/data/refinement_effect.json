@@ -34,6 +34,10 @@
       "397": {
         "kind": "i32",
         "value": 0
+      },
+      "398": {
+        "kind": "rows",
+        "value": []
       }
     }
   },
@@ -74,6 +78,10 @@
       "397": {
         "kind": "i32",
         "value": 0
+      },
+      "398": {
+        "kind": "rows",
+        "value": []
       }
     }
   },
@@ -112,6 +120,10 @@
       "397": {
         "kind": "i32",
         "value": 1
+      },
+      "398": {
+        "kind": "rows",
+        "value": []
       }
     }
   },
@@ -150,6 +162,56 @@
       "397": {
         "kind": "i32",
         "value": 0
+      },
+      "398": {
+        "kind": "rows",
+        "value": []
+      }
+    }
+  },
+  {
+    "id": 39005,
+    "key": "polish_add_random_combat_stat",
+    "cells": {
+      "390": {
+        "kind": "string",
+        "value": "Polish Add Random Combat Stat"
+      },
+      "391": {
+        "kind": "string",
+        "value": "add_random_stat_option"
+      },
+      "392": {
+        "kind": "string",
+        "value": ""
+      },
+      "393": {
+        "kind": "i32",
+        "value": 0
+      },
+      "394": {
+        "kind": "string",
+        "value": ""
+      },
+      "395": {
+        "kind": "rows",
+        "value": []
+      },
+      "396": {
+        "kind": "string",
+        "value": ""
+      },
+      "397": {
+        "kind": "i32",
+        "value": 0
+      },
+      "398": {
+        "kind": "rows",
+        "value": [
+          40001,
+          40002,
+          40003
+        ]
       }
     }
   }

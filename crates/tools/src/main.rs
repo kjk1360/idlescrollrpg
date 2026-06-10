@@ -786,6 +786,7 @@ fn apply_refinement_effects(
     options: &mut Vec<AccountEquipmentOption>,
     special_options: &mut Vec<AccountEquipmentSpecialOption>,
     refinement_locked: &mut bool,
+    rng: &mut DeterministicRng,
 ) -> Result<(), String> {
     for effect_id in effect_ids {
         let effect = db
@@ -837,6 +838,18 @@ fn apply_refinement_effects(
             "lock_refinement" => {
                 *refinement_locked = true;
             }
+            "add_random_stat_option" => {
+                let entry = choose_refinement_pool_entry(db, &effect.option_pool, rng)?;
+                options.push(AccountEquipmentOption {
+                    stat_key: entry.stat_key.clone(),
+                    value: rng.next_range(entry.min_value, entry.max_value),
+                    rarity: if entry.rarity.is_empty() {
+                        output_rarity.to_string()
+                    } else {
+                        entry.rarity.clone()
+                    },
+                });
+            }
             other => {
                 return Err(format!(
                     "unsupported refinement effect kind {other} in {}",
@@ -846,6 +859,33 @@ fn apply_refinement_effects(
         }
     }
     Ok(())
+}
+
+fn choose_refinement_pool_entry<'a>(
+    db: &'a GeneratedDatabase,
+    entry_ids: &[RowId],
+    rng: &mut DeterministicRng,
+) -> Result<&'a generated_data::schema_types::RefinementOptionPoolEntry, String> {
+    let entries = entry_ids
+        .iter()
+        .map(|entry_id| {
+            db.refinement_option_pool_entry
+                .get_by_id(*entry_id)
+                .ok_or_else(|| format!("missing refinement option pool entry {:?}", entry_id))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let total_weight = entries.iter().map(|entry| entry.weight.max(0)).sum::<i32>();
+    if total_weight <= 0 {
+        return Err("refinement random option pool requires positive total weight".to_string());
+    }
+    let mut roll = rng.next_range(1, total_weight);
+    for entry in entries {
+        roll -= entry.weight.max(0);
+        if roll <= 0 {
+            return Ok(entry);
+        }
+    }
+    Err("failed to choose refinement option pool entry".to_string())
 }
 
 fn target_stat_key(effect: &generated_data::schema_types::RefinementEffect) -> String {
@@ -1389,6 +1429,7 @@ fn craft_refinement_recipe(
     let mut inherited_options = consumed_equipment.options;
     let mut inherited_special_options = consumed_equipment.special_options;
     let mut refinement_locked = consumed_equipment.refinement_locked;
+    let mut rng = DeterministicRng::new(now_unix as u64 ^ recipe.id.0 as u64);
     if recipe.effects.is_empty() {
         inherited_options.push(AccountEquipmentOption {
             stat_key: recipe.effect_kind.clone(),
@@ -1405,6 +1446,7 @@ fn craft_refinement_recipe(
             &mut inherited_options,
             &mut inherited_special_options,
             &mut refinement_locked,
+            &mut rng,
         )?;
     }
     let reward = RewardStack {
@@ -2129,6 +2171,22 @@ pub(crate) fn account_state_snapshot_for_api(
                             })
                         })
                         .collect::<Vec<_>>();
+                    let option_pool = effect
+                        .option_pool
+                        .iter()
+                        .filter_map(|entry_id| db.refinement_option_pool_entry.get_by_id(*entry_id))
+                        .map(|entry| {
+                            serde_json::json!({
+                                "key": entry.key,
+                                "name": entry.name,
+                                "stat_key": entry.stat_key,
+                                "min_value": entry.min_value,
+                                "max_value": entry.max_value,
+                                "rarity": entry.rarity,
+                                "weight": entry.weight,
+                            })
+                        })
+                        .collect::<Vec<_>>();
                     serde_json::json!({
                         "key": effect.key,
                         "name": effect.name,
@@ -2138,6 +2196,7 @@ pub(crate) fn account_state_snapshot_for_api(
                         "stat_rarity": effect.stat_rarity,
                         "target_stat_key": effect.target_stat_key,
                         "remove_count": effect.remove_count,
+                        "option_pool": option_pool,
                         "special_options": special_options,
                     })
                 })
@@ -2900,6 +2959,48 @@ mod tests {
             craft_refinement_recipe(&project, &mut state, "seal_tempered_basic_sword", 1001)
                 .expect_err("locked equipment cannot be refined");
         assert!(error.contains("locked"));
+    }
+
+    #[test]
+    fn refinement_recipe_can_add_weighted_random_stat_option() {
+        let project = sample_project_for_test();
+        let mut state = AccountState {
+            energy: 100,
+            last_energy_update_unix: 0,
+            inventory: vec![AccountItemStack {
+                item_key: "refinement_stone".to_string(),
+                quantity: 1,
+            }],
+            heroes: Vec::new(),
+            equipment: vec![AccountEquipmentInstance {
+                instance_id: "eq_test_tempered_basic_sword".to_string(),
+                item_key: "tempered_basic_sword".to_string(),
+                display_name: "Tempered Basic Sword".to_string(),
+                rarity: "uncommon".to_string(),
+                options: vec![AccountEquipmentOption {
+                    stat_key: "strength".to_string(),
+                    value: 1,
+                    rarity: "common".to_string(),
+                }],
+                special_options: Vec::new(),
+                refinement_locked: false,
+            }],
+            mail: Vec::new(),
+        };
+
+        craft_refinement_recipe(&project, &mut state, "polish_tempered_basic_sword", 1200)
+            .expect("craft polish refinement");
+
+        assert_eq!(inventory_quantity(&state, "refinement_stone"), 0);
+        assert_eq!(state.equipment[0].options.len(), 2);
+        let added = state.equipment[0]
+            .options
+            .last()
+            .expect("random option added");
+        assert!(["strength", "dexterity", "moonlight"].contains(&added.stat_key.as_str()));
+        assert!(added.value >= 1);
+        assert!(added.value <= 3);
+        assert!(!state.equipment[0].refinement_locked);
     }
 
     #[test]

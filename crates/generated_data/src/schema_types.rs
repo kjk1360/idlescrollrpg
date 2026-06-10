@@ -454,4 +454,17 @@ pub struct RefinementEffect {
     pub special_options: Vec<RowId>,
     pub target_stat_key: String,
     pub remove_count: i32,
+    pub option_pool: Vec<RowId>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RefinementOptionPoolEntry {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub stat_key: String,
+    pub min_value: i32,
+    pub max_value: i32,
+    pub rarity: String,
+    pub weight: i32,
 }

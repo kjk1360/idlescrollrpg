@@ -2769,6 +2769,13 @@ const INDEX_HTML: &str = r#"<!doctype html>
                     if (effect.effect_kind === 'lock_refinement') {
                       return 'lock refinement';
                     }
+                    if (effect.effect_kind === 'add_random_stat_option') {
+                      const pool = (effect.option_pool || []).map(entry => {
+                        const range = entry.min_value === entry.max_value ? `${entry.min_value}` : `${entry.min_value}-${entry.max_value}`;
+                        return `${escapeHtml(entry.stat_key)} +${range} (${entry.weight})`;
+                      }).join(', ');
+                      return `random: ${pool || escapeHtml(effect.name)}`;
+                    }
                     return escapeHtml(effect.name || effect.effect_kind || '');
                   }).join('<br>') || escapeHtml(recipe.effect_kind || '');
                   return `

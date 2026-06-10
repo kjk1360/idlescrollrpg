@@ -86,6 +86,8 @@
 - Refinement effects now also support `remove_stat_option`, `replace_stat_option`, and `lock_refinement`.
 - Account equipment instances now store `refinement_locked`; locked equipment cannot be refined again.
 - Added sample `seal_tempered_basic_sword`, which replaces `fixed_upgrade` with `sealed_upgrade` and locks the equipment from further refinement.
+- Added `refinement_option_pool_entry` and refinement effect `add_random_stat_option` for weighted random stat option generation.
+- Added sample `polish_tempered_basic_sword`, which rolls one weighted combat stat option from strength, dexterity, or moonlight entries.
 - Data Studio Operation tab now displays refinement recipe effect rows instead of only the legacy `effect_kind` label.
 - Operation UI now shows Equipment Instances and their options separately from stack inventory.
 - Added `special_option_def` and `special_option_stat_delta` data tables for named non-stat-only equipment special options.
@@ -333,7 +335,7 @@ The next production-facing step is to expose the local account state in the UI a
 - Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
 - Add richer condition presets and buff/debuff authoring hints to the composable special trigger tables.
 - Extend equipment special option mutations beyond `damage_scale_add` into effect add/remove/replace, projectile/AOE conversion, and richer conditional mutation presets.
-- Extend refinement effect rules beyond deterministic add/remove/replace/lock into reroll pools, mutation weights, weighted random option generation, and option lock scopes.
+- Extend refinement effect rules beyond add/remove/replace/lock/random-add into explicit reroll pools, mutation weights across special options, option lock scopes, and replacement constraints.
 
 ## Server Direction
 

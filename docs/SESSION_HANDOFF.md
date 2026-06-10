@@ -117,6 +117,8 @@ Implemented:
 - Refinement effects also support `remove_stat_option`, `replace_stat_option`, and `lock_refinement`
 - account equipment instances store `refinement_locked`; locked equipment cannot be refined again
 - sample `seal_tempered_basic_sword` replaces `fixed_upgrade` with `sealed_upgrade` and locks the equipment from further refinement
+- `refinement_option_pool_entry` and refinement effect `add_random_stat_option` exist for weighted random stat option generation
+- sample `polish_tempered_basic_sword` rolls one weighted combat stat option from strength, dexterity, or moonlight entries
 - Data Studio Operation tab displays refinement recipe effect rows instead of only the legacy `effect_kind` label
 - Data Studio Operation tab shows Equipment Instances separately from stack inventory
 - `special_option_def` and `special_option_stat_delta` tables exist for named non-stat-only equipment special options
@@ -300,6 +302,7 @@ projects/sample/
     forge_ingredient.json
     refinement_recipe.json
     refinement_effect.json
+    refinement_option_pool_entry.json
     skill_def.json
     skill_step.json
     skill_effect.json
@@ -538,7 +541,7 @@ Recommended order:
 1. Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
 2. Add richer condition presets and buff/debuff authoring hints to the composable special trigger tables.
 3. Extend equipment special option mutations beyond `damage_scale_add` into effect add/remove/replace, projectile/AOE conversion, and richer conditional mutation presets.
-4. Extend refinement effect rules beyond deterministic add/remove/replace/lock into reroll pools, mutation weights, weighted random option generation, and option lock scopes.
+4. Extend refinement effect rules beyond add/remove/replace/lock/random-add into explicit reroll pools, mutation weights across special options, option lock scopes, and replacement constraints.
 5. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
 6. Keep chat/guild/ranking behind auction house priority.
 7. Connect battle simulation states to visual state machine keys.

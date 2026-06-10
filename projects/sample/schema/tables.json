@@ -2310,6 +2310,77 @@
           "kind": "i32"
         },
         "required": true
+      },
+      {
+        "id": 398,
+        "key": "option_pool",
+        "display_name": "Option Pool",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 40
+        },
+        "required": false
+      }
+    ]
+  },
+  {
+    "id": 40,
+    "key": "refinement_option_pool_entry",
+    "display_name": "Refinement Option Pool Entry",
+    "fields": [
+      {
+        "id": 400,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 401,
+        "key": "stat_key",
+        "display_name": "Stat Key",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 402,
+        "key": "min_value",
+        "display_name": "Min Value",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 403,
+        "key": "max_value",
+        "display_name": "Max Value",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 404,
+        "key": "rarity",
+        "display_name": "Rarity",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 405,
+        "key": "weight",
+        "display_name": "Weight",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
       }
     ]
   }

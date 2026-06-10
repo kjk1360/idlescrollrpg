@@ -1,0 +1,92 @@
+[
+  {
+    "id": 40001,
+    "key": "polish_strength",
+    "cells": {
+      "400": {
+        "kind": "string",
+        "value": "Polish Strength"
+      },
+      "401": {
+        "kind": "string",
+        "value": "strength"
+      },
+      "402": {
+        "kind": "i32",
+        "value": 1
+      },
+      "403": {
+        "kind": "i32",
+        "value": 3
+      },
+      "404": {
+        "kind": "string",
+        "value": "common"
+      },
+      "405": {
+        "kind": "i32",
+        "value": 60
+      }
+    }
+  },
+  {
+    "id": 40002,
+    "key": "polish_dexterity",
+    "cells": {
+      "400": {
+        "kind": "string",
+        "value": "Polish Dexterity"
+      },
+      "401": {
+        "kind": "string",
+        "value": "dexterity"
+      },
+      "402": {
+        "kind": "i32",
+        "value": 1
+      },
+      "403": {
+        "kind": "i32",
+        "value": 3
+      },
+      "404": {
+        "kind": "string",
+        "value": "common"
+      },
+      "405": {
+        "kind": "i32",
+        "value": 30
+      }
+    }
+  },
+  {
+    "id": 40003,
+    "key": "polish_moonlight",
+    "cells": {
+      "400": {
+        "kind": "string",
+        "value": "Polish Moonlight"
+      },
+      "401": {
+        "kind": "string",
+        "value": "moonlight"
+      },
+      "402": {
+        "kind": "i32",
+        "value": 1
+      },
+      "403": {
+        "kind": "i32",
+        "value": 1
+      },
+      "404": {
+        "kind": "string",
+        "value": "rare"
+      },
+      "405": {
+        "kind": "i32",
+        "value": 10
+      }
+    }
+  }
+]
