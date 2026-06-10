@@ -104,6 +104,8 @@
 - Special trigger runtime now supports effect kinds `stat_delta`, `timed_stat_delta`, `instant_damage`, `periodic_damage`, and `cast_skill`; `stat_delta`, `timed_stat_delta`, and `cast_skill` can run on interval or on trigger.
 - `timed_stat_delta` applies a stat change to `self` or `nearest_enemy` through `target_rule`, then reverts it after `duration_seconds`; this is the first buff/debuff preset for equipment special options.
 - `special_trigger_effect.trigger_skill` references a `skill_def` row for `cast_skill`, allowing equipment/special-option triggers to fire authored skills through the normal skill execution path.
+- `cast_skill` effects now have `pay_skill_cost` and `require_skill_cooldown` policy fields, so trigger-fired skills can be free extra effects or can respect the caster's shared skill cooldown.
+- Play Preview uses a fixed 1280x720 test layout with a 1280x676 canvas below the header; browser window changes no longer resize the gameplay layout.
 
 ## Current Stable CLI Flow
 
@@ -319,7 +321,7 @@ The next production-facing step is to expose the local account state in the UI a
 
 - Account-state API endpoints in `belt_tools play` for preview/test workflows.
 - Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
-- Add cooldown/resource checks and richer buff/debuff presets to the composable special trigger tables.
+- Add richer condition presets and buff/debuff authoring hints to the composable special trigger tables.
 - Extend equipment special options from `on_equip` stat, granted-skill, and trigger-key application into skill mutation and conditional effects.
 - Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
 

@@ -428,6 +428,8 @@ fn special_trigger_effect_from_data(
         damage_scale: row.damage_scale,
         target_rule: row.target_rule.clone(),
         trigger_skill: SkillDefId(row.trigger_skill.0 as u32),
+        pay_skill_cost: row.pay_skill_cost,
+        require_skill_cooldown: row.require_skill_cooldown,
     })
 }
 

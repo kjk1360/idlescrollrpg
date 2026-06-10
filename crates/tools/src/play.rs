@@ -502,7 +502,13 @@ const PLAY_HTML: &str = r#"<!doctype html>
       background: #1b2027;
       color: #e8edf2;
       font-family: Segoe UI, system-ui, sans-serif;
-      overflow: hidden;
+      overflow: auto;
+    }
+    .stage {
+      width: 1280px;
+      height: 720px;
+      background: #27313a;
+      box-shadow: 0 0 0 1px #343c47;
     }
     header {
       height: 44px;
@@ -523,22 +529,27 @@ const PLAY_HTML: &str = r#"<!doctype html>
     }
     canvas {
       display: block;
-      width: 100vw;
-      height: calc(100vh - 44px);
+      width: 1280px;
+      height: 676px;
       background: #27313a;
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Belt RPG Play Preview</h1>
-    <span id="map" class="pill">loading</span>
-    <span id="time" class="pill">0.0s</span>
-  </header>
-  <canvas id="game"></canvas>
+  <div class="stage">
+    <header>
+      <h1>Belt RPG Play Preview</h1>
+      <span id="map" class="pill">loading</span>
+      <span id="time" class="pill">0.0s</span>
+      <span class="pill">1280x720 fixed test layout</span>
+    </header>
+    <canvas id="game" width="1280" height="676"></canvas>
+  </div>
   <script>
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
+    const TEST_WIDTH = 1280;
+    const TEST_HEIGHT = 676;
     const GRID_CELL_W = 46;
     const GRID_CELL_H = 34;
     let playback = null;
@@ -547,11 +558,10 @@ const PLAY_HTML: &str = r#"<!doctype html>
 
     function resize() {
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(canvas.clientWidth * dpr);
-      canvas.height = Math.floor(canvas.clientHeight * dpr);
+      canvas.width = Math.floor(TEST_WIDTH * dpr);
+      canvas.height = Math.floor(TEST_HEIGHT * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
-    window.addEventListener('resize', resize);
     resize();
 
     fetch('/api/play')
@@ -594,8 +604,8 @@ const PLAY_HTML: &str = r#"<!doctype html>
     }
 
     function draw(frame, elapsed) {
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
+      const w = TEST_WIDTH;
+      const h = TEST_HEIGHT;
       ctx.clearRect(0, 0, w, h);
       drawBackground(w, h, elapsed);
       drawAreaEffects(frame.effects || [], elapsed, w, h);

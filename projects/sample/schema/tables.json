@@ -2130,6 +2130,24 @@
           "target_table": 17
         },
         "required": true
+      },
+      {
+        "id": 370,
+        "key": "pay_skill_cost",
+        "display_name": "Pay Skill Cost",
+        "kind": {
+          "kind": "bool"
+        },
+        "required": true
+      },
+      {
+        "id": 371,
+        "key": "require_skill_cooldown",
+        "display_name": "Require Skill Cooldown",
+        "kind": {
+          "kind": "bool"
+        },
+        "required": true
       }
     ]
   }

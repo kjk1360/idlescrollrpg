@@ -424,4 +424,6 @@ pub struct SpecialTriggerEffect {
     pub damage_scale: f32,
     pub target_rule: String,
     pub trigger_skill: RowId,
+    pub pay_skill_cost: bool,
+    pub require_skill_cooldown: bool,
 }

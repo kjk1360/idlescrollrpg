@@ -115,6 +115,8 @@ pub struct SpecialTriggerEffect {
     pub damage_scale: f32,
     pub target_rule: String,
     pub trigger_skill: SkillDefId,
+    pub pay_skill_cost: bool,
+    pub require_skill_cooldown: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -832,7 +834,22 @@ impl BattleWorld {
         behavior_condition_matches(rule.condition, unit.grid, target.grid, facing, skill)
     }
 
-    fn execute_skill(&mut self, caster_id: UnitId, target_id: UnitId, skill_id: SkillDefId) {
+    fn execute_skill(
+        &mut self,
+        caster_id: UnitId,
+        target_id: UnitId,
+        skill_id: SkillDefId,
+    ) -> bool {
+        self.execute_skill_with_options(caster_id, target_id, skill_id, true)
+    }
+
+    fn execute_skill_with_options(
+        &mut self,
+        caster_id: UnitId,
+        target_id: UnitId,
+        skill_id: SkillDefId,
+        pay_cost: bool,
+    ) -> bool {
         let Some(skill) = self
             .config
             .skill_defs
@@ -840,16 +857,16 @@ impl BattleWorld {
             .find(|skill| skill.id == skill_id)
             .cloned()
         else {
-            return;
+            return false;
         };
         let Some(caster) = self.units.iter().find(|unit| unit.id == caster_id).cloned() else {
-            return;
+            return false;
         };
         let Some(target) = self.units.iter().find(|unit| unit.id == target_id).cloned() else {
-            return;
+            return false;
         };
-        if !self.pay_skill_cost(caster_id, &skill) {
-            return;
+        if pay_cost && !self.pay_skill_cost(caster_id, &skill) {
+            return false;
         }
         let facing = direction_toward(caster.grid, target.grid);
         let caster = EffectCaster::from(&caster);
@@ -868,6 +885,7 @@ impl BattleWorld {
             }
             self.execute_skill_step(&caster, target_id, target.position, facing, step);
         }
+        true
     }
 
     fn execute_skill_step(
@@ -1205,7 +1223,31 @@ impl BattleWorld {
         };
 
         for target in special_trigger_effect_targets(snapshot, source, &effect.target_rule) {
-            self.execute_skill(unit_id, target, effect.trigger_skill);
+            if effect.require_skill_cooldown {
+                let Some(unit) = self.units.iter().find(|unit| unit.id == unit_id) else {
+                    continue;
+                };
+                if unit.attack_cooldown > 0.0 {
+                    continue;
+                }
+            }
+            if self.execute_skill_with_options(
+                unit_id,
+                target,
+                effect.trigger_skill,
+                effect.pay_skill_cost,
+            ) && effect.require_skill_cooldown
+            {
+                let cooldown = self
+                    .skill_by_id(effect.trigger_skill)
+                    .map(|skill| skill.cooldown_ticks.max(1) as f32 * self.config.tick_duration);
+                if let (Some(unit), Some(cooldown)) = (
+                    self.units.iter_mut().find(|unit| unit.id == unit_id),
+                    cooldown,
+                ) {
+                    unit.attack_cooldown = cooldown;
+                }
+            }
         }
     }
 
@@ -2235,6 +2277,8 @@ mod tests {
                     damage_scale: 0.0,
                     target_rule: "self".to_string(),
                     trigger_skill: SkillDefId(17001),
+                    pay_skill_cost: false,
+                    require_skill_cooldown: false,
                 },
                 SpecialTriggerEffect {
                     timing: SpecialTriggerEffectTiming::OnTrigger,
@@ -2246,6 +2290,8 @@ mod tests {
                     damage_scale: 1.0,
                     target_rule: "nearest_enemy".to_string(),
                     trigger_skill: SkillDefId(17001),
+                    pay_skill_cost: false,
+                    require_skill_cooldown: false,
                 },
             ],
         }];
@@ -2404,6 +2450,8 @@ mod tests {
                 damage_scale: 1.0,
                 target_rule: "nearest_enemy".to_string(),
                 trigger_skill: SkillDefId(17001),
+                pay_skill_cost: false,
+                require_skill_cooldown: false,
             }],
         }];
 
@@ -2452,6 +2500,8 @@ mod tests {
                 damage_scale: 0.0,
                 target_rule: "self".to_string(),
                 trigger_skill: SkillDefId(17001),
+                pay_skill_cost: false,
+                require_skill_cooldown: false,
             },
             &snapshot,
         );
@@ -2496,6 +2546,8 @@ mod tests {
                 damage_scale: 0.0,
                 target_rule: "nearest_enemy".to_string(),
                 trigger_skill: SkillDefId(17001),
+                pay_skill_cost: false,
+                require_skill_cooldown: false,
             },
             &snapshot,
         );
@@ -2511,5 +2563,43 @@ mod tests {
             )
         });
         assert!(saw_skill_damage);
+    }
+
+    #[test]
+    fn cast_skill_trigger_can_require_cooldown() {
+        let mut world = BattleWorld::new(sample_battle_config());
+        let snapshot = world.units().to_vec();
+        let effect = SpecialTriggerEffect {
+            timing: SpecialTriggerEffectTiming::OnTrigger,
+            kind: SpecialTriggerEffectKind::CastSkill,
+            stat: STAT_CURRENT_HP,
+            stat_delta: 0.0,
+            duration_seconds: 0.0,
+            interval_seconds: 0.0,
+            damage_scale: 0.0,
+            target_rule: "nearest_enemy".to_string(),
+            trigger_skill: SkillDefId(17001),
+            pay_skill_cost: false,
+            require_skill_cooldown: true,
+        };
+
+        world.apply_special_trigger_cast_skill(UnitId(1), &effect, &snapshot);
+        world.apply_special_trigger_cast_skill(UnitId(1), &effect, &snapshot);
+
+        let skill_hits = world
+            .drain_events()
+            .into_iter()
+            .filter(|event| {
+                matches!(
+                    event,
+                    BattleEvent::UnitAttacked {
+                        attacker: UnitId(1),
+                        damage: 36,
+                        ..
+                    }
+                )
+            })
+            .count();
+        assert_eq!(skill_hits, 1);
     }
 }
