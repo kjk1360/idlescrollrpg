@@ -406,6 +406,8 @@ pub struct SpecialTriggerCondition {
     pub stat: RowId,
     pub threshold: f32,
     pub consume_on_pass: bool,
+    pub target_rule: String,
+    pub range: f32,
 }
 
 #[derive(Debug, Clone)]

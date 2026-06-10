@@ -2013,6 +2013,24 @@
           "kind": "bool"
         },
         "required": true
+      },
+      {
+        "id": 355,
+        "key": "target_rule",
+        "display_name": "Target Rule",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 356,
+        "key": "range",
+        "display_name": "Range",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
       }
     ]
   },

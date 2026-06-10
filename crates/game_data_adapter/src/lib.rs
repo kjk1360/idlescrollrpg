@@ -383,6 +383,8 @@ fn special_trigger_condition_from_data(
             "stat_gte" => SpecialTriggerConditionKind::StatGte,
             "stat_lte" => SpecialTriggerConditionKind::StatLte,
             "stat_eq" => SpecialTriggerConditionKind::StatEq,
+            "target_exists" => SpecialTriggerConditionKind::TargetExists,
+            "target_in_range" => SpecialTriggerConditionKind::TargetInRange,
             other => {
                 return Err(format!(
                     "unsupported special trigger condition kind {other}"
@@ -392,6 +394,8 @@ fn special_trigger_condition_from_data(
         stat: StatDefId(row.stat.0 as u32),
         threshold: row.threshold,
         consume_on_pass: row.consume_on_pass,
+        target_rule: row.target_rule.clone(),
+        range: row.range,
     })
 }
 

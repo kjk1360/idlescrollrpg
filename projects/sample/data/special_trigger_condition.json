@@ -22,6 +22,48 @@
       "354": {
         "kind": "bool",
         "value": true
+      },
+      "355": {
+        "kind": "string",
+        "value": "self"
+      },
+      "356": {
+        "kind": "f32",
+        "value": 0.0
+      }
+    }
+  },
+  {
+    "id": 36002,
+    "key": "nearest_enemy_within_6",
+    "cells": {
+      "350": {
+        "kind": "string",
+        "value": "Nearest Enemy Within 6"
+      },
+      "351": {
+        "kind": "string",
+        "value": "target_in_range"
+      },
+      "352": {
+        "kind": "row",
+        "value": 23002
+      },
+      "353": {
+        "kind": "f32",
+        "value": 0.0
+      },
+      "354": {
+        "kind": "bool",
+        "value": false
+      },
+      "355": {
+        "kind": "string",
+        "value": "nearest_enemy"
+      },
+      "356": {
+        "kind": "f32",
+        "value": 6.0
       }
     }
   }

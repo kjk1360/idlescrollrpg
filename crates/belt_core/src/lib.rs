@@ -90,6 +90,8 @@ pub struct SpecialTriggerCondition {
     pub stat: StatDefId,
     pub threshold: f32,
     pub consume_on_pass: bool,
+    pub target_rule: String,
+    pub range: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -98,6 +100,8 @@ pub enum SpecialTriggerConditionKind {
     StatGte,
     StatLte,
     StatEq,
+    TargetExists,
+    TargetInRange,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1015,6 +1019,7 @@ impl BattleWorld {
 
     fn tick_special_triggers(&mut self) {
         let mut started_periodics = Vec::new();
+        let snapshot = self.units.clone();
         for index in 0..self.units.len() {
             if !self.units[index].is_alive() {
                 continue;
@@ -1040,7 +1045,11 @@ impl BattleWorld {
                     self.apply_special_trigger_effect(index, effect);
                 }
 
-                if !special_trigger_conditions_pass(&self.units[index], &trigger_def.conditions) {
+                if !special_trigger_conditions_pass(
+                    &snapshot,
+                    &self.units[index],
+                    &trigger_def.conditions,
+                ) {
                     continue;
                 }
 
@@ -1272,6 +1281,7 @@ fn special_periodic_target(
 }
 
 fn special_trigger_conditions_pass(
+    units: &[UnitState],
     unit: &UnitState,
     conditions: &[SpecialTriggerCondition],
 ) -> bool {
@@ -1285,6 +1295,14 @@ fn special_trigger_conditions_pass(
         }
         SpecialTriggerConditionKind::StatEq => {
             (unit.stats.get(condition.stat) - condition.threshold).abs() <= f32::EPSILON
+        }
+        SpecialTriggerConditionKind::TargetExists => {
+            special_periodic_target(units, unit, &condition.target_rule).is_some()
+        }
+        SpecialTriggerConditionKind::TargetInRange => {
+            special_periodic_target(units, unit, &condition.target_rule).is_some_and(|target| {
+                line_in_range(unit.position, target.position, condition.range)
+            })
         }
     })
 }
@@ -2124,6 +2142,8 @@ mod tests {
                 stat: STAT_MOONLIGHT,
                 threshold: 3.0,
                 consume_on_pass: true,
+                target_rule: "self".to_string(),
+                range: 0.0,
             }],
             effects: vec![
                 SpecialTriggerEffect {
@@ -2202,21 +2222,74 @@ mod tests {
             .expect("knight spawned");
 
         assert!(special_trigger_conditions_pass(
+            world.units(),
             knight,
             &[SpecialTriggerCondition {
                 kind: SpecialTriggerConditionKind::StatLte,
                 stat: STAT_CURRENT_HP,
                 threshold: 120.0,
                 consume_on_pass: false,
+                target_rule: "self".to_string(),
+                range: 0.0,
             }]
         ));
         assert!(special_trigger_conditions_pass(
+            world.units(),
             knight,
             &[SpecialTriggerCondition {
                 kind: SpecialTriggerConditionKind::StatEq,
                 stat: STAT_ATTACK,
                 threshold: 18.0,
                 consume_on_pass: false,
+                target_rule: "self".to_string(),
+                range: 0.0,
+            }]
+        ));
+    }
+
+    #[test]
+    fn special_trigger_conditions_support_target_exists_and_range() {
+        let world = BattleWorld::new(sample_battle_config());
+        let knight = world
+            .units()
+            .iter()
+            .find(|unit| unit.id == UnitId(1))
+            .expect("knight spawned");
+
+        assert!(special_trigger_conditions_pass(
+            world.units(),
+            knight,
+            &[SpecialTriggerCondition {
+                kind: SpecialTriggerConditionKind::TargetExists,
+                stat: STAT_CURRENT_HP,
+                threshold: 0.0,
+                consume_on_pass: false,
+                target_rule: "nearest_enemy".to_string(),
+                range: 0.0,
+            }]
+        ));
+        assert!(special_trigger_conditions_pass(
+            world.units(),
+            knight,
+            &[SpecialTriggerCondition {
+                kind: SpecialTriggerConditionKind::TargetInRange,
+                stat: STAT_CURRENT_HP,
+                threshold: 0.0,
+                consume_on_pass: false,
+                target_rule: "nearest_enemy".to_string(),
+                range: 8.0,
+            }]
+        ));
+        assert!(!special_trigger_conditions_pass(
+            world.units(),
+            knight,
+            &[SpecialTriggerCondition {
+                kind: SpecialTriggerConditionKind::TargetInRange,
+                stat: STAT_CURRENT_HP,
+                threshold: 0.0,
+                consume_on_pass: false,
+                target_rule: "nearest_enemy".to_string(),
+                range: 0.1,
             }]
         ));
     }
@@ -2237,6 +2310,8 @@ mod tests {
                 stat: STAT_CURRENT_HP,
                 threshold: 0.0,
                 consume_on_pass: false,
+                target_rule: "self".to_string(),
+                range: 0.0,
             }],
             effects: vec![SpecialTriggerEffect {
                 timing: SpecialTriggerEffectTiming::OnTrigger,

@@ -929,6 +929,8 @@ fn load_special_trigger_condition(
                 FieldId(354),
                 "special_trigger_condition.consume_on_pass",
             )?,
+            target_rule: read_string(row, FieldId(355), "special_trigger_condition.target_rule")?,
+            range: read_f32(row, FieldId(356), "special_trigger_condition.range")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());

@@ -99,7 +99,8 @@
 - `combat_tick_5s_moonlight_3` is now data-authored through `special_trigger_def`; the runtime still supports a narrow trigger shape, but its numbers and target rule come from data.
 - Split special trigger authoring into `special_trigger_condition` and `special_trigger_effect` tables.
 - `special_trigger_def` now references condition/effect rows; the Moonlight trigger is represented as an interval stat-delta effect, a stat threshold condition, and an on-trigger periodic damage effect.
-- Special trigger runtime now supports condition kinds `always`, `stat_gte`, `stat_lte`, and `stat_eq`.
+- Special trigger runtime now supports condition kinds `always`, `stat_gte`, `stat_lte`, `stat_eq`, `target_exists`, and `target_in_range`.
+- `special_trigger_condition` rows now carry `target_rule` and `range`, so equipment/special-option triggers can require a nearest enemy to exist or be inside line-combat range.
 - Special trigger runtime now supports effect kinds `stat_delta`, `instant_damage`, and `periodic_damage`; `stat_delta` can run on interval or on trigger.
 
 ## Current Stable CLI Flow
@@ -316,7 +317,7 @@ The next production-facing step is to expose the local account state in the UI a
 
 - Account-state API endpoints in `belt_tools play` for preview/test workflows.
 - Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
-- Add target-based condition kinds, cooldown/resource checks, skill-cast effects, and buff/debuff presets to the composable special trigger tables.
+- Add cooldown/resource checks, skill-cast effects, and buff/debuff presets to the composable special trigger tables.
 - Extend equipment special options from `on_equip` stat, granted-skill, and trigger-key application into skill mutation and conditional effects.
 - Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
 
@@ -337,7 +338,7 @@ When Supabase is introduced, keep security official and conservative:
 The runtime is tick-based 1D line combat. Primary skills execute immediate and delayed `skill_step` entries against a selected target when that target is within `skill_def.range`, costs can be paid, and cooldown is ready. Units can choose skills from priority behavior rules with stat-based conditions. Next, extend this into the full skill execution model:
 
 - explicit projectile authoring fields such as speed, visual type, pierce/block rules, and collision policy
-- structured trigger timing runtime for conditional skill activation, including equipment special option triggers such as periodic stack gain and threshold skill activation
+- structured trigger timing runtime for conditional skill activation, including cooldown/resource checks and equipment special option triggers beyond periodic stack gain and threshold effects
 - richer behavior conditions such as ally/enemy counts, cooldown availability, distance checks, and target stat filters
 - richer resource flows around skill costs, such as mana gain effects, generated UI presets, and cost preview labels
 - authoring presets and UI hints for temporary stacks, shields, buffs, debuffs, and over-time effects

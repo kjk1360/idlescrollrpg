@@ -131,7 +131,8 @@ Implemented:
 - `special_option_def.trigger_key` resolves by key into `special_trigger_def`; the current runtime supports this narrow periodic-damage trigger shape rather than fully composable effects
 - `special_trigger_condition` and `special_trigger_effect` tables split trigger authoring into reusable condition/effect rows
 - the Moonlight trigger currently uses one `stat_gte` condition, one `on_interval/stat_delta` effect, and one `on_trigger/periodic_damage` effect
-- supported special trigger condition kinds are `always`, `stat_gte`, `stat_lte`, and `stat_eq`
+- supported special trigger condition kinds are `always`, `stat_gte`, `stat_lte`, `stat_eq`, `target_exists`, and `target_in_range`
+- `special_trigger_condition` rows include `target_rule` and `range`, allowing trigger activation to require a nearest enemy to exist or be inside line-combat range
 - supported special trigger effect kinds are `stat_delta`, `instant_damage`, and `periodic_damage`; `stat_delta` can run on interval or trigger
 - Play Preview renders impact flashes on the combat line
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
@@ -520,7 +521,7 @@ Expose the local account-state loop in the tool UI and playable preview.
 Recommended order:
 
 1. Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
-2. Add target-based condition kinds, cooldown/resource checks, skill-cast effects, and buff/debuff presets to the composable special trigger tables.
+2. Add cooldown/resource checks, skill-cast effects, and buff/debuff presets to the composable special trigger tables.
 3. Extend equipment special option runtime from `on_equip` stat/granted-skill/trigger-key application into skill mutation and conditional effects.
 4. Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
 5. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
