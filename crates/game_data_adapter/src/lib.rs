@@ -63,14 +63,14 @@ pub fn battle_config_from_generated_with_runtime_equipment(
         .iter()
         .map(|row| unit_def_from_data(db, row))
         .collect::<Result<Vec<_>, _>>()?;
-    apply_unit_special_option_loadouts(db, &mut unit_defs)?;
-    apply_runtime_unit_equipment(db, &mut unit_defs, equipment)?;
-    let skill_defs = db
+    let mut skill_defs = db
         .skill_def
         .rows
         .iter()
         .map(|row| skill_def_from_data(db, row))
         .collect::<Result<Vec<_>, _>>()?;
+    apply_unit_special_option_loadouts(db, &mut unit_defs, &mut skill_defs)?;
+    apply_runtime_unit_equipment(db, &mut unit_defs, &mut skill_defs, equipment)?;
 
     let map = db
         .map_def
@@ -272,6 +272,7 @@ fn unit_def_from_data(
 fn apply_unit_special_option_loadouts(
     db: &GeneratedDatabase,
     unit_defs: &mut [UnitDef],
+    skill_defs: &mut Vec<SkillDef>,
 ) -> Result<(), String> {
     for loadout in &db.unit_special_option_loadout.rows {
         let unit_def = unit_defs
@@ -285,7 +286,7 @@ fn apply_unit_special_option_loadouts(
             })?;
 
         for option_id in &loadout.special_options {
-            apply_special_option_to_unit(db, unit_def, *option_id)?;
+            apply_special_option_to_unit(db, unit_def, skill_defs, *option_id)?;
         }
     }
 
@@ -295,6 +296,7 @@ fn apply_unit_special_option_loadouts(
 fn apply_special_option_to_unit(
     db: &GeneratedDatabase,
     unit_def: &mut UnitDef,
+    skill_defs: &mut Vec<SkillDef>,
     option_id: RowId,
 ) -> Result<(), String> {
     let option = db
@@ -331,6 +333,14 @@ fn apply_special_option_to_unit(
         }
     }
 
+    for mutation_id in &option.skill_mutations {
+        let mutation = db
+            .special_option_skill_mutation
+            .get_by_id(*mutation_id)
+            .ok_or_else(|| format!("missing special option skill mutation {:?}", mutation_id))?;
+        apply_skill_mutation_to_unit(unit_def, skill_defs, mutation)?;
+    }
+
     if !option.trigger_key.is_empty() {
         let trigger = special_trigger_from_data(db, &option.trigger_key)?;
         if !unit_def
@@ -343,6 +353,81 @@ fn apply_special_option_to_unit(
     }
 
     Ok(())
+}
+
+fn apply_skill_mutation_to_unit(
+    unit_def: &mut UnitDef,
+    skill_defs: &mut Vec<SkillDef>,
+    mutation: &data_types::SpecialOptionSkillMutation,
+) -> Result<(), String> {
+    let target_skill = SkillDefId(mutation.target_skill.0 as u32);
+    if !unit_uses_skill(unit_def, target_skill) {
+        return Ok(());
+    }
+    let source = skill_defs
+        .iter()
+        .find(|skill| skill.id == target_skill)
+        .cloned()
+        .ok_or_else(|| {
+            format!(
+                "missing target skill {:?} for skill mutation {}",
+                mutation.target_skill, mutation.key
+            )
+        })?;
+    let mutated_id = mutated_skill_id(unit_def.id, target_skill, mutation.id);
+
+    if !skill_defs.iter().any(|skill| skill.id == mutated_id) {
+        let mut mutated = source;
+        mutated.id = mutated_id;
+        mutated.name = format!("{} / {}", mutated.name, mutation.name);
+        mutated.cooldown_ticks =
+            (mutated.cooldown_ticks as i32 + mutation.cooldown_ticks_delta).max(1) as u32;
+        mutated.range = (mutated.range + mutation.range_delta).max(0.0);
+        match mutation.mutation_kind.as_str() {
+            "damage_scale_add" => {
+                for step in &mut mutated.steps {
+                    for effect in &mut step.effects {
+                        if matches!(
+                            effect.kind,
+                            SkillEffectKind::Damage | SkillEffectKind::ProjectileDamage
+                        ) {
+                            effect.scaling += mutation.damage_scale_delta;
+                        }
+                    }
+                }
+            }
+            other => return Err(format!("unsupported skill mutation kind {other}")),
+        }
+        skill_defs.push(mutated);
+    }
+
+    replace_unit_skill_references(unit_def, target_skill, mutated_id);
+    Ok(())
+}
+
+fn unit_uses_skill(unit_def: &UnitDef, skill_id: SkillDefId) -> bool {
+    unit_def.primary_skill == Some(skill_id)
+        || unit_def
+            .behavior_rules
+            .iter()
+            .any(|rule| rule.skill == skill_id)
+}
+
+fn replace_unit_skill_references(unit_def: &mut UnitDef, from: SkillDefId, to: SkillDefId) {
+    if unit_def.primary_skill == Some(from) {
+        unit_def.primary_skill = Some(to);
+    }
+    for rule in &mut unit_def.behavior_rules {
+        if rule.skill == from {
+            rule.skill = to;
+        }
+    }
+}
+
+fn mutated_skill_id(unit_id: UnitDefId, skill_id: SkillDefId, mutation_id: RowId) -> SkillDefId {
+    SkillDefId(
+        800_000_000 + unit_id.0 * 10_000 + (skill_id.0 % 1_000) * 10 + (mutation_id.0 as u32 % 10),
+    )
 }
 
 fn special_trigger_from_data(
@@ -436,6 +521,7 @@ fn special_trigger_effect_from_data(
 fn apply_runtime_unit_equipment(
     db: &GeneratedDatabase,
     unit_defs: &mut [UnitDef],
+    skill_defs: &mut Vec<SkillDef>,
     equipment: &[RuntimeUnitEquipment],
 ) -> Result<(), String> {
     for unit_equipment in equipment {
@@ -461,7 +547,7 @@ fn apply_runtime_unit_equipment(
                 .special_option_def
                 .get_by_key(option_key)
                 .ok_or_else(|| format!("missing equipment special option {option_key}"))?;
-            apply_special_option_to_unit(db, unit_def, option.id)?;
+            apply_special_option_to_unit(db, unit_def, skill_defs, option.id)?;
         }
     }
 
@@ -628,8 +714,25 @@ mod tests {
             .expect("knight exists");
 
         assert_eq!(knight.base_stats.get(StatDefId(23006)), 1.0);
-        assert_eq!(knight.primary_skill, Some(SkillDefId(17001)));
+        let mutated_skill = mutated_skill_id(UnitDefId(1001), SkillDefId(17001), RowId(38001));
+        assert_eq!(knight.primary_skill, Some(mutated_skill));
         assert_eq!(knight.behavior_rules.len(), 1);
+        assert_eq!(knight.behavior_rules[0].skill, mutated_skill);
+        assert!(config
+            .skill_defs
+            .iter()
+            .any(|skill| skill.id == SkillDefId(17001)));
+
+        let empowered_slash = config
+            .skill_defs
+            .iter()
+            .find(|skill| skill.id == mutated_skill)
+            .expect("mutated knight skill exists");
+        assert!(empowered_slash
+            .steps
+            .iter()
+            .flat_map(|step| &step.effects)
+            .any(|effect| effect.power == 18 && effect.scaling == 1.5));
         assert_eq!(
             knight
                 .special_triggers

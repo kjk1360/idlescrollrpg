@@ -56,6 +56,7 @@ pub struct GeneratedRelationCache {
     pub refinement_recipe_special_options: HashMap<RowId, Vec<RowId>>,
     pub special_option_def_stat_deltas: HashMap<RowId, Vec<RowId>>,
     pub special_option_def_granted_skill: HashMap<RowId, RowId>,
+    pub special_option_def_skill_mutations: HashMap<RowId, Vec<RowId>>,
     pub special_option_stat_delta_stat: HashMap<RowId, RowId>,
     pub unit_special_option_loadout_unit: HashMap<RowId, RowId>,
     pub unit_special_option_loadout_special_options: HashMap<RowId, Vec<RowId>>,
@@ -65,6 +66,7 @@ pub struct GeneratedRelationCache {
     pub special_trigger_condition_stat: HashMap<RowId, RowId>,
     pub special_trigger_effect_stat: HashMap<RowId, RowId>,
     pub special_trigger_effect_trigger_skill: HashMap<RowId, RowId>,
+    pub special_option_skill_mutation_target_skill: HashMap<RowId, RowId>,
 }
 
 impl GeneratedRelationCache {
@@ -572,6 +574,20 @@ impl GeneratedRelationCache {
                 .special_option_def_granted_skill
                 .insert(row.id, row.granted_skill);
         }
+        for row in &db.special_option_def.rows {
+            for target_id in &row.skill_mutations {
+                if db
+                    .special_option_skill_mutation
+                    .get_by_id(*target_id)
+                    .is_none()
+                {
+                    return Err(format!("missing relation target for special_option_def.skill_mutations from {:?} to {:?}", row.id, target_id));
+                }
+            }
+            cache
+                .special_option_def_skill_mutations
+                .insert(row.id, row.skill_mutations.clone());
+        }
         for row in &db.special_option_stat_delta.rows {
             if db.stat_def.get_by_id(row.stat).is_none() {
                 return Err(format!(
@@ -662,6 +678,14 @@ impl GeneratedRelationCache {
             cache
                 .special_trigger_effect_trigger_skill
                 .insert(row.id, row.trigger_skill);
+        }
+        for row in &db.special_option_skill_mutation.rows {
+            if db.skill_def.get_by_id(row.target_skill).is_none() {
+                return Err(format!("missing relation target for special_option_skill_mutation.target_skill from {:?} to {:?}", row.id, row.target_skill));
+            }
+            cache
+                .special_option_skill_mutation_target_skill
+                .insert(row.id, row.target_skill);
         }
         Ok(cache)
     }
@@ -874,6 +898,12 @@ impl GeneratedRelationCache {
         self.special_option_def_granted_skill.get(&source).copied()
     }
 
+    pub fn get_special_option_def_skill_mutations(&self, source: RowId) -> Option<&[RowId]> {
+        self.special_option_def_skill_mutations
+            .get(&source)
+            .map(Vec::as_slice)
+    }
+
     pub fn get_special_option_stat_delta_stat(&self, source: RowId) -> Option<RowId> {
         self.special_option_stat_delta_stat.get(&source).copied()
     }
@@ -917,6 +947,12 @@ impl GeneratedRelationCache {
 
     pub fn get_special_trigger_effect_trigger_skill(&self, source: RowId) -> Option<RowId> {
         self.special_trigger_effect_trigger_skill
+            .get(&source)
+            .copied()
+    }
+
+    pub fn get_special_option_skill_mutation_target_skill(&self, source: RowId) -> Option<RowId> {
+        self.special_option_skill_mutation_target_skill
             .get(&source)
             .copied()
     }

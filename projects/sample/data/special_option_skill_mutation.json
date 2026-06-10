@@ -1,0 +1,32 @@
+[
+  {
+    "id": 38001,
+    "key": "moonless_black_night_empowered_slash",
+    "cells": {
+      "380": {
+        "kind": "string",
+        "value": "Moonless Black Night Empowered Slash"
+      },
+      "381": {
+        "kind": "row",
+        "value": 17001
+      },
+      "382": {
+        "kind": "string",
+        "value": "damage_scale_add"
+      },
+      "383": {
+        "kind": "f32",
+        "value": 0.5
+      },
+      "384": {
+        "kind": "i32",
+        "value": 0
+      },
+      "385": {
+        "kind": "f32",
+        "value": 0.0
+      }
+    }
+  }
+]

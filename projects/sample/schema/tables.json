@@ -1762,6 +1762,16 @@
           "kind": "string"
         },
         "required": true
+      },
+      {
+        "id": 307,
+        "key": "skill_mutations",
+        "display_name": "Skill Mutations",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 38
+        },
+        "required": false
       }
     ]
   },
@@ -2146,6 +2156,68 @@
         "display_name": "Require Skill Cooldown",
         "kind": {
           "kind": "bool"
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 38,
+    "key": "special_option_skill_mutation",
+    "display_name": "Special Option Skill Mutation",
+    "fields": [
+      {
+        "id": 380,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 381,
+        "key": "target_skill",
+        "display_name": "Target Skill",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 17
+        },
+        "required": true
+      },
+      {
+        "id": 382,
+        "key": "mutation_kind",
+        "display_name": "Mutation Kind",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 383,
+        "key": "damage_scale_delta",
+        "display_name": "Damage Scale Delta",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 384,
+        "key": "cooldown_ticks_delta",
+        "display_name": "Cooldown Ticks Delta",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 385,
+        "key": "range_delta",
+        "display_name": "Range Delta",
+        "kind": {
+          "kind": "f32"
         },
         "required": true
       }

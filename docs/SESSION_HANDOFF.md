@@ -137,6 +137,9 @@ Implemented:
 - `timed_stat_delta` applies a stat change to `self` or `nearest_enemy` through `target_rule`, then reverts it after `duration_seconds`; the sample Moonlight trigger includes a temporary self attack buff
 - `special_trigger_effect.trigger_skill` references a `skill_def` row for `cast_skill`; the sample Moonlight trigger includes an extra Knight Slash cast on trigger
 - `cast_skill` effects include `pay_skill_cost` and `require_skill_cooldown` policy fields; cooldown policy uses the caster's shared `attack_cooldown`
+- `special_option_skill_mutation` and `special_option_def.skill_mutations` exist for authored equipment special options that mutate a target skill for the equipped unit
+- special option skill mutations currently clone the target skill into a unit-specific runtime skill, apply cooldown/range deltas, and support `damage_scale_add` for damage/projectile-damage effects without mutating the global source skill
+- sample `moonless_black_night` mutates Knight Slash into an empowered unit-specific version while keeping the original Knight Slash available for other users
 - Play Preview uses a fixed 1280x720 test layout with a 1280x676 canvas below the header, so browser window size no longer changes the gameplay layout
 - Play Preview exposes mouse-clickable pause/play, restart, and speed controls; the combat preview is automated playback, not direct unit command input
 - Data Studio uses dropdown editors for common special trigger enum fields such as condition kind, effect kind, timing, and target rule
@@ -528,12 +531,12 @@ Recommended order:
 
 1. Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
 2. Add richer condition presets and buff/debuff authoring hints to the composable special trigger tables.
-3. Extend equipment special option runtime from `on_equip` stat/granted-skill/trigger-key application into skill mutation and conditional effects.
+3. Extend equipment special option mutations beyond `damage_scale_add` into effect add/remove/replace, projectile/AOE conversion, and richer conditional mutation presets.
 4. Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
 5. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
 6. Keep chat/guild/ranking behind auction house priority.
-5. Connect battle simulation states to visual state machine keys.
-6. Package and verify the updated `belt_tools.exe` again.
+7. Connect battle simulation states to visual state machine keys.
+8. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats
 

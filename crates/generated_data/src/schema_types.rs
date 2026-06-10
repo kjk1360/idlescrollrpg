@@ -358,6 +358,7 @@ pub struct SpecialOptionDef {
     pub granted_skill: RowId,
     pub trigger_key: String,
     pub effect_summary: String,
+    pub skill_mutations: Vec<RowId>,
 }
 
 #[derive(Debug, Clone)]
@@ -426,4 +427,16 @@ pub struct SpecialTriggerEffect {
     pub trigger_skill: RowId,
     pub pay_skill_cost: bool,
     pub require_skill_cooldown: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct SpecialOptionSkillMutation {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub target_skill: RowId,
+    pub mutation_kind: String,
+    pub damage_scale_delta: f32,
+    pub cooldown_ticks_delta: i32,
+    pub range_delta: f32,
 }

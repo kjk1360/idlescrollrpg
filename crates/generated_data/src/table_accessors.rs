@@ -47,6 +47,7 @@ pub struct GeneratedDatabase {
     pub special_trigger_def: GeneratedTable<SpecialTriggerDef>,
     pub special_trigger_condition: GeneratedTable<SpecialTriggerCondition>,
     pub special_trigger_effect: GeneratedTable<SpecialTriggerEffect>,
+    pub special_option_skill_mutation: GeneratedTable<SpecialOptionSkillMutation>,
 }
 
 #[derive(Debug, Clone)]
@@ -124,6 +125,7 @@ impl GeneratedDatabase {
             special_trigger_def: load_special_trigger_def(project)?,
             special_trigger_condition: load_special_trigger_condition(project)?,
             special_trigger_effect: load_special_trigger_effect(project)?,
+            special_option_skill_mutation: load_special_option_skill_mutation(project)?,
         })
     }
 }
@@ -813,6 +815,7 @@ fn load_special_option_def(
             granted_skill: read_row(row, FieldId(304), "special_option_def.granted_skill")?,
             trigger_key: read_string(row, FieldId(305), "special_option_def.trigger_key")?,
             effect_summary: read_string(row, FieldId(306), "special_option_def.effect_summary")?,
+            skill_mutations: read_rows(row, FieldId(307), "special_option_def.skill_mutations")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());
@@ -972,6 +975,50 @@ fn load_special_trigger_effect(
                 row,
                 FieldId(371),
                 "special_trigger_effect.require_skill_cooldown",
+            )?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_special_option_skill_mutation(
+    project: &DataProject,
+) -> Result<GeneratedTable<SpecialOptionSkillMutation>, String> {
+    let rows = table_rows(project, TableId(38))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(SpecialOptionSkillMutation {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(380), "special_option_skill_mutation.name")?,
+            target_skill: read_row(
+                row,
+                FieldId(381),
+                "special_option_skill_mutation.target_skill",
+            )?,
+            mutation_kind: read_string(
+                row,
+                FieldId(382),
+                "special_option_skill_mutation.mutation_kind",
+            )?,
+            damage_scale_delta: read_f32(
+                row,
+                FieldId(383),
+                "special_option_skill_mutation.damage_scale_delta",
+            )?,
+            cooldown_ticks_delta: read_i32(
+                row,
+                FieldId(384),
+                "special_option_skill_mutation.cooldown_ticks_delta",
+            )?,
+            range_delta: read_f32(
+                row,
+                FieldId(385),
+                "special_option_skill_mutation.range_delta",
             )?,
         });
         ids.push(row.id);

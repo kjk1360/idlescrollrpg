@@ -32,6 +32,12 @@
       "306": {
         "kind": "string",
         "value": "Consumes 3 Moonlight to apply Moon's Wrath for 10 seconds; while active, every 0.5 seconds hit a random enemy for 100% attack."
+      },
+      "307": {
+        "kind": "rows",
+        "value": [
+          38001
+        ]
       }
     }
   }
