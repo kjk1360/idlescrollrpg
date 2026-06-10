@@ -2335,6 +2335,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
               <div class="stat-line"><span>Recoverable</span><span>${account.recoverable_energy}</span></div>
               <div class="stat-line"><span>Next</span><span>${formatDuration(account.seconds_until_next_recovery)}</span></div>
               <div class="stat-line"><span>Rate</span><span>${account.recover_amount}/${formatDuration(account.recover_seconds)}</span></div>
+              <div class="stat-line"><span>Expired Mail</span><span>${account.expired_mail_removed}</span></div>
             </div>
           </div>
           ${storage.map(tab => `

@@ -98,6 +98,7 @@ Implemented:
 - `/api/account-state` returns the local account-state snapshot and `/api/account-dispatch` runs dungeon dispatch with writeback
 - `/api/account-mail/claim` and `/api/account-mail/delete` mutate local overflow mail from the Operation tab
 - `/api/account-energy/recover` persists real-time account energy recovery, and dispatch applies recovery before spending energy
+- account-state load/save paths remove expired local mail automatically
 - Play Preview renders impact flashes on the combat line
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -119,6 +120,15 @@ Operation:
 - auction house is the first server-backed priority
 - chat is explicitly lower priority
 - basic player/user state can remain local for the Steam-style client game
+- the shipped game opens on the Guild House scene
+- Guild House is the main visual surface for work feedback: alchemy furnace, forge, exit door, fantasy tavern bar, heroes, and active actions are visible in-scene
+- Warehouse, Hero, and Operation are UI overlays around the Guild House scene
+- active dungeon explorations appear as narrow horizontal views on the left and stack vertically for multiple parties
+- dungeon access comes from permanent basic dungeons and consumable map items
+- basic dungeons are always open, endless, practice-like dungeons with scaling waves and no reward loss on failure
+- map items open timed dungeons that can host one party at a time and can be retried until the map duration ends
+- map dungeons target focused rewards such as specific item families, better low-wave grades, boss-guaranteed grades, recipes, named equipment, special consumables, or map-only materials
+- map fragments and complete maps can drop from basic dungeons; fragments can be synthesized in the Alchemy Furnace
 
 Combat:
 
@@ -446,7 +456,7 @@ Expose the local account-state loop in the tool UI and playable preview.
 
 Recommended order:
 
-1. Add mail expiry cleanup on account-state load/save.
+1. Add first Guild House visual shell in Play/Data Studio.
 2. Add first recipe tables and instant alchemy/forge/refinement commands.
 3. Add Operation UI sections for Alchemy Furnace, Forge, and Refinement Workbench.
 4. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.

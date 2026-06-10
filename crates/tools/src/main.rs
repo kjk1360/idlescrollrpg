@@ -610,6 +610,12 @@ fn push_account_mail(state: &mut AccountState, reward: &RewardStack, quantity: i
     });
 }
 
+fn purge_expired_mail(state: &mut AccountState, now_unix: i64) -> usize {
+    let before = state.mail.len();
+    state.mail.retain(|mail| mail.expires_at_unix > now_unix);
+    before - state.mail.len()
+}
+
 fn inventory_slots_for_category(
     db: &GeneratedDatabase,
     state: &AccountState,
@@ -670,10 +676,11 @@ fn claim_account_mail(
     if mail_index >= state.mail.len() {
         return Err(format!("unknown mail index {mail_index}"));
     }
-    let mail = state.mail.remove(mail_index);
-    if mail.expires_at_unix <= now_unix {
+    if state.mail[mail_index].expires_at_unix <= now_unix {
+        state.mail.remove(mail_index);
         return Err(format!("mail index {mail_index} has expired"));
     }
+    let mail = state.mail.remove(mail_index);
     let db = GeneratedDatabase::from_project(project)?;
     let item = db
         .item_def
@@ -1081,9 +1088,13 @@ pub(crate) fn account_state_snapshot_for_api(
 ) -> Result<serde_json::Value, String> {
     let project = DataProject::load_from_dir(project_path).map_err(|error| error.to_string())?;
     let path = account_state_path_for_project(project_path);
-    let state = load_or_create_account_state(&project, &path)?;
+    let mut state = load_or_create_account_state(&project, &path)?;
     let db = GeneratedDatabase::from_project(&project)?;
     let now_unix = current_unix_time();
+    let expired_mail_removed = purge_expired_mail(&mut state, now_unix);
+    if expired_mail_removed > 0 {
+        save_account_state(&path, &state)?;
+    }
     let energy_recovery = preview_account_energy_recovery(&project, &state, now_unix)?;
     let slots = inventory_slots_by_tab(&db, &state)?;
     let inventory = state
@@ -1148,6 +1159,7 @@ pub(crate) fn account_state_snapshot_for_api(
         "recover_seconds": energy_recovery.recover_seconds,
         "recover_amount": energy_recovery.recover_amount,
         "seconds_until_next_recovery": energy_recovery.seconds_until_next_recovery,
+        "expired_mail_removed": expired_mail_removed,
         "now_unix": now_unix,
         "last_energy_update_unix": state.last_energy_update_unix,
         "inventory": inventory,
@@ -1164,7 +1176,11 @@ pub(crate) fn dispatch_account_for_api(
 ) -> Result<serde_json::Value, String> {
     let account_path = account_state_path_for_project(project_path);
     let project = DataProject::load_from_dir(project_path).map_err(|error| error.to_string())?;
-    let state = load_or_create_account_state(&project, &account_path)?;
+    let mut state = load_or_create_account_state(&project, &account_path)?;
+    let expired_mail_removed = purge_expired_mail(&mut state, now_unix);
+    if expired_mail_removed > 0 {
+        save_account_state(&account_path, &state)?;
+    }
     let elapsed_seconds = (now_unix - state.last_energy_update_unix).max(0);
     let args = vec![
         "--project".to_string(),
@@ -1193,6 +1209,7 @@ pub(crate) fn claim_mail_for_api(
     let project = DataProject::load_from_dir(project_path).map_err(|error| error.to_string())?;
     let path = account_state_path_for_project(project_path);
     let mut state = load_or_create_account_state(&project, &path)?;
+    purge_expired_mail(&mut state, now_unix);
     let settlement = claim_account_mail(&project, &mut state, mail_index, now_unix)?;
     save_account_state(&path, &state)?;
     Ok(serde_json::json!({
@@ -1211,11 +1228,13 @@ pub(crate) fn recover_energy_for_api(
     let path = account_state_path_for_project(project_path);
     let mut state = load_or_create_account_state(&project, &path)?;
     let recovery = apply_account_energy_recovery(&project, &mut state, now_unix)?;
+    let expired_mail_removed = purge_expired_mail(&mut state, now_unix);
     save_account_state(&path, &state)?;
     Ok(serde_json::json!({
         "ok": true,
         "message": format!("recovered {} energy", recovery.recovered),
         "recovered": recovery.recovered,
+        "expired_mail_removed": expired_mail_removed,
         "account": account_state_snapshot_for_api(project_path)?,
     }))
 }
@@ -1227,6 +1246,7 @@ pub(crate) fn delete_mail_for_api(
     let project = DataProject::load_from_dir(project_path).map_err(|error| error.to_string())?;
     let path = account_state_path_for_project(project_path);
     let mut state = load_or_create_account_state(&project, &path)?;
+    purge_expired_mail(&mut state, current_unix_time());
     let removed = delete_account_mail(&mut state, mail_index)?;
     save_account_state(&path, &state)?;
     Ok(serde_json::json!({
@@ -1552,6 +1572,33 @@ mod tests {
         assert_eq!(removed.item_key, "energy_tonic");
         assert!(state.inventory.is_empty());
         assert!(state.mail.is_empty());
+    }
+
+    #[test]
+    fn expired_mail_is_purged_by_time() {
+        let mut state = AccountState {
+            energy: 100,
+            last_energy_update_unix: 0,
+            inventory: Vec::new(),
+            mail: vec![
+                AccountMail {
+                    item_key: "slime_gel".to_string(),
+                    quantity: 1,
+                    expires_at_unix: 999,
+                },
+                AccountMail {
+                    item_key: "energy_tonic".to_string(),
+                    quantity: 1,
+                    expires_at_unix: 1001,
+                },
+            ],
+        };
+
+        let removed = purge_expired_mail(&mut state, 1000);
+
+        assert_eq!(removed, 1);
+        assert_eq!(state.mail.len(), 1);
+        assert_eq!(state.mail[0].item_key, "energy_tonic");
     }
 }
 

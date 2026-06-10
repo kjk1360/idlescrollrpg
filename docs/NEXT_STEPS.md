@@ -188,6 +188,7 @@ The first playable preview is available through `belt_tools play`:
 - Operation mail rows now support claim/delete actions through local account-state APIs.
 - Operation energy display now shows stored energy, recoverable energy, max energy, recovery rate, and next recovery time.
 - `/api/account-energy/recover` persists real-time account energy recovery, and dungeon dispatch applies recovery before spending energy.
+- Account-state load/save paths now remove expired local mail automatically.
 
 ## Locked Design Direction
 
@@ -218,6 +219,15 @@ The first playable preview is available through `belt_tools play`:
 - Alchemy Furnace registers one recipe per output item and crafts non-equipment items instantly.
 - Forge crafts equipment from a consumable equipment recipe plus required material slots.
 - Refinement Workbench cubing uses one equipment slot and one material slot for option rerolls/mutation.
+- The shipped game's first screen is the Guild House, not an abstract menu.
+- Guild House is the main visual scene for player work: alchemy furnace, forge, exit door, fantasy tavern bar, heroes, and active work feedback are visible there.
+- Functional menus such as Warehouse, Hero, and Operation are UI overlays around the Guild House scene.
+- Active dungeon explorations appear as narrow horizontal views on the left side; multiple parties stack vertically, with about six exploration views matching the Guild House plus UI height.
+- Dungeon access can come from permanent basic dungeons or consumable map items.
+- Basic dungeons are always open, practice-like, and wave endlessly with scaling enemies. Failure returns gathered rewards without loss, but there is no final success state.
+- Maps are consumable items that open a timed dungeon entry. One opened dungeon accepts only one party at a time, but can be retried with the same or a different party until the map duration ends.
+- Map dungeons target specific reward goals: item families, high-grade drops at low waves, boss-guaranteed reward grades, named equipment, special consumables, recipes, or map-only materials.
+- Map fragments and complete maps can drop from basic dungeons, and fragments can be synthesized in the Alchemy Furnace.
 
 ## Current Account-State Format
 
@@ -244,8 +254,8 @@ The local account-state file is intentionally small and server-portable:
 The next production-facing step is to expose the local account state in the UI and make it behave like the later server-backed account model:
 
 - Account-state API endpoints in `belt_tools play` for preview/test workflows.
+- First Guild House visual shell in Play/Data Studio so Operation actions can trigger scene feedback.
 - First recipe tables and instant alchemy/forge/refinement commands that mutate the same account-state file.
-- Mail expiry cleanup pass that removes expired local mail on account-state load/save.
 
 ## Server Direction
 
