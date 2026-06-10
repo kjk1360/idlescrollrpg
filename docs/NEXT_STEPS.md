@@ -106,6 +106,8 @@
 - `special_trigger_effect.trigger_skill` references a `skill_def` row for `cast_skill`, allowing equipment/special-option triggers to fire authored skills through the normal skill execution path.
 - `cast_skill` effects now have `pay_skill_cost` and `require_skill_cooldown` policy fields, so trigger-fired skills can be free extra effects or can respect the caster's shared skill cooldown.
 - Play Preview uses a fixed 1280x720 test layout with a 1280x676 canvas below the header; browser window changes no longer resize the gameplay layout.
+- Play Preview has mouse-clickable playback controls for pause/play, restart, and speed; combat itself remains an automated data playback rather than direct unit control.
+- Data Studio renders dropdown editors for common special trigger enum fields such as condition kind, effect kind, timing, and target rule.
 
 ## Current Stable CLI Flow
 

@@ -527,6 +527,21 @@ const PLAY_HTML: &str = r#"<!doctype html>
       color: #aeb8c4;
       font-size: 12px;
     }
+    button, select {
+      height: 28px;
+      border: 1px solid #3f4a57;
+      border-radius: 6px;
+      background: #1b2530;
+      color: #e8edf2;
+      font: 12px Segoe UI, system-ui, sans-serif;
+    }
+    button {
+      padding: 0 10px;
+      cursor: pointer;
+    }
+    select {
+      padding: 0 6px;
+    }
     canvas {
       display: block;
       width: 1280px;
@@ -542,6 +557,14 @@ const PLAY_HTML: &str = r#"<!doctype html>
       <span id="map" class="pill">loading</span>
       <span id="time" class="pill">0.0s</span>
       <span class="pill">1280x720 fixed test layout</span>
+      <button id="togglePlayback">Pause</button>
+      <button id="restartPlayback">Restart</button>
+      <select id="playSpeed" title="Playback speed">
+        <option value="0.5">0.5x</option>
+        <option value="1" selected>1x</option>
+        <option value="2">2x</option>
+        <option value="4">4x</option>
+      </select>
     </header>
     <canvas id="game" width="1280" height="676"></canvas>
   </div>
@@ -554,7 +577,10 @@ const PLAY_HTML: &str = r#"<!doctype html>
     const GRID_CELL_H = 34;
     let playback = null;
     const images = {};
-    let start = performance.now();
+    let playbackElapsed = 0;
+    let lastFrameAt = performance.now();
+    let playbackPaused = false;
+    let playbackSpeed = 1;
 
     function resize() {
       const dpr = window.devicePixelRatio || 1;
@@ -569,12 +595,19 @@ const PLAY_HTML: &str = r#"<!doctype html>
       .then(data => {
         playback = data;
         document.getElementById('map').textContent = data.map;
+        lastFrameAt = performance.now();
         requestAnimationFrame(loop);
       });
 
     function loop(now) {
       if (!playback) return;
-      const elapsed = ((now - start) / 1000) % playback.frames.at(-1).t;
+      const duration = Math.max(0.001, playback.frames.at(-1).t);
+      const deltaSeconds = Math.max(0, (now - lastFrameAt) / 1000);
+      lastFrameAt = now;
+      if (!playbackPaused) {
+        playbackElapsed = (playbackElapsed + deltaSeconds * playbackSpeed) % duration;
+      }
+      const elapsed = playbackElapsed;
       const sample = samplePlayback(elapsed);
       draw(sample, elapsed);
       requestAnimationFrame(loop);
@@ -865,6 +898,20 @@ const PLAY_HTML: &str = r#"<!doctype html>
         || (visual.states || []).find(state => state.key === 'idle')
         || null;
     }
+
+    document.getElementById('togglePlayback').onclick = event => {
+      playbackPaused = !playbackPaused;
+      lastFrameAt = performance.now();
+      event.currentTarget.textContent = playbackPaused ? 'Play' : 'Pause';
+    };
+    document.getElementById('restartPlayback').onclick = () => {
+      playbackElapsed = 0;
+      lastFrameAt = performance.now();
+    };
+    document.getElementById('playSpeed').onchange = event => {
+      playbackSpeed = Number(event.currentTarget.value || 1);
+      lastFrameAt = performance.now();
+    };
   </script>
 </body>
 </html>

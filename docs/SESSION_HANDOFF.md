@@ -138,6 +138,8 @@ Implemented:
 - `special_trigger_effect.trigger_skill` references a `skill_def` row for `cast_skill`; the sample Moonlight trigger includes an extra Knight Slash cast on trigger
 - `cast_skill` effects include `pay_skill_cost` and `require_skill_cooldown` policy fields; cooldown policy uses the caster's shared `attack_cooldown`
 - Play Preview uses a fixed 1280x720 test layout with a 1280x676 canvas below the header, so browser window size no longer changes the gameplay layout
+- Play Preview exposes mouse-clickable pause/play, restart, and speed controls; the combat preview is automated playback, not direct unit command input
+- Data Studio uses dropdown editors for common special trigger enum fields such as condition kind, effect kind, timing, and target rule
 - Play Preview renders impact flashes on the combat line
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 

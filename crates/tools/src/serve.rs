@@ -2467,12 +2467,40 @@ const INDEX_HTML: &str = r#"<!doctype html>
           if (isRelationKind(field.kind)) {
             return `<td><button onclick="openRelationPicker(${table.id}, ${row.id}, ${field.id})">${escapeHtml(relationCellLabel(field, fieldCell(row, field.id)))}</button></td>`;
           }
-          return `<td><input class="cell-input" value="${escapeAttr(value)}"
-            onchange="updateCell(${table.id}, ${row.id}, ${field.id}, this.value)"></td>`;
+          return `<td>${renderCellEditor(table, field, row, value)}</td>`;
         }).join('');
         return `<tr><td class="key">${row.key}<br><small>#${row.id}</small></td>${cells}<td><button class="danger" onclick="deleteRow(${table.id}, ${row.id})">Delete</button></td></tr>`;
       }).join('');
       $('grid').innerHTML = `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    function renderCellEditor(table, field, row, value) {
+      const options = enumOptionsFor(table.key, field.key);
+      if (options) {
+        return `<select class="cell-input" onchange="updateCell(${table.id}, ${row.id}, ${field.id}, this.value)">
+          ${options.map(option => `<option value="${escapeAttr(option)}" ${option === value ? 'selected' : ''}>${escapeHtml(option)}</option>`).join('')}
+        </select>`;
+      }
+      return `<input class="cell-input" value="${escapeAttr(value)}"
+        onchange="updateCell(${table.id}, ${row.id}, ${field.id}, this.value)">`;
+    }
+
+    function enumOptionsFor(tableKey, fieldKey) {
+      const enums = {
+        special_trigger_effect: {
+          timing: ['on_interval', 'on_trigger'],
+          effect_kind: ['stat_delta', 'timed_stat_delta', 'instant_damage', 'periodic_damage', 'cast_skill'],
+          target_rule: ['self', 'nearest_enemy']
+        },
+        special_trigger_condition: {
+          condition_kind: ['always', 'stat_gte', 'stat_lte', 'stat_eq', 'target_exists', 'target_in_range'],
+          target_rule: ['self', 'nearest_enemy']
+        },
+        skill_def: {
+          target_rule: ['nearest_enemy', 'self']
+        }
+      };
+      return enums[tableKey]?.[fieldKey] || null;
     }
 
     function renderSchemaTable(table) {
