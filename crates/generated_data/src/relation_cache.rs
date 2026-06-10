@@ -50,6 +50,9 @@ pub struct GeneratedRelationCache {
     pub forge_recipe_output_item: HashMap<RowId, RowId>,
     pub forge_recipe_ingredients: HashMap<RowId, Vec<RowId>>,
     pub forge_ingredient_item: HashMap<RowId, RowId>,
+    pub refinement_recipe_input_equipment: HashMap<RowId, RowId>,
+    pub refinement_recipe_material_item: HashMap<RowId, RowId>,
+    pub refinement_recipe_output_item: HashMap<RowId, RowId>,
 }
 
 impl GeneratedRelationCache {
@@ -499,6 +502,36 @@ impl GeneratedRelationCache {
             }
             cache.forge_ingredient_item.insert(row.id, row.item);
         }
+        for row in &db.refinement_recipe.rows {
+            if db.item_def.get_by_id(row.input_equipment).is_none() {
+                return Err(format!("missing relation target for refinement_recipe.input_equipment from {:?} to {:?}", row.id, row.input_equipment));
+            }
+            cache
+                .refinement_recipe_input_equipment
+                .insert(row.id, row.input_equipment);
+        }
+        for row in &db.refinement_recipe.rows {
+            if db.item_def.get_by_id(row.material_item).is_none() {
+                return Err(format!(
+                    "missing relation target for refinement_recipe.material_item from {:?} to {:?}",
+                    row.id, row.material_item
+                ));
+            }
+            cache
+                .refinement_recipe_material_item
+                .insert(row.id, row.material_item);
+        }
+        for row in &db.refinement_recipe.rows {
+            if db.item_def.get_by_id(row.output_item).is_none() {
+                return Err(format!(
+                    "missing relation target for refinement_recipe.output_item from {:?} to {:?}",
+                    row.id, row.output_item
+                ));
+            }
+            cache
+                .refinement_recipe_output_item
+                .insert(row.id, row.output_item);
+        }
         Ok(cache)
     }
 
@@ -680,5 +713,17 @@ impl GeneratedRelationCache {
 
     pub fn get_forge_ingredient_item(&self, source: RowId) -> Option<RowId> {
         self.forge_ingredient_item.get(&source).copied()
+    }
+
+    pub fn get_refinement_recipe_input_equipment(&self, source: RowId) -> Option<RowId> {
+        self.refinement_recipe_input_equipment.get(&source).copied()
+    }
+
+    pub fn get_refinement_recipe_material_item(&self, source: RowId) -> Option<RowId> {
+        self.refinement_recipe_material_item.get(&source).copied()
+    }
+
+    pub fn get_refinement_recipe_output_item(&self, source: RowId) -> Option<RowId> {
+        self.refinement_recipe_output_item.get(&source).copied()
     }
 }

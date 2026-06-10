@@ -1609,5 +1609,78 @@
         "required": true
       }
     ]
+  },
+  {
+    "id": 31,
+    "key": "refinement_recipe",
+    "display_name": "Refinement Recipe",
+    "fields": [
+      {
+        "id": 290,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 291,
+        "key": "input_equipment",
+        "display_name": "Input Equipment",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 12
+        },
+        "required": true
+      },
+      {
+        "id": 292,
+        "key": "material_item",
+        "display_name": "Material Item",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 12
+        },
+        "required": true
+      },
+      {
+        "id": 293,
+        "key": "material_quantity",
+        "display_name": "Material Quantity",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
+      },
+      {
+        "id": 294,
+        "key": "output_item",
+        "display_name": "Output Item",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 12
+        },
+        "required": true
+      },
+      {
+        "id": 295,
+        "key": "effect_kind",
+        "display_name": "Effect Kind",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 296,
+        "key": "device",
+        "display_name": "Device",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      }
+    ]
   }
 ]

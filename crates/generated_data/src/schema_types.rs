@@ -332,3 +332,16 @@ pub struct ForgeIngredient {
     pub quantity: i32,
     pub slot_kind: String,
 }
+
+#[derive(Debug, Clone)]
+pub struct RefinementRecipe {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub input_equipment: RowId,
+    pub material_item: RowId,
+    pub material_quantity: i32,
+    pub output_item: RowId,
+    pub effect_kind: String,
+    pub device: String,
+}

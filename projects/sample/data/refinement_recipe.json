@@ -1,0 +1,36 @@
+[
+  {
+    "id": 31001,
+    "key": "temper_basic_sword",
+    "cells": {
+      "290": {
+        "kind": "string",
+        "value": "Temper Basic Sword"
+      },
+      "291": {
+        "kind": "row",
+        "value": 12006
+      },
+      "292": {
+        "kind": "row",
+        "value": 12007
+      },
+      "293": {
+        "kind": "i32",
+        "value": 1
+      },
+      "294": {
+        "kind": "row",
+        "value": 12008
+      },
+      "295": {
+        "kind": "string",
+        "value": "fixed_upgrade"
+      },
+      "296": {
+        "kind": "string",
+        "value": "refinement_workbench"
+      }
+    }
+  }
+]

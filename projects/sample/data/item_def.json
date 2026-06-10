@@ -154,5 +154,57 @@
         "value": "Starter forged weapon."
       }
     }
+  },
+  {
+    "id": 12007,
+    "key": "refinement_stone",
+    "cells": {
+      "100": {
+        "kind": "string",
+        "value": "Refinement Stone"
+      },
+      "101": {
+        "kind": "string",
+        "value": "material"
+      },
+      "102": {
+        "kind": "string",
+        "value": "rare"
+      },
+      "103": {
+        "kind": "i32",
+        "value": 10
+      },
+      "104": {
+        "kind": "string",
+        "value": "Material used by the Refinement Workbench."
+      }
+    }
+  },
+  {
+    "id": 12008,
+    "key": "tempered_basic_sword",
+    "cells": {
+      "100": {
+        "kind": "string",
+        "value": "Tempered Basic Sword"
+      },
+      "101": {
+        "kind": "string",
+        "value": "equipment"
+      },
+      "102": {
+        "kind": "string",
+        "value": "uncommon"
+      },
+      "103": {
+        "kind": "i32",
+        "value": 1
+      },
+      "104": {
+        "kind": "string",
+        "value": "First refined weapon sample."
+      }
+    }
   }
 ]

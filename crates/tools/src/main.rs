@@ -937,6 +937,85 @@ fn craft_forge_recipe(
     apply_rewards_to_account_state(project, state, &[reward], now_unix)
 }
 
+fn craft_refinement_recipe(
+    project: &DataProject,
+    state: &mut AccountState,
+    recipe_key: &str,
+    now_unix: i64,
+) -> Result<AccountRewardSettlement, String> {
+    let db = GeneratedDatabase::from_project(project)?;
+    let recipe = db
+        .refinement_recipe
+        .get_by_key(recipe_key)
+        .ok_or_else(|| format!("missing refinement recipe {recipe_key}"))?;
+    if recipe.device != "refinement_workbench" {
+        return Err(format!(
+            "unsupported recipe device {} for {}",
+            recipe.device, recipe.key
+        ));
+    }
+
+    let input_equipment = db
+        .item_def
+        .get_by_id(recipe.input_equipment)
+        .ok_or_else(|| format!("missing input equipment {:?}", recipe.input_equipment))?;
+    if input_equipment.category != "equipment" {
+        return Err(format!(
+            "refinement input {} must be equipment, got {}",
+            input_equipment.key, input_equipment.category
+        ));
+    }
+    let material = db
+        .item_def
+        .get_by_id(recipe.material_item)
+        .ok_or_else(|| format!("missing refinement material {:?}", recipe.material_item))?;
+    let output_item = db
+        .item_def
+        .get_by_id(recipe.output_item)
+        .ok_or_else(|| format!("missing refinement output item {:?}", recipe.output_item))?;
+    if output_item.category != "equipment" {
+        return Err(format!(
+            "refinement output {} must be equipment, got {}",
+            output_item.key, output_item.category
+        ));
+    }
+
+    let required_material = recipe.material_quantity.max(0);
+    let required_items = [
+        (
+            input_equipment.key.as_str(),
+            1,
+            input_equipment.name.as_str(),
+        ),
+        (
+            material.key.as_str(),
+            required_material,
+            material.name.as_str(),
+        ),
+    ];
+    for (item_key, required, item_name) in required_items {
+        let available = inventory_quantity(state, item_key);
+        if available < required {
+            return Err(format!(
+                "not enough {}: required={} available={}",
+                item_name, required, available
+            ));
+        }
+    }
+    consume_inventory_item(state, &input_equipment.key, 1)?;
+    consume_inventory_item(state, &material.key, required_material)?;
+
+    let reward = RewardStack {
+        item_key: output_item.key.clone(),
+        item_name: output_item.name.clone(),
+        category: output_item.category.clone(),
+        rarity: output_item.rarity.clone(),
+        stack_size: output_item.stack_size.max(1),
+        quantity: 1,
+    };
+    apply_rewards_to_account_state(project, state, &[reward], now_unix)
+}
+
 #[derive(Debug, Clone)]
 struct DeterministicRng {
     state: u64,
@@ -1419,6 +1498,39 @@ pub(crate) fn account_state_snapshot_for_api(
             })
         })
         .collect::<Vec<_>>();
+    let refinement_recipes = db
+        .refinement_recipe
+        .rows
+        .iter()
+        .filter(|recipe| recipe.device == "refinement_workbench")
+        .map(|recipe| {
+            let input = db.item_def.get_by_id(recipe.input_equipment);
+            let material = db.item_def.get_by_id(recipe.material_item);
+            let output = db.item_def.get_by_id(recipe.output_item);
+            let input_key = input.map(|item| item.key.as_str()).unwrap_or("");
+            let material_key = material.map(|item| item.key.as_str()).unwrap_or("");
+            let input_available = inventory_quantity(&state, input_key);
+            let material_available = inventory_quantity(&state, material_key);
+            let material_quantity = recipe.material_quantity.max(0);
+            let craftable = input_available >= 1 && material_available >= material_quantity;
+            serde_json::json!({
+                "key": recipe.key,
+                "name": recipe.name,
+                "input_item_key": input_key,
+                "input_name": input.map(|item| item.name.as_str()).unwrap_or("missing item"),
+                "input_available": input_available,
+                "material_item_key": material_key,
+                "material_name": material.map(|item| item.name.as_str()).unwrap_or("missing item"),
+                "material_quantity": material_quantity,
+                "material_available": material_available,
+                "output_item_key": output.map(|item| item.key.as_str()).unwrap_or(""),
+                "output_name": output.map(|item| item.name.as_str()).unwrap_or("missing item"),
+                "effect_kind": recipe.effect_kind,
+                "device": recipe.device,
+                "craftable": craftable,
+            })
+        })
+        .collect::<Vec<_>>();
 
     Ok(serde_json::json!({
         "ok": true,
@@ -1438,6 +1550,7 @@ pub(crate) fn account_state_snapshot_for_api(
         "storage_tabs": storage_tabs,
         "alchemy_recipes": alchemy_recipes,
         "forge_recipes": forge_recipes,
+        "refinement_recipes": refinement_recipes,
     }))
 }
 
@@ -1562,6 +1675,25 @@ pub(crate) fn craft_forge_for_api(
     Ok(serde_json::json!({
         "ok": true,
         "message": format!("crafted forge recipe {recipe_key}"),
+        "settlement": account_settlement_lines(&settlement),
+        "account": account_state_snapshot_for_api(project_path)?,
+    }))
+}
+
+pub(crate) fn craft_refinement_for_api(
+    project_path: &Path,
+    recipe_key: &str,
+    now_unix: i64,
+) -> Result<serde_json::Value, String> {
+    let project = DataProject::load_from_dir(project_path).map_err(|error| error.to_string())?;
+    let path = account_state_path_for_project(project_path);
+    let mut state = load_or_create_account_state(&project, &path)?;
+    purge_expired_mail(&mut state, now_unix);
+    let settlement = craft_refinement_recipe(&project, &mut state, recipe_key, now_unix)?;
+    save_account_state(&path, &state)?;
+    Ok(serde_json::json!({
+        "ok": true,
+        "message": format!("crafted refinement recipe {recipe_key}"),
         "settlement": account_settlement_lines(&settlement),
         "account": account_state_snapshot_for_api(project_path)?,
     }))
@@ -1973,6 +2105,35 @@ mod tests {
         assert_eq!(inventory_quantity(&state, "iron_ingot"), 0);
         assert_eq!(inventory_quantity(&state, "slime_gel"), 0);
         assert_eq!(inventory_quantity(&state, "basic_sword"), 1);
+    }
+
+    #[test]
+    fn refinement_recipe_consumes_equipment_and_material() {
+        let project = sample_project_for_test();
+        let mut state = AccountState {
+            energy: 100,
+            last_energy_update_unix: 0,
+            inventory: vec![
+                AccountItemStack {
+                    item_key: "basic_sword".to_string(),
+                    quantity: 1,
+                },
+                AccountItemStack {
+                    item_key: "refinement_stone".to_string(),
+                    quantity: 1,
+                },
+            ],
+            mail: Vec::new(),
+        };
+
+        let settlement = craft_refinement_recipe(&project, &mut state, "temper_basic_sword", 1000)
+            .expect("craft refinement");
+
+        assert_eq!(settlement.placed[0].item_key, "tempered_basic_sword");
+        assert_eq!(settlement.placed[0].quantity, 1);
+        assert_eq!(inventory_quantity(&state, "basic_sword"), 0);
+        assert_eq!(inventory_quantity(&state, "refinement_stone"), 0);
+        assert_eq!(inventory_quantity(&state, "tempered_basic_sword"), 1);
     }
 }
 

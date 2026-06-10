@@ -75,6 +75,10 @@
 - Added instant Forge crafting that consumes an equipment recipe item plus material slots and writes equipment output back to the same local account-state file.
 - Data Studio Operation tab now shows Forge recipes, slot requirements, craftable state, and a Forge action.
 - Added `POST /api/account-forge/craft` for local account-state mutation.
+- Added first `refinement_recipe` data table.
+- Added instant Refinement Workbench crafting that consumes one equipment item plus one material item and writes equipment output back to the same local account-state file.
+- Data Studio Operation tab now shows Refinement Workbench recipes, input equipment, material requirements, craftable state, and a Refine action.
+- Added `POST /api/account-refinement/craft` for local account-state mutation.
 
 ## Current Stable CLI Flow
 
@@ -264,8 +268,8 @@ The local account-state file is intentionally small and server-portable:
 The next production-facing step is to expose the local account state in the UI and make it behave like the later server-backed account model:
 
 - Account-state API endpoints in `belt_tools play` for preview/test workflows.
-- First refinement commands that mutate the same account-state file.
 - Connect Operation actions to Guild House scene feedback states.
+- Add equipment instance and option data so refinement can reroll/mutate real item options instead of converting one item key into another.
 
 ## Server Direction
 

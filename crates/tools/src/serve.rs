@@ -158,6 +158,7 @@ fn route_request(request: &Request, state: &ServerState) -> Vec<u8> {
         ("POST", "/api/account-mail/delete") => api_account_mail_delete(request, state),
         ("POST", "/api/account-alchemy/craft") => api_account_alchemy_craft(request, state),
         ("POST", "/api/account-forge/craft") => api_account_forge_craft(request, state),
+        ("POST", "/api/account-refinement/craft") => api_account_refinement_craft(request, state),
         ("POST", "/api/import/aseprite") => api_import_aseprite(request, state),
         ("POST", "/api/visual/slice-grid") => api_slice_sprite_grid(request, state),
         _ => Err(("not found".to_string(), 404)),
@@ -753,6 +754,21 @@ fn api_account_forge_craft(
         .and_then(Value::as_i64)
         .unwrap_or_else(current_unix_time);
     let response = crate::craft_forge_for_api(&state.project_path, recipe_key, now_unix)
+        .map_err(|error| (error, 500))?;
+    Ok(json_response(200, &response))
+}
+
+fn api_account_refinement_craft(
+    request: &Request,
+    state: &ServerState,
+) -> Result<Vec<u8>, (String, u16)> {
+    let payload = parse_body(&request.body)?;
+    let recipe_key = string_value(&payload, "recipe_key")?;
+    let now_unix = payload
+        .get("now_unix")
+        .and_then(Value::as_i64)
+        .unwrap_or_else(current_unix_time);
+    let response = crate::craft_refinement_for_api(&state.project_path, recipe_key, now_unix)
         .map_err(|error| (error, 500))?;
     Ok(json_response(200, &response))
 }
@@ -2444,6 +2460,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
       const mail = account.mail || [];
       const alchemyRecipes = account.alchemy_recipes || [];
       const forgeRecipes = account.forge_recipes || [];
+      const refinementRecipes = account.refinement_recipes || [];
       const byCategory = category => inventory.filter(item => item.category === category);
       $('grid').innerHTML = `
         <div class="operation-grid">
@@ -2525,6 +2542,22 @@ const INDEX_HTML: &str = r#"<!doctype html>
                     <td>${escapeHtml(recipe.output_name)} x${recipe.output_quantity}</td>
                     <td><button onclick="craftForge('${escapeAttr(recipe.key)}')" ${recipe.craftable ? '' : 'disabled'}>Forge</button></td>
                   </tr>`).join('') || '<tr><td colspan="4">empty</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+          <div class="operation-panel wide">
+            <div class="operation-head"><span>Refinement Workbench</span><span>${refinementRecipes.length} recipes</span></div>
+            <table>
+              <thead><tr><th>Recipe</th><th>Input</th><th>Material</th><th>Output</th><th>Action</th></tr></thead>
+              <tbody>
+                ${refinementRecipes.map(recipe => `
+                  <tr>
+                    <td>${escapeHtml(recipe.name)}<br><small>${escapeHtml(recipe.effect_kind)}</small></td>
+                    <td>${escapeHtml(recipe.input_name)} ${recipe.input_available}/1</td>
+                    <td>${escapeHtml(recipe.material_name)} ${recipe.material_available}/${recipe.material_quantity}</td>
+                    <td>${escapeHtml(recipe.output_name)}</td>
+                    <td><button onclick="craftRefinement('${escapeAttr(recipe.key)}')" ${recipe.craftable ? '' : 'disabled'}>Refine</button></td>
+                  </tr>`).join('') || '<tr><td colspan="5">empty</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -2651,6 +2684,21 @@ const INDEX_HTML: &str = r#"<!doctype html>
     async function craftForge(recipeKey) {
       try {
         const result = await api('/api/account-forge/craft', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recipe_key: recipeKey })
+        });
+        state.account = result.account;
+        await renderOperationDashboard();
+        log(result.message);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
+    async function craftRefinement(recipeKey) {
+      try {
+        const result = await api('/api/account-refinement/craft', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ recipe_key: recipeKey })

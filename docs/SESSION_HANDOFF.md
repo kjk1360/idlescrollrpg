@@ -106,6 +106,9 @@ Implemented:
 - first `forge_recipe` and `forge_ingredient` data tables exist
 - `/api/account-forge/craft` mutates the local account-state file by consuming an equipment recipe item plus material slots and placing equipment output
 - Data Studio Operation tab shows Forge recipes, slot requirements, craftable state, and a Forge action
+- first `refinement_recipe` data table exists
+- `/api/account-refinement/craft` mutates the local account-state file by consuming one equipment item plus one material item and placing equipment output
+- Data Studio Operation tab shows Refinement Workbench recipes, input equipment, material requirements, craftable state, and a Refine action
 - Play Preview renders impact flashes on the combat line
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -256,6 +259,7 @@ projects/sample/
     recipe_ingredient.json
     forge_recipe.json
     forge_ingredient.json
+    refinement_recipe.json
     skill_def.json
     skill_step.json
     skill_effect.json
@@ -467,12 +471,11 @@ Expose the local account-state loop in the tool UI and playable preview.
 
 Recommended order:
 
-1. Add first refinement commands that mutate the same local account-state file.
-2. Expand Operation UI sections for Refinement Workbench.
-3. Connect Operation actions to Guild House scene feedback states.
-4. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
-5. Keep chat/guild/ranking behind auction house priority.
-6. Connect battle simulation states to visual state machine keys.
+1. Connect Operation actions to Guild House scene feedback states.
+2. Add equipment instance and option data so refinement can reroll/mutate real item options instead of converting one item key into another.
+3. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
+4. Keep chat/guild/ranking behind auction house priority.
+5. Connect battle simulation states to visual state machine keys.
 7. Package and verify the updated `belt_tools.exe` again.
 
 ## Caveats

@@ -40,6 +40,7 @@ pub struct GeneratedDatabase {
     pub recipe_ingredient: GeneratedTable<RecipeIngredient>,
     pub forge_recipe: GeneratedTable<ForgeRecipe>,
     pub forge_ingredient: GeneratedTable<ForgeIngredient>,
+    pub refinement_recipe: GeneratedTable<RefinementRecipe>,
 }
 
 #[derive(Debug, Clone)]
@@ -110,6 +111,7 @@ impl GeneratedDatabase {
             recipe_ingredient: load_recipe_ingredient(project)?,
             forge_recipe: load_forge_recipe(project)?,
             forge_ingredient: load_forge_ingredient(project)?,
+            refinement_recipe: load_refinement_recipe(project)?,
         })
     }
 }
@@ -748,6 +750,31 @@ fn load_forge_ingredient(project: &DataProject) -> Result<GeneratedTable<ForgeIn
             item: read_row(row, FieldId(281), "forge_ingredient.item")?,
             quantity: read_i32(row, FieldId(282), "forge_ingredient.quantity")?,
             slot_kind: read_string(row, FieldId(283), "forge_ingredient.slot_kind")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_refinement_recipe(
+    project: &DataProject,
+) -> Result<GeneratedTable<RefinementRecipe>, String> {
+    let rows = table_rows(project, TableId(31))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(RefinementRecipe {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(290), "refinement_recipe.name")?,
+            input_equipment: read_row(row, FieldId(291), "refinement_recipe.input_equipment")?,
+            material_item: read_row(row, FieldId(292), "refinement_recipe.material_item")?,
+            material_quantity: read_i32(row, FieldId(293), "refinement_recipe.material_quantity")?,
+            output_item: read_row(row, FieldId(294), "refinement_recipe.output_item")?,
+            effect_kind: read_string(row, FieldId(295), "refinement_recipe.effect_kind")?,
+            device: read_string(row, FieldId(296), "refinement_recipe.device")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());
