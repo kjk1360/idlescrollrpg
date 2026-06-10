@@ -94,7 +94,10 @@ pub struct SpecialTriggerCondition {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpecialTriggerConditionKind {
+    Always,
     StatGte,
+    StatLte,
+    StatEq,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -118,6 +121,7 @@ pub enum SpecialTriggerEffectTiming {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpecialTriggerEffectKind {
     StatDelta,
+    InstantDamage,
     PeriodicDamage,
 }
 
@@ -1049,6 +1053,8 @@ impl BattleWorld {
             }
         }
 
+        let snapshot = self.units.clone();
+        let mut instant_attacks = Vec::new();
         for (unit_id, trigger_def) in started_periodics {
             self.events.push(BattleEvent::SpecialTriggered {
                 unit_id,
@@ -1059,26 +1065,53 @@ impl BattleWorld {
                 .iter()
                 .filter(|effect| effect.timing == SpecialTriggerEffectTiming::OnTrigger)
             {
-                if effect.kind == SpecialTriggerEffectKind::PeriodicDamage
-                    && effect.duration_seconds > 0.0
-                    && effect.interval_seconds > 0.0
-                {
-                    self.pending_special_periodics.push(PendingSpecialPeriodic {
-                        source: unit_id,
-                        ticks_until_next: 0,
-                        ticks_remaining: seconds_to_ticks(
-                            effect.duration_seconds,
-                            self.config.tick_duration,
-                        ),
-                        interval_ticks: seconds_to_ticks(
-                            effect.interval_seconds,
-                            self.config.tick_duration,
-                        ),
-                        damage_scale: effect.damage_scale,
-                        target_rule: effect.target_rule.clone(),
-                    });
+                match effect.kind {
+                    SpecialTriggerEffectKind::StatDelta => {
+                        self.apply_special_trigger_stat_delta(unit_id, effect);
+                    }
+                    SpecialTriggerEffectKind::InstantDamage => {
+                        let Some(source) = snapshot
+                            .iter()
+                            .find(|unit| unit.id == unit_id && unit.is_alive())
+                        else {
+                            continue;
+                        };
+                        if let Some(target) =
+                            special_periodic_target(&snapshot, source, &effect.target_rule)
+                        {
+                            let damage =
+                                ((source.attack as f32) * effect.damage_scale).round() as i32;
+                            instant_attacks.push((source.id, target.id, damage));
+                        }
+                    }
+                    SpecialTriggerEffectKind::PeriodicDamage => {
+                        if effect.duration_seconds > 0.0 && effect.interval_seconds > 0.0 {
+                            self.pending_special_periodics.push(PendingSpecialPeriodic {
+                                source: unit_id,
+                                ticks_until_next: 0,
+                                ticks_remaining: seconds_to_ticks(
+                                    effect.duration_seconds,
+                                    self.config.tick_duration,
+                                ),
+                                interval_ticks: seconds_to_ticks(
+                                    effect.interval_seconds,
+                                    self.config.tick_duration,
+                                ),
+                                damage_scale: effect.damage_scale,
+                                target_rule: effect.target_rule.clone(),
+                            });
+                        }
+                    }
                 }
             }
+        }
+        for (source, target, damage) in instant_attacks {
+            if let Some(target_unit) = self.units.iter().find(|unit| unit.id == target) {
+                self.events.push(BattleEvent::SkillAreaEffect {
+                    cells: vec![target_unit.grid],
+                });
+            }
+            self.damage_unit(source, target, damage);
         }
     }
 
@@ -1091,6 +1124,15 @@ impl BattleWorld {
             .stats
             .set(effect.stat, current + effect.stat_delta);
         sync_legacy_fields_from_stats(&mut self.units[unit_index]);
+    }
+
+    fn apply_special_trigger_stat_delta(&mut self, unit_id: UnitId, effect: &SpecialTriggerEffect) {
+        let Some(unit) = self.units.iter_mut().find(|unit| unit.id == unit_id) else {
+            return;
+        };
+        let current = unit.stats.get(effect.stat);
+        unit.stats.set(effect.stat, current + effect.stat_delta);
+        sync_legacy_fields_from_stats(unit);
     }
 
     fn tick_pending_special_periodics(&mut self) {
@@ -1234,8 +1276,15 @@ fn special_trigger_conditions_pass(
     conditions: &[SpecialTriggerCondition],
 ) -> bool {
     conditions.iter().all(|condition| match condition.kind {
+        SpecialTriggerConditionKind::Always => true,
         SpecialTriggerConditionKind::StatGte => {
             unit.stats.get(condition.stat) + f32::EPSILON >= condition.threshold
+        }
+        SpecialTriggerConditionKind::StatLte => {
+            unit.stats.get(condition.stat) <= condition.threshold + f32::EPSILON
+        }
+        SpecialTriggerConditionKind::StatEq => {
+            (unit.stats.get(condition.stat) - condition.threshold).abs() <= f32::EPSILON
         }
     })
 }
@@ -2141,5 +2190,91 @@ mod tests {
         assert_eq!(knight.stats.get(STAT_MOONLIGHT), 0.0);
         assert!(saw_trigger);
         assert!(saw_periodic_attack);
+    }
+
+    #[test]
+    fn special_trigger_conditions_support_lte_and_eq() {
+        let world = BattleWorld::new(sample_battle_config());
+        let knight = world
+            .units()
+            .iter()
+            .find(|unit| unit.id == UnitId(1))
+            .expect("knight spawned");
+
+        assert!(special_trigger_conditions_pass(
+            knight,
+            &[SpecialTriggerCondition {
+                kind: SpecialTriggerConditionKind::StatLte,
+                stat: STAT_CURRENT_HP,
+                threshold: 120.0,
+                consume_on_pass: false,
+            }]
+        ));
+        assert!(special_trigger_conditions_pass(
+            knight,
+            &[SpecialTriggerCondition {
+                kind: SpecialTriggerConditionKind::StatEq,
+                stat: STAT_ATTACK,
+                threshold: 18.0,
+                consume_on_pass: false,
+            }]
+        ));
+    }
+
+    #[test]
+    fn special_trigger_can_apply_instant_damage() {
+        let mut config = sample_battle_config();
+        let knight = config
+            .unit_defs
+            .iter_mut()
+            .find(|def| def.id == UnitDefId(1))
+            .expect("knight exists");
+        knight.special_triggers = vec![SpecialTriggerDef {
+            key: "instant_eye".to_string(),
+            interval_seconds: 5.0,
+            conditions: vec![SpecialTriggerCondition {
+                kind: SpecialTriggerConditionKind::Always,
+                stat: STAT_CURRENT_HP,
+                threshold: 0.0,
+                consume_on_pass: false,
+            }],
+            effects: vec![SpecialTriggerEffect {
+                timing: SpecialTriggerEffectTiming::OnTrigger,
+                kind: SpecialTriggerEffectKind::InstantDamage,
+                stat: STAT_CURRENT_HP,
+                stat_delta: 0.0,
+                duration_seconds: 0.0,
+                interval_seconds: 0.0,
+                damage_scale: 1.0,
+                target_rule: "nearest_enemy".to_string(),
+            }],
+        }];
+
+        let mut world = BattleWorld::new(config);
+        let knight = world
+            .units
+            .iter_mut()
+            .find(|unit| unit.id == UnitId(1))
+            .expect("knight spawned");
+        knight.special_triggers[0].ticks_until_next = 1;
+
+        let mut saw_instant_damage = false;
+        for _ in 0..12 {
+            world.tick(0.2);
+            for event in world.drain_events() {
+                if matches!(
+                    event,
+                    BattleEvent::UnitAttacked {
+                        attacker: UnitId(1),
+                        damage: 18,
+                        ..
+                    }
+                ) {
+                    saw_instant_damage = true;
+                }
+            }
+        }
+
+        assert!(saw_instant_damage);
     }
 }

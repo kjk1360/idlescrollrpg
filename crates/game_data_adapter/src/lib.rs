@@ -379,7 +379,10 @@ fn special_trigger_condition_from_data(
         .ok_or_else(|| format!("missing special trigger condition {:?}", row_id))?;
     Ok(SpecialTriggerCondition {
         kind: match row.condition_kind.as_str() {
+            "always" => SpecialTriggerConditionKind::Always,
             "stat_gte" => SpecialTriggerConditionKind::StatGte,
+            "stat_lte" => SpecialTriggerConditionKind::StatLte,
+            "stat_eq" => SpecialTriggerConditionKind::StatEq,
             other => {
                 return Err(format!(
                     "unsupported special trigger condition kind {other}"
@@ -408,6 +411,7 @@ fn special_trigger_effect_from_data(
         },
         kind: match row.effect_kind.as_str() {
             "stat_delta" => SpecialTriggerEffectKind::StatDelta,
+            "instant_damage" => SpecialTriggerEffectKind::InstantDamage,
             "periodic_damage" => SpecialTriggerEffectKind::PeriodicDamage,
             other => return Err(format!("unsupported special trigger effect kind {other}")),
         },
