@@ -42,6 +42,19 @@
       "339": {
         "kind": "string",
         "value": "nearest_enemy"
+      },
+      "340": {
+        "kind": "rows",
+        "value": [
+          36001
+        ]
+      },
+      "341": {
+        "kind": "rows",
+        "value": [
+          37001,
+          37002
+        ]
       }
     }
   }

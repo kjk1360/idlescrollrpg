@@ -97,6 +97,8 @@
 - Battle events now include `SpecialTriggered` so preview/UI layers can react to equipment special option triggers.
 - Added `special_trigger_def` table so special option `trigger_key` values resolve to authored interval, stack stat, stack threshold, consume policy, duration, periodic interval, damage scale, and target rule data.
 - `combat_tick_5s_moonlight_3` is now data-authored through `special_trigger_def`; the runtime still supports a narrow trigger shape, but its numbers and target rule come from data.
+- Split special trigger authoring into `special_trigger_condition` and `special_trigger_effect` tables.
+- `special_trigger_def` now references condition/effect rows; the Moonlight trigger is represented as an interval stat-delta effect, a stat threshold condition, and an on-trigger periodic damage effect.
 
 ## Current Stable CLI Flow
 
@@ -312,7 +314,7 @@ The next production-facing step is to expose the local account state in the UI a
 
 - Account-state API endpoints in `belt_tools play` for preview/test workflows.
 - Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
-- Broaden `special_trigger_def` into composable trigger/effect tables instead of the current single periodic-damage trigger shape.
+- Add more condition/effect kinds to the new composable special trigger tables.
 - Extend equipment special options from `on_equip` stat, granted-skill, and trigger-key application into skill mutation and conditional effects.
 - Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
 

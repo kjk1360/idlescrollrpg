@@ -393,4 +393,32 @@ pub struct SpecialTriggerDef {
     pub periodic_interval_seconds: f32,
     pub damage_scale: f32,
     pub target_rule: String,
+    pub conditions: Vec<RowId>,
+    pub effects: Vec<RowId>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SpecialTriggerCondition {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub condition_kind: String,
+    pub stat: RowId,
+    pub threshold: f32,
+    pub consume_on_pass: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct SpecialTriggerEffect {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub timing: String,
+    pub effect_kind: String,
+    pub stat: RowId,
+    pub stat_delta: f32,
+    pub duration_seconds: f32,
+    pub interval_seconds: f32,
+    pub damage_scale: f32,
+    pub target_rule: String,
 }

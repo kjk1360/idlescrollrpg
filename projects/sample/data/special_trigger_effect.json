@@ -1,0 +1,86 @@
+[
+  {
+    "id": 37001,
+    "key": "gain_moonlight_on_interval",
+    "cells": {
+      "360": {
+        "kind": "string",
+        "value": "Gain Moonlight On Interval"
+      },
+      "361": {
+        "kind": "string",
+        "value": "on_interval"
+      },
+      "362": {
+        "kind": "string",
+        "value": "stat_delta"
+      },
+      "363": {
+        "kind": "row",
+        "value": 23006
+      },
+      "364": {
+        "kind": "f32",
+        "value": 1.0
+      },
+      "365": {
+        "kind": "f32",
+        "value": 0.0
+      },
+      "366": {
+        "kind": "f32",
+        "value": 0.0
+      },
+      "367": {
+        "kind": "f32",
+        "value": 0.0
+      },
+      "368": {
+        "kind": "string",
+        "value": "self"
+      }
+    }
+  },
+  {
+    "id": 37002,
+    "key": "moon_wrath_periodic_attack",
+    "cells": {
+      "360": {
+        "kind": "string",
+        "value": "Moon Wrath Periodic Attack"
+      },
+      "361": {
+        "kind": "string",
+        "value": "on_trigger"
+      },
+      "362": {
+        "kind": "string",
+        "value": "periodic_damage"
+      },
+      "363": {
+        "kind": "row",
+        "value": 23006
+      },
+      "364": {
+        "kind": "f32",
+        "value": 0.0
+      },
+      "365": {
+        "kind": "f32",
+        "value": 10.0
+      },
+      "366": {
+        "kind": "f32",
+        "value": 0.5
+      },
+      "367": {
+        "kind": "f32",
+        "value": 1.0
+      },
+      "368": {
+        "kind": "string",
+        "value": "nearest_enemy"
+      }
+    }
+  }
+]

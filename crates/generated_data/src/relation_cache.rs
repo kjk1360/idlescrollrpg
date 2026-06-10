@@ -60,6 +60,10 @@ pub struct GeneratedRelationCache {
     pub unit_special_option_loadout_unit: HashMap<RowId, RowId>,
     pub unit_special_option_loadout_special_options: HashMap<RowId, Vec<RowId>>,
     pub special_trigger_def_stack_stat: HashMap<RowId, RowId>,
+    pub special_trigger_def_conditions: HashMap<RowId, Vec<RowId>>,
+    pub special_trigger_def_effects: HashMap<RowId, Vec<RowId>>,
+    pub special_trigger_condition_stat: HashMap<RowId, RowId>,
+    pub special_trigger_effect_stat: HashMap<RowId, RowId>,
 }
 
 impl GeneratedRelationCache {
@@ -607,6 +611,49 @@ impl GeneratedRelationCache {
                 .special_trigger_def_stack_stat
                 .insert(row.id, row.stack_stat);
         }
+        for row in &db.special_trigger_def.rows {
+            for target_id in &row.conditions {
+                if db.special_trigger_condition.get_by_id(*target_id).is_none() {
+                    return Err(format!("missing relation target for special_trigger_def.conditions from {:?} to {:?}", row.id, target_id));
+                }
+            }
+            cache
+                .special_trigger_def_conditions
+                .insert(row.id, row.conditions.clone());
+        }
+        for row in &db.special_trigger_def.rows {
+            for target_id in &row.effects {
+                if db.special_trigger_effect.get_by_id(*target_id).is_none() {
+                    return Err(format!(
+                        "missing relation target for special_trigger_def.effects from {:?} to {:?}",
+                        row.id, target_id
+                    ));
+                }
+            }
+            cache
+                .special_trigger_def_effects
+                .insert(row.id, row.effects.clone());
+        }
+        for row in &db.special_trigger_condition.rows {
+            if db.stat_def.get_by_id(row.stat).is_none() {
+                return Err(format!(
+                    "missing relation target for special_trigger_condition.stat from {:?} to {:?}",
+                    row.id, row.stat
+                ));
+            }
+            cache
+                .special_trigger_condition_stat
+                .insert(row.id, row.stat);
+        }
+        for row in &db.special_trigger_effect.rows {
+            if db.stat_def.get_by_id(row.stat).is_none() {
+                return Err(format!(
+                    "missing relation target for special_trigger_effect.stat from {:?} to {:?}",
+                    row.id, row.stat
+                ));
+            }
+            cache.special_trigger_effect_stat.insert(row.id, row.stat);
+        }
         Ok(cache)
     }
 
@@ -837,5 +884,25 @@ impl GeneratedRelationCache {
 
     pub fn get_special_trigger_def_stack_stat(&self, source: RowId) -> Option<RowId> {
         self.special_trigger_def_stack_stat.get(&source).copied()
+    }
+
+    pub fn get_special_trigger_def_conditions(&self, source: RowId) -> Option<&[RowId]> {
+        self.special_trigger_def_conditions
+            .get(&source)
+            .map(Vec::as_slice)
+    }
+
+    pub fn get_special_trigger_def_effects(&self, source: RowId) -> Option<&[RowId]> {
+        self.special_trigger_def_effects
+            .get(&source)
+            .map(Vec::as_slice)
+    }
+
+    pub fn get_special_trigger_condition_stat(&self, source: RowId) -> Option<RowId> {
+        self.special_trigger_condition_stat.get(&source).copied()
+    }
+
+    pub fn get_special_trigger_effect_stat(&self, source: RowId) -> Option<RowId> {
+        self.special_trigger_effect_stat.get(&source).copied()
     }
 }

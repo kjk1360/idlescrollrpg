@@ -45,6 +45,8 @@ pub struct GeneratedDatabase {
     pub special_option_stat_delta: GeneratedTable<SpecialOptionStatDelta>,
     pub unit_special_option_loadout: GeneratedTable<UnitSpecialOptionLoadout>,
     pub special_trigger_def: GeneratedTable<SpecialTriggerDef>,
+    pub special_trigger_condition: GeneratedTable<SpecialTriggerCondition>,
+    pub special_trigger_effect: GeneratedTable<SpecialTriggerEffect>,
 }
 
 #[derive(Debug, Clone)]
@@ -120,6 +122,8 @@ impl GeneratedDatabase {
             special_option_stat_delta: load_special_option_stat_delta(project)?,
             unit_special_option_loadout: load_unit_special_option_loadout(project)?,
             special_trigger_def: load_special_trigger_def(project)?,
+            special_trigger_condition: load_special_trigger_condition(project)?,
+            special_trigger_effect: load_special_trigger_effect(project)?,
         })
     }
 }
@@ -892,6 +896,74 @@ fn load_special_trigger_def(
             )?,
             damage_scale: read_f32(row, FieldId(338), "special_trigger_def.damage_scale")?,
             target_rule: read_string(row, FieldId(339), "special_trigger_def.target_rule")?,
+            conditions: read_rows(row, FieldId(340), "special_trigger_def.conditions")?,
+            effects: read_rows(row, FieldId(341), "special_trigger_def.effects")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_special_trigger_condition(
+    project: &DataProject,
+) -> Result<GeneratedTable<SpecialTriggerCondition>, String> {
+    let rows = table_rows(project, TableId(36))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(SpecialTriggerCondition {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(350), "special_trigger_condition.name")?,
+            condition_kind: read_string(
+                row,
+                FieldId(351),
+                "special_trigger_condition.condition_kind",
+            )?,
+            stat: read_row(row, FieldId(352), "special_trigger_condition.stat")?,
+            threshold: read_f32(row, FieldId(353), "special_trigger_condition.threshold")?,
+            consume_on_pass: read_bool(
+                row,
+                FieldId(354),
+                "special_trigger_condition.consume_on_pass",
+            )?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_special_trigger_effect(
+    project: &DataProject,
+) -> Result<GeneratedTable<SpecialTriggerEffect>, String> {
+    let rows = table_rows(project, TableId(37))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(SpecialTriggerEffect {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(360), "special_trigger_effect.name")?,
+            timing: read_string(row, FieldId(361), "special_trigger_effect.timing")?,
+            effect_kind: read_string(row, FieldId(362), "special_trigger_effect.effect_kind")?,
+            stat: read_row(row, FieldId(363), "special_trigger_effect.stat")?,
+            stat_delta: read_f32(row, FieldId(364), "special_trigger_effect.stat_delta")?,
+            duration_seconds: read_f32(
+                row,
+                FieldId(365),
+                "special_trigger_effect.duration_seconds",
+            )?,
+            interval_seconds: read_f32(
+                row,
+                FieldId(366),
+                "special_trigger_effect.interval_seconds",
+            )?,
+            damage_scale: read_f32(row, FieldId(367), "special_trigger_effect.damage_scale")?,
+            target_rule: read_string(row, FieldId(368), "special_trigger_effect.target_rule")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());

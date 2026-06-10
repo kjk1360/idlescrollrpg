@@ -2,8 +2,9 @@ use belt_core::{
     BattleConfig, BehaviorCondition, BehaviorRule, BeltPosition, CellOffset, CellPattern,
     CompareOperator, ConditionDef, ConditionKind, ConditionSubject, FacingMode, MapDef, SkillDef,
     SkillDefId, SkillEffect, SkillEffectKind, SkillStatCost, SkillStep, SkillStepOrigin,
-    SpecialTriggerDef, StatBlock, StatCompare, StatDefId, UnitDef, UnitDefId, UnitGroup, UnitSpawn,
-    WaveDef,
+    SpecialTriggerCondition, SpecialTriggerConditionKind, SpecialTriggerDef, SpecialTriggerEffect,
+    SpecialTriggerEffectKind, SpecialTriggerEffectTiming, StatBlock, StatCompare, StatDefId,
+    UnitDef, UnitDefId, UnitGroup, UnitSpawn, WaveDef,
 };
 use data_studio_core::{DataProject, RowId};
 use generated_data::relation_cache::GeneratedRelationCache;
@@ -355,12 +356,65 @@ fn special_trigger_from_data(
     Ok(SpecialTriggerDef {
         key: row.key.clone(),
         interval_seconds: row.interval_seconds.max(0.01),
-        stack_stat: StatDefId(row.stack_stat.0 as u32),
-        stack_delta: row.stack_delta,
-        stack_threshold: row.stack_threshold.max(0.0),
-        consume_stacks_on_trigger: row.consume_stacks_on_trigger,
+        conditions: row
+            .conditions
+            .iter()
+            .map(|condition_id| special_trigger_condition_from_data(db, *condition_id))
+            .collect::<Result<Vec<_>, _>>()?,
+        effects: row
+            .effects
+            .iter()
+            .map(|effect_id| special_trigger_effect_from_data(db, *effect_id))
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+fn special_trigger_condition_from_data(
+    db: &GeneratedDatabase,
+    row_id: RowId,
+) -> Result<SpecialTriggerCondition, String> {
+    let row = db
+        .special_trigger_condition
+        .get_by_id(row_id)
+        .ok_or_else(|| format!("missing special trigger condition {:?}", row_id))?;
+    Ok(SpecialTriggerCondition {
+        kind: match row.condition_kind.as_str() {
+            "stat_gte" => SpecialTriggerConditionKind::StatGte,
+            other => {
+                return Err(format!(
+                    "unsupported special trigger condition kind {other}"
+                ))
+            }
+        },
+        stat: StatDefId(row.stat.0 as u32),
+        threshold: row.threshold,
+        consume_on_pass: row.consume_on_pass,
+    })
+}
+
+fn special_trigger_effect_from_data(
+    db: &GeneratedDatabase,
+    row_id: RowId,
+) -> Result<SpecialTriggerEffect, String> {
+    let row = db
+        .special_trigger_effect
+        .get_by_id(row_id)
+        .ok_or_else(|| format!("missing special trigger effect {:?}", row_id))?;
+    Ok(SpecialTriggerEffect {
+        timing: match row.timing.as_str() {
+            "on_interval" => SpecialTriggerEffectTiming::OnInterval,
+            "on_trigger" => SpecialTriggerEffectTiming::OnTrigger,
+            other => return Err(format!("unsupported special trigger effect timing {other}")),
+        },
+        kind: match row.effect_kind.as_str() {
+            "stat_delta" => SpecialTriggerEffectKind::StatDelta,
+            "periodic_damage" => SpecialTriggerEffectKind::PeriodicDamage,
+            other => return Err(format!("unsupported special trigger effect kind {other}")),
+        },
+        stat: StatDefId(row.stat.0 as u32),
+        stat_delta: row.stat_delta,
         duration_seconds: row.duration_seconds.max(0.0),
-        periodic_interval_seconds: row.periodic_interval_seconds.max(0.0),
+        interval_seconds: row.interval_seconds.max(0.0),
         damage_scale: row.damage_scale,
         target_rule: row.target_rule.clone(),
     })

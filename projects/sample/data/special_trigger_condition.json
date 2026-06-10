@@ -1,0 +1,28 @@
+[
+  {
+    "id": 36001,
+    "key": "moonlight_at_three",
+    "cells": {
+      "350": {
+        "kind": "string",
+        "value": "Moonlight At Three"
+      },
+      "351": {
+        "kind": "string",
+        "value": "stat_gte"
+      },
+      "352": {
+        "kind": "row",
+        "value": 23006
+      },
+      "353": {
+        "kind": "f32",
+        "value": 3.0
+      },
+      "354": {
+        "kind": "bool",
+        "value": true
+      }
+    }
+  }
+]

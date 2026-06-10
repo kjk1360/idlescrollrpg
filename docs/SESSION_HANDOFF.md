@@ -129,6 +129,8 @@ Implemented:
 - `belt_core` has special trigger runtime v1 for `combat_tick_5s_moonlight_3`: gain Moonlight every 5 seconds, consume 3 stacks, emit `SpecialTriggered`, and start a 10-second periodic nearest-enemy attack at 100% attack
 - `special_trigger_def` table authors the trigger's interval, stack stat, stack delta, stack threshold, consume policy, duration, periodic interval, damage scale, and target rule
 - `special_option_def.trigger_key` resolves by key into `special_trigger_def`; the current runtime supports this narrow periodic-damage trigger shape rather than fully composable effects
+- `special_trigger_condition` and `special_trigger_effect` tables split trigger authoring into reusable condition/effect rows
+- the Moonlight trigger currently uses one `stat_gte` condition, one `on_interval/stat_delta` effect, and one `on_trigger/periodic_damage` effect
 - Play Preview renders impact flashes on the combat line
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -516,7 +518,7 @@ Expose the local account-state loop in the tool UI and playable preview.
 Recommended order:
 
 1. Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
-2. Broaden `special_trigger_def` into composable trigger/effect tables instead of the current single periodic-damage trigger shape.
+2. Add more condition/effect kinds to the new composable special trigger tables.
 3. Extend equipment special option runtime from `on_equip` stat/granted-skill/trigger-key application into skill mutation and conditional effects.
 4. Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
 5. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.

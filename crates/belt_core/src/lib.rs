@@ -80,14 +80,45 @@ pub struct UnitDef {
 pub struct SpecialTriggerDef {
     pub key: String,
     pub interval_seconds: f32,
-    pub stack_stat: StatDefId,
-    pub stack_delta: f32,
-    pub stack_threshold: f32,
-    pub consume_stacks_on_trigger: bool,
+    pub conditions: Vec<SpecialTriggerCondition>,
+    pub effects: Vec<SpecialTriggerEffect>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpecialTriggerCondition {
+    pub kind: SpecialTriggerConditionKind,
+    pub stat: StatDefId,
+    pub threshold: f32,
+    pub consume_on_pass: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpecialTriggerConditionKind {
+    StatGte,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpecialTriggerEffect {
+    pub timing: SpecialTriggerEffectTiming,
+    pub kind: SpecialTriggerEffectKind,
+    pub stat: StatDefId,
+    pub stat_delta: f32,
     pub duration_seconds: f32,
-    pub periodic_interval_seconds: f32,
+    pub interval_seconds: f32,
     pub damage_scale: f32,
     pub target_rule: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpecialTriggerEffectTiming {
+    OnInterval,
+    OnTrigger,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpecialTriggerEffectKind {
+    StatDelta,
+    PeriodicDamage,
 }
 
 #[derive(Debug, Clone)]
@@ -997,15 +1028,22 @@ impl BattleWorld {
                 trigger.ticks_until_next =
                     seconds_to_ticks(trigger_def.interval_seconds, self.config.tick_duration);
 
-                let current =
-                    self.units[index].stats.get(trigger_def.stack_stat) + trigger_def.stack_delta;
-                self.units[index].stats.set(trigger_def.stack_stat, current);
-                if current + f32::EPSILON < trigger_def.stack_threshold {
+                for effect in trigger_def
+                    .effects
+                    .iter()
+                    .filter(|effect| effect.timing == SpecialTriggerEffectTiming::OnInterval)
+                {
+                    self.apply_special_trigger_effect(index, effect);
+                }
+
+                if !special_trigger_conditions_pass(&self.units[index], &trigger_def.conditions) {
                     continue;
                 }
 
-                if trigger_def.consume_stacks_on_trigger {
-                    self.units[index].stats.set(trigger_def.stack_stat, 0.0);
+                for condition in &trigger_def.conditions {
+                    if condition.consume_on_pass {
+                        self.units[index].stats.set(condition.stat, 0.0);
+                    }
                 }
                 started_periodics.push((self.units[index].id, trigger_def));
             }
@@ -1016,23 +1054,43 @@ impl BattleWorld {
                 unit_id,
                 trigger_key: trigger_def.key.clone(),
             });
-            if trigger_def.duration_seconds > 0.0 && trigger_def.periodic_interval_seconds > 0.0 {
-                self.pending_special_periodics.push(PendingSpecialPeriodic {
-                    source: unit_id,
-                    ticks_until_next: 0,
-                    ticks_remaining: seconds_to_ticks(
-                        trigger_def.duration_seconds,
-                        self.config.tick_duration,
-                    ),
-                    interval_ticks: seconds_to_ticks(
-                        trigger_def.periodic_interval_seconds,
-                        self.config.tick_duration,
-                    ),
-                    damage_scale: trigger_def.damage_scale,
-                    target_rule: trigger_def.target_rule,
-                });
+            for effect in trigger_def
+                .effects
+                .iter()
+                .filter(|effect| effect.timing == SpecialTriggerEffectTiming::OnTrigger)
+            {
+                if effect.kind == SpecialTriggerEffectKind::PeriodicDamage
+                    && effect.duration_seconds > 0.0
+                    && effect.interval_seconds > 0.0
+                {
+                    self.pending_special_periodics.push(PendingSpecialPeriodic {
+                        source: unit_id,
+                        ticks_until_next: 0,
+                        ticks_remaining: seconds_to_ticks(
+                            effect.duration_seconds,
+                            self.config.tick_duration,
+                        ),
+                        interval_ticks: seconds_to_ticks(
+                            effect.interval_seconds,
+                            self.config.tick_duration,
+                        ),
+                        damage_scale: effect.damage_scale,
+                        target_rule: effect.target_rule.clone(),
+                    });
+                }
             }
         }
+    }
+
+    fn apply_special_trigger_effect(&mut self, unit_index: usize, effect: &SpecialTriggerEffect) {
+        if effect.kind != SpecialTriggerEffectKind::StatDelta {
+            return;
+        }
+        let current = self.units[unit_index].stats.get(effect.stat);
+        self.units[unit_index]
+            .stats
+            .set(effect.stat, current + effect.stat_delta);
+        sync_legacy_fields_from_stats(&mut self.units[unit_index]);
     }
 
     fn tick_pending_special_periodics(&mut self) {
@@ -1169,6 +1227,17 @@ fn special_periodic_target(
         "nearest_enemy" => closest_target(units, actor),
         _ => closest_target(units, actor),
     }
+}
+
+fn special_trigger_conditions_pass(
+    unit: &UnitState,
+    conditions: &[SpecialTriggerCondition],
+) -> bool {
+    conditions.iter().all(|condition| match condition.kind {
+        SpecialTriggerConditionKind::StatGte => {
+            unit.stats.get(condition.stat) + f32::EPSILON >= condition.threshold
+        }
+    })
 }
 
 fn grid_from_belt(position: BeltPosition, x_offset: f32) -> GridPosition {
@@ -2001,14 +2070,34 @@ mod tests {
         knight.special_triggers = vec![SpecialTriggerDef {
             key: "combat_tick_5s_moonlight_3".to_string(),
             interval_seconds: 5.0,
-            stack_stat: STAT_MOONLIGHT,
-            stack_delta: 1.0,
-            stack_threshold: 3.0,
-            consume_stacks_on_trigger: true,
-            duration_seconds: 10.0,
-            periodic_interval_seconds: 0.5,
-            damage_scale: 1.0,
-            target_rule: "nearest_enemy".to_string(),
+            conditions: vec![SpecialTriggerCondition {
+                kind: SpecialTriggerConditionKind::StatGte,
+                stat: STAT_MOONLIGHT,
+                threshold: 3.0,
+                consume_on_pass: true,
+            }],
+            effects: vec![
+                SpecialTriggerEffect {
+                    timing: SpecialTriggerEffectTiming::OnInterval,
+                    kind: SpecialTriggerEffectKind::StatDelta,
+                    stat: STAT_MOONLIGHT,
+                    stat_delta: 1.0,
+                    duration_seconds: 0.0,
+                    interval_seconds: 0.0,
+                    damage_scale: 0.0,
+                    target_rule: "self".to_string(),
+                },
+                SpecialTriggerEffect {
+                    timing: SpecialTriggerEffectTiming::OnTrigger,
+                    kind: SpecialTriggerEffectKind::PeriodicDamage,
+                    stat: STAT_MOONLIGHT,
+                    stat_delta: 0.0,
+                    duration_seconds: 10.0,
+                    interval_seconds: 0.5,
+                    damage_scale: 1.0,
+                    target_rule: "nearest_enemy".to_string(),
+                },
+            ],
         }];
         knight.base_stats.set(STAT_MOONLIGHT, 2.0);
 

@@ -1940,6 +1940,168 @@
           "kind": "string"
         },
         "required": true
+      },
+      {
+        "id": 340,
+        "key": "conditions",
+        "display_name": "Conditions",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 36
+        },
+        "required": false
+      },
+      {
+        "id": 341,
+        "key": "effects",
+        "display_name": "Effects",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 37
+        },
+        "required": false
+      }
+    ]
+  },
+  {
+    "id": 36,
+    "key": "special_trigger_condition",
+    "display_name": "Special Trigger Condition",
+    "fields": [
+      {
+        "id": 350,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 351,
+        "key": "condition_kind",
+        "display_name": "Condition Kind",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 352,
+        "key": "stat",
+        "display_name": "Stat",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 23
+        },
+        "required": true
+      },
+      {
+        "id": 353,
+        "key": "threshold",
+        "display_name": "Threshold",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 354,
+        "key": "consume_on_pass",
+        "display_name": "Consume On Pass",
+        "kind": {
+          "kind": "bool"
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 37,
+    "key": "special_trigger_effect",
+    "display_name": "Special Trigger Effect",
+    "fields": [
+      {
+        "id": 360,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 361,
+        "key": "timing",
+        "display_name": "Timing",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 362,
+        "key": "effect_kind",
+        "display_name": "Effect Kind",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 363,
+        "key": "stat",
+        "display_name": "Stat",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 23
+        },
+        "required": true
+      },
+      {
+        "id": 364,
+        "key": "stat_delta",
+        "display_name": "Stat Delta",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 365,
+        "key": "duration_seconds",
+        "display_name": "Duration Seconds",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 366,
+        "key": "interval_seconds",
+        "display_name": "Interval Seconds",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 367,
+        "key": "damage_scale",
+        "display_name": "Damage Scale",
+        "kind": {
+          "kind": "f32"
+        },
+        "required": true
+      },
+      {
+        "id": 368,
+        "key": "target_rule",
+        "display_name": "Target Rule",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
       }
     ]
   }
