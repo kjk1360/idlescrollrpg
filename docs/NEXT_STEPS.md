@@ -79,6 +79,10 @@
 - Added instant Refinement Workbench crafting that consumes one equipment item plus one material item and writes equipment output back to the same local account-state file.
 - Data Studio Operation tab now shows Refinement Workbench recipes, input equipment, material requirements, craftable state, and a Refine action.
 - Added `POST /api/account-refinement/craft` for local account-state mutation.
+- Added account-level equipment instances with stable instance ids and option lists.
+- Forge equipment output now creates equipment instances instead of equipment item stacks.
+- Refinement now consumes an equipment instance, preserves its existing options, adds the recipe effect option, and writes a new equipment instance.
+- Operation UI now shows Equipment Instances and their options separately from stack inventory.
 
 ## Current Stable CLI Flow
 
@@ -256,6 +260,17 @@ The local account-state file is intentionally small and server-portable:
     { "item_key": "slime_gel", "quantity": 3 },
     { "item_key": "energy_tonic", "quantity": 1 }
   ],
+  "equipment": [
+    {
+      "instance_id": "eq_1000_basic_sword_1",
+      "item_key": "basic_sword",
+      "display_name": "Basic Sword",
+      "rarity": "common",
+      "options": [
+        { "stat_key": "strength", "value": 1, "rarity": "common" }
+      ]
+    }
+  ],
   "mail": [
     { "item_key": "slime_gel", "quantity": 5, "expires_at_unix": 87400 }
   ]
@@ -269,7 +284,7 @@ The local account-state file is intentionally small and server-portable:
 The next production-facing step is to expose the local account state in the UI and make it behave like the later server-backed account model:
 
 - Account-state API endpoints in `belt_tools play` for preview/test workflows.
-- Add equipment instance and option data so refinement can reroll/mutate real item options instead of converting one item key into another.
+- Add authored equipment option definition tables and refinement effect rules for reroll/mutation instead of the current fixed sample option.
 
 ## Server Direction
 

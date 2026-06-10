@@ -110,6 +110,10 @@ Implemented:
 - first `refinement_recipe` data table exists
 - `/api/account-refinement/craft` mutates the local account-state file by consuming one equipment item plus one material item and placing equipment output
 - Data Studio Operation tab shows Refinement Workbench recipes, input equipment, material requirements, craftable state, and a Refine action
+- account state has an `equipment` array with equipment instance ids and option lists
+- Forge equipment output creates equipment instances instead of equipment item stacks
+- Refinement consumes an equipment instance, preserves existing options, adds the recipe effect option, and creates a new equipment instance
+- Data Studio Operation tab shows Equipment Instances separately from stack inventory
 - Play Preview renders impact flashes on the combat line
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -458,6 +462,17 @@ Local account-state files are JSON and intentionally map cleanly to a later serv
     { "item_key": "slime_gel", "quantity": 3 },
     { "item_key": "energy_tonic", "quantity": 1 }
   ],
+  "equipment": [
+    {
+      "instance_id": "eq_1000_basic_sword_1",
+      "item_key": "basic_sword",
+      "display_name": "Basic Sword",
+      "rarity": "common",
+      "options": [
+        { "stat_key": "strength", "value": 1, "rarity": "common" }
+      ]
+    }
+  ],
   "mail": [
     { "item_key": "slime_gel", "quantity": 5, "expires_at_unix": 87400 }
   ]
@@ -472,7 +487,7 @@ Expose the local account-state loop in the tool UI and playable preview.
 
 Recommended order:
 
-1. Add equipment instance and option data so refinement can reroll/mutate real item options instead of converting one item key into another.
+1. Add authored equipment option definition tables and refinement effect rules for reroll/mutation instead of the current fixed sample option.
 2. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
 3. Keep chat/guild/ranking behind auction house priority.
 4. Connect battle simulation states to visual state machine keys.

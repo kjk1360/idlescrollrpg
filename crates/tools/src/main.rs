@@ -340,6 +340,8 @@ struct AccountState {
     energy: i32,
     last_energy_update_unix: i64,
     inventory: Vec<AccountItemStack>,
+    #[serde(default)]
+    equipment: Vec<AccountEquipmentInstance>,
     mail: Vec<AccountMail>,
 }
 
@@ -347,6 +349,22 @@ struct AccountState {
 struct AccountItemStack {
     item_key: String,
     quantity: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct AccountEquipmentInstance {
+    instance_id: String,
+    item_key: String,
+    display_name: String,
+    rarity: String,
+    options: Vec<AccountEquipmentOption>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct AccountEquipmentOption {
+    stat_key: String,
+    value: i32,
+    rarity: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -553,6 +571,33 @@ fn apply_rewards_to_account_state(
         let mut remaining = reward.quantity.max(0);
         let mut placed_quantity = 0;
 
+        if reward.category == "equipment" {
+            while remaining > 0 {
+                let used_slots = inventory_slots_for_category(&db, state, &reward.category)?;
+                if used_slots >= capacity {
+                    break;
+                }
+                let sequence = state.equipment.len() + placed_quantity as usize + 1;
+                state.equipment.push(equipment_instance_from_reward(
+                    reward, now_unix, sequence, None,
+                ));
+                remaining -= 1;
+                placed_quantity += 1;
+            }
+            if placed_quantity > 0 {
+                let mut placed_reward = reward.clone();
+                placed_reward.quantity = placed_quantity;
+                placed.push(placed_reward);
+            }
+            if remaining > 0 {
+                push_account_mail(state, reward, remaining, now_unix);
+                let mut overflow = reward.clone();
+                overflow.quantity = remaining;
+                overflow_mail.push(overflow);
+            }
+            continue;
+        }
+
         for stack in state
             .inventory
             .iter_mut()
@@ -602,6 +647,90 @@ fn apply_rewards_to_account_state(
     })
 }
 
+fn equipment_instance_from_reward(
+    reward: &RewardStack,
+    now_unix: i64,
+    sequence: usize,
+    inherited_options: Option<Vec<AccountEquipmentOption>>,
+) -> AccountEquipmentInstance {
+    AccountEquipmentInstance {
+        instance_id: format!("eq_{}_{}_{}", now_unix.max(0), reward.item_key, sequence),
+        item_key: reward.item_key.clone(),
+        display_name: reward.item_name.clone(),
+        rarity: reward.rarity.clone(),
+        options: inherited_options.unwrap_or_else(|| {
+            vec![AccountEquipmentOption {
+                stat_key: "strength".to_string(),
+                value: match reward.rarity.as_str() {
+                    "uncommon" => 3,
+                    "rare" => 5,
+                    _ => 1,
+                },
+                rarity: reward.rarity.clone(),
+            }]
+        }),
+    }
+}
+
+fn consume_equipment_instance(
+    state: &mut AccountState,
+    item_key: &str,
+) -> Result<AccountEquipmentInstance, String> {
+    let index = state
+        .equipment
+        .iter()
+        .position(|equipment| equipment.item_key == item_key)
+        .ok_or_else(|| format!("missing equipment instance {item_key}"))?;
+    Ok(state.equipment.remove(index))
+}
+
+fn equipment_quantity(state: &AccountState, item_key: &str) -> i32 {
+    state
+        .equipment
+        .iter()
+        .filter(|equipment| equipment.item_key == item_key)
+        .count() as i32
+}
+
+fn migrate_equipment_stacks_to_instances(
+    project: &DataProject,
+    state: &mut AccountState,
+    now_unix: i64,
+) -> Result<(), String> {
+    let db = GeneratedDatabase::from_project(project)?;
+    let mut migrated = Vec::new();
+    let mut remaining_inventory = Vec::new();
+    for stack in state.inventory.drain(..) {
+        let item = db.item_def.get_by_key(&stack.item_key).ok_or_else(|| {
+            format!(
+                "account inventory references missing item {}",
+                stack.item_key
+            )
+        })?;
+        if item.category == "equipment" {
+            for _ in 0..stack.quantity.max(0) {
+                let sequence = state.equipment.len() + migrated.len() + 1;
+                let reward = RewardStack {
+                    item_key: item.key.clone(),
+                    item_name: item.name.clone(),
+                    category: item.category.clone(),
+                    rarity: item.rarity.clone(),
+                    stack_size: item.stack_size.max(1),
+                    quantity: 1,
+                };
+                migrated.push(equipment_instance_from_reward(
+                    &reward, now_unix, sequence, None,
+                ));
+            }
+        } else {
+            remaining_inventory.push(stack);
+        }
+    }
+    state.inventory = remaining_inventory;
+    state.equipment.extend(migrated);
+    Ok(())
+}
+
 fn push_account_mail(state: &mut AccountState, reward: &RewardStack, quantity: i32, now_unix: i64) {
     state.mail.push(AccountMail {
         item_key: reward.item_key.clone(),
@@ -621,19 +750,25 @@ fn inventory_slots_for_category(
     state: &AccountState,
     category: &str,
 ) -> Result<i32, String> {
-    state.inventory.iter().try_fold(0, |slots, stack| {
+    let inventory_slots = state.inventory.iter().try_fold(0, |slots, stack| {
         let item = db.item_def.get_by_key(&stack.item_key).ok_or_else(|| {
             format!(
                 "account inventory references missing item {}",
                 stack.item_key
             )
         })?;
-        Ok(if item.category == category {
+        Ok::<i32, String>(if item.category == category {
             slots + 1
         } else {
             slots
         })
-    })
+    })?;
+    let equipment_slots = if category == "equipment" {
+        state.equipment.len() as i32
+    } else {
+        0
+    };
+    Ok(inventory_slots + equipment_slots)
 }
 
 fn inventory_slots_by_tab(
@@ -662,6 +797,14 @@ fn inventory_slots_by_tab(
         {
             *slots.entry(tab.tab_key.clone()).or_insert(0) += 1;
         }
+    }
+    if let Some(tab) = db
+        .storage_tab_config
+        .rows
+        .iter()
+        .find(|tab| tab.item_category == "equipment")
+    {
+        *slots.entry(tab.tab_key.clone()).or_insert(0) += state.equipment.len() as i32;
     }
 
     Ok(slots)
@@ -981,30 +1124,29 @@ fn craft_refinement_recipe(
     }
 
     let required_material = recipe.material_quantity.max(0);
-    let required_items = [
-        (
-            input_equipment.key.as_str(),
-            1,
-            input_equipment.name.as_str(),
-        ),
-        (
-            material.key.as_str(),
-            required_material,
-            material.name.as_str(),
-        ),
-    ];
-    for (item_key, required, item_name) in required_items {
-        let available = inventory_quantity(state, item_key);
-        if available < required {
-            return Err(format!(
-                "not enough {}: required={} available={}",
-                item_name, required, available
-            ));
-        }
+    let input_available = equipment_quantity(state, &input_equipment.key);
+    if input_available < 1 {
+        return Err(format!(
+            "not enough {}: required=1 available={}",
+            input_equipment.name, input_available
+        ));
     }
-    consume_inventory_item(state, &input_equipment.key, 1)?;
+    let material_available = inventory_quantity(state, &material.key);
+    if material_available < required_material {
+        return Err(format!(
+            "not enough {}: required={} available={}",
+            material.name, required_material, material_available
+        ));
+    }
+    let consumed_equipment = consume_equipment_instance(state, &input_equipment.key)?;
     consume_inventory_item(state, &material.key, required_material)?;
 
+    let mut inherited_options = consumed_equipment.options;
+    inherited_options.push(AccountEquipmentOption {
+        stat_key: recipe.effect_kind.clone(),
+        value: 1,
+        rarity: output_item.rarity.clone(),
+    });
     let reward = RewardStack {
         item_key: output_item.key.clone(),
         item_name: output_item.name.clone(),
@@ -1013,7 +1155,33 @@ fn craft_refinement_recipe(
         stack_size: output_item.stack_size.max(1),
         quantity: 1,
     };
-    apply_rewards_to_account_state(project, state, &[reward], now_unix)
+    let capacity = db
+        .storage_tab_config
+        .rows
+        .iter()
+        .find(|tab| tab.item_category == "equipment")
+        .map(|tab| tab.base_capacity.max(0))
+        .unwrap_or(0);
+    if inventory_slots_for_category(&db, state, "equipment")? >= capacity {
+        push_account_mail(state, &reward, 1, now_unix);
+        return Ok(AccountRewardSettlement {
+            placed: Vec::new(),
+            overflow_mail: vec![reward],
+            inventory_slots: inventory_slots_by_tab(&db, state)?,
+        });
+    }
+    let sequence = state.equipment.len() + 1;
+    state.equipment.push(equipment_instance_from_reward(
+        &reward,
+        now_unix,
+        sequence,
+        Some(inherited_options),
+    ));
+    Ok(AccountRewardSettlement {
+        placed: vec![reward],
+        overflow_mail: Vec::new(),
+        inventory_slots: inventory_slots_by_tab(&db, state)?,
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -1302,8 +1470,10 @@ fn load_or_create_account_state(
     if path.exists() {
         let content = fs::read_to_string(path)
             .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
-        return serde_json::from_str(&content)
-            .map_err(|error| format!("failed to parse {}: {error}", path.display()));
+        let mut state: AccountState = serde_json::from_str(&content)
+            .map_err(|error| format!("failed to parse {}: {error}", path.display()))?;
+        migrate_equipment_stacks_to_instances(project, &mut state, current_unix_time())?;
+        return Ok(state);
     }
 
     let db = GeneratedDatabase::from_project(project)?;
@@ -1316,6 +1486,7 @@ fn load_or_create_account_state(
         energy: energy_config.max_energy,
         last_energy_update_unix: 0,
         inventory: Vec::new(),
+        equipment: Vec::new(),
         mail: Vec::new(),
     })
 }
@@ -1360,6 +1531,28 @@ pub(crate) fn account_state_snapshot_for_api(
                 "category": item.map(|item| item.category.as_str()).unwrap_or("unknown"),
                 "rarity": item.map(|item| item.rarity.as_str()).unwrap_or("unknown"),
                 "stack_size": item.map(|item| item.stack_size).unwrap_or(1),
+            })
+        })
+        .collect::<Vec<_>>();
+    let equipment = state
+        .equipment
+        .iter()
+        .map(|equipment| {
+            let item = db.item_def.get_by_key(&equipment.item_key);
+            serde_json::json!({
+                "instance_id": equipment.instance_id,
+                "item_key": equipment.item_key,
+                "name": equipment.display_name,
+                "category": "equipment",
+                "rarity": equipment.rarity,
+                "base_name": item.map(|item| item.name.as_str()).unwrap_or(equipment.display_name.as_str()),
+                "options": equipment.options.iter().map(|option| {
+                    serde_json::json!({
+                        "stat_key": option.stat_key,
+                        "value": option.value,
+                        "rarity": option.rarity,
+                    })
+                }).collect::<Vec<_>>(),
             })
         })
         .collect::<Vec<_>>();
@@ -1509,7 +1702,7 @@ pub(crate) fn account_state_snapshot_for_api(
             let output = db.item_def.get_by_id(recipe.output_item);
             let input_key = input.map(|item| item.key.as_str()).unwrap_or("");
             let material_key = material.map(|item| item.key.as_str()).unwrap_or("");
-            let input_available = inventory_quantity(&state, input_key);
+            let input_available = equipment_quantity(&state, input_key);
             let material_available = inventory_quantity(&state, material_key);
             let material_quantity = recipe.material_quantity.max(0);
             let craftable = input_available >= 1 && material_available >= material_quantity;
@@ -1546,6 +1739,7 @@ pub(crate) fn account_state_snapshot_for_api(
         "now_unix": now_unix,
         "last_energy_update_unix": state.last_energy_update_unix,
         "inventory": inventory,
+        "equipment": equipment,
         "mail": mail,
         "storage_tabs": storage_tabs,
         "alchemy_recipes": alchemy_recipes,
@@ -1828,6 +2022,7 @@ mod tests {
             energy: 10,
             last_energy_update_unix: 1000,
             inventory: Vec::new(),
+            equipment: Vec::new(),
             mail: Vec::new(),
         };
 
@@ -1847,6 +2042,7 @@ mod tests {
             energy: 119,
             last_energy_update_unix: 1000,
             inventory: Vec::new(),
+            equipment: Vec::new(),
             mail: Vec::new(),
         };
 
@@ -1918,6 +2114,7 @@ mod tests {
                 item_key: "slime_gel".to_string(),
                 quantity: 6,
             }],
+            equipment: Vec::new(),
             mail: Vec::new(),
         };
         let rewards = vec![RewardStack {
@@ -1952,6 +2149,7 @@ mod tests {
                     quantity: 10,
                 })
                 .collect(),
+            equipment: Vec::new(),
             mail: Vec::new(),
         };
         let rewards = vec![RewardStack {
@@ -1981,6 +2179,7 @@ mod tests {
             energy: 100,
             last_energy_update_unix: 0,
             inventory: Vec::new(),
+            equipment: Vec::new(),
             mail: vec![AccountMail {
                 item_key: "slime_gel".to_string(),
                 quantity: 5,
@@ -2003,6 +2202,7 @@ mod tests {
             energy: 100,
             last_energy_update_unix: 0,
             inventory: Vec::new(),
+            equipment: Vec::new(),
             mail: vec![AccountMail {
                 item_key: "energy_tonic".to_string(),
                 quantity: 1,
@@ -2023,6 +2223,7 @@ mod tests {
             energy: 100,
             last_energy_update_unix: 0,
             inventory: Vec::new(),
+            equipment: Vec::new(),
             mail: vec![
                 AccountMail {
                     item_key: "slime_gel".to_string(),
@@ -2060,6 +2261,7 @@ mod tests {
                     quantity: 1,
                 },
             ],
+            equipment: Vec::new(),
             mail: Vec::new(),
         };
 
@@ -2093,6 +2295,7 @@ mod tests {
                     quantity: 1,
                 },
             ],
+            equipment: Vec::new(),
             mail: Vec::new(),
         };
 
@@ -2104,7 +2307,8 @@ mod tests {
         assert_eq!(inventory_quantity(&state, "basic_sword_recipe"), 0);
         assert_eq!(inventory_quantity(&state, "iron_ingot"), 0);
         assert_eq!(inventory_quantity(&state, "slime_gel"), 0);
-        assert_eq!(inventory_quantity(&state, "basic_sword"), 1);
+        assert_eq!(inventory_quantity(&state, "basic_sword"), 0);
+        assert_eq!(equipment_quantity(&state, "basic_sword"), 1);
     }
 
     #[test]
@@ -2113,16 +2317,21 @@ mod tests {
         let mut state = AccountState {
             energy: 100,
             last_energy_update_unix: 0,
-            inventory: vec![
-                AccountItemStack {
-                    item_key: "basic_sword".to_string(),
-                    quantity: 1,
-                },
-                AccountItemStack {
-                    item_key: "refinement_stone".to_string(),
-                    quantity: 1,
-                },
-            ],
+            inventory: vec![AccountItemStack {
+                item_key: "refinement_stone".to_string(),
+                quantity: 1,
+            }],
+            equipment: vec![AccountEquipmentInstance {
+                instance_id: "eq_test_basic_sword".to_string(),
+                item_key: "basic_sword".to_string(),
+                display_name: "Basic Sword".to_string(),
+                rarity: "common".to_string(),
+                options: vec![AccountEquipmentOption {
+                    stat_key: "strength".to_string(),
+                    value: 1,
+                    rarity: "common".to_string(),
+                }],
+            }],
             mail: Vec::new(),
         };
 
@@ -2131,9 +2340,10 @@ mod tests {
 
         assert_eq!(settlement.placed[0].item_key, "tempered_basic_sword");
         assert_eq!(settlement.placed[0].quantity, 1);
-        assert_eq!(inventory_quantity(&state, "basic_sword"), 0);
+        assert_eq!(equipment_quantity(&state, "basic_sword"), 0);
         assert_eq!(inventory_quantity(&state, "refinement_stone"), 0);
-        assert_eq!(inventory_quantity(&state, "tempered_basic_sword"), 1);
+        assert_eq!(equipment_quantity(&state, "tempered_basic_sword"), 1);
+        assert_eq!(state.equipment[0].options.len(), 2);
     }
 }
 

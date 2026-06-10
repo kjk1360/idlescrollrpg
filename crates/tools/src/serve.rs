@@ -2572,6 +2572,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
         <button onclick="refreshOperation()">Refresh</button>`;
       const storage = account.storage_tabs || [];
       const inventory = account.inventory || [];
+      const equipment = account.equipment || [];
       const mail = account.mail || [];
       const alchemyRecipes = account.alchemy_recipes || [];
       const forgeRecipes = account.forge_recipes || [];
@@ -2686,9 +2687,19 @@ const INDEX_HTML: &str = r#"<!doctype html>
             <div class="operation-head"><span>Material</span><span>${byCategory('material').length}</span></div>
             <div class="operation-body">${byCategory('material').map(item => `<div class="stat-line"><span>${escapeHtml(item.name)}</span><span>${item.quantity}</span></div>`).join('') || '<span>empty</span>'}</div>
           </div>
-          <div class="operation-panel">
-            <div class="operation-head"><span>Equipment</span><span>${byCategory('equipment').length}</span></div>
-            <div class="operation-body">${byCategory('equipment').map(item => `<div class="stat-line"><span>${escapeHtml(item.name)}</span><span>${item.quantity}</span></div>`).join('') || '<span>empty</span>'}</div>
+          <div class="operation-panel wide">
+            <div class="operation-head"><span>Equipment Instances</span><span>${equipment.length}</span></div>
+            <table>
+              <thead><tr><th>Equipment</th><th>Rarity</th><th>Options</th></tr></thead>
+              <tbody>
+                ${equipment.map(item => `
+                  <tr>
+                    <td>${escapeHtml(item.name)}<br><small>${escapeHtml(item.instance_id)}</small></td>
+                    <td>${escapeHtml(item.rarity)}</td>
+                    <td>${(item.options || []).map(option => `${escapeHtml(option.stat_key)} +${option.value} <small>${escapeHtml(option.rarity)}</small>`).join('<br>') || 'none'}</td>
+                  </tr>`).join('') || '<tr><td colspan="3">empty</td></tr>'}
+              </tbody>
+            </table>
           </div>
           <div class="operation-panel">
             <div class="operation-head"><span>Consumable</span><span>${byCategory('consumable').length}</span></div>
