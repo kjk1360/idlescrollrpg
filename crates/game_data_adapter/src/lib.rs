@@ -415,6 +415,7 @@ fn special_trigger_effect_from_data(
         },
         kind: match row.effect_kind.as_str() {
             "stat_delta" => SpecialTriggerEffectKind::StatDelta,
+            "timed_stat_delta" => SpecialTriggerEffectKind::TimedStatDelta,
             "instant_damage" => SpecialTriggerEffectKind::InstantDamage,
             "periodic_damage" => SpecialTriggerEffectKind::PeriodicDamage,
             other => return Err(format!("unsupported special trigger effect kind {other}")),

@@ -125,6 +125,7 @@ pub enum SpecialTriggerEffectTiming {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpecialTriggerEffectKind {
     StatDelta,
+    TimedStatDelta,
     InstantDamage,
     PeriodicDamage,
 }
@@ -1042,7 +1043,7 @@ impl BattleWorld {
                     .iter()
                     .filter(|effect| effect.timing == SpecialTriggerEffectTiming::OnInterval)
                 {
-                    self.apply_special_trigger_effect(index, effect);
+                    self.apply_special_trigger_effect(self.units[index].id, effect, &snapshot);
                 }
 
                 if !special_trigger_conditions_pass(
@@ -1075,8 +1076,9 @@ impl BattleWorld {
                 .filter(|effect| effect.timing == SpecialTriggerEffectTiming::OnTrigger)
             {
                 match effect.kind {
-                    SpecialTriggerEffectKind::StatDelta => {
-                        self.apply_special_trigger_stat_delta(unit_id, effect);
+                    SpecialTriggerEffectKind::StatDelta
+                    | SpecialTriggerEffectKind::TimedStatDelta => {
+                        self.apply_special_trigger_effect(unit_id, effect, &snapshot);
                     }
                     SpecialTriggerEffectKind::InstantDamage => {
                         let Some(source) = snapshot
@@ -1124,15 +1126,37 @@ impl BattleWorld {
         }
     }
 
-    fn apply_special_trigger_effect(&mut self, unit_index: usize, effect: &SpecialTriggerEffect) {
-        if effect.kind != SpecialTriggerEffectKind::StatDelta {
+    fn apply_special_trigger_effect(
+        &mut self,
+        unit_id: UnitId,
+        effect: &SpecialTriggerEffect,
+        snapshot: &[UnitState],
+    ) {
+        let Some(source) = snapshot
+            .iter()
+            .find(|unit| unit.id == unit_id && unit.is_alive())
+        else {
             return;
+        };
+
+        for target in special_trigger_effect_targets(snapshot, source, &effect.target_rule) {
+            self.apply_special_trigger_stat_delta(target, effect);
+            if effect.kind == SpecialTriggerEffectKind::TimedStatDelta
+                && effect.duration_seconds > 0.0
+                && effect.stat_delta != 0.0
+            {
+                self.pending_stat_modifiers.push(PendingStatModifier {
+                    target,
+                    stat: effect.stat,
+                    expire_delta: -effect.stat_delta,
+                    tick_delta: 0.0,
+                    ticks_remaining: seconds_to_ticks(
+                        effect.duration_seconds,
+                        self.config.tick_duration,
+                    ),
+                });
+            }
         }
-        let current = self.units[unit_index].stats.get(effect.stat);
-        self.units[unit_index]
-            .stats
-            .set(effect.stat, current + effect.stat_delta);
-        sync_legacy_fields_from_stats(&mut self.units[unit_index]);
     }
 
     fn apply_special_trigger_stat_delta(&mut self, unit_id: UnitId, effect: &SpecialTriggerEffect) {
@@ -1277,6 +1301,20 @@ fn special_periodic_target(
     match target_rule {
         "nearest_enemy" => closest_target(units, actor),
         _ => closest_target(units, actor),
+    }
+}
+
+fn special_trigger_effect_targets(
+    units: &[UnitState],
+    actor: &UnitState,
+    target_rule: &str,
+) -> Vec<UnitId> {
+    match target_rule {
+        "self" => vec![actor.id],
+        "nearest_enemy" => special_periodic_target(units, actor, target_rule)
+            .map(|target| vec![target.id])
+            .unwrap_or_default(),
+        _ => vec![actor.id],
     }
 }
 
@@ -2351,5 +2389,48 @@ mod tests {
         }
 
         assert!(saw_instant_damage);
+    }
+
+    #[test]
+    fn special_trigger_can_apply_timed_stat_delta() {
+        let mut world = BattleWorld::new(sample_battle_config());
+        let snapshot = world.units().to_vec();
+
+        world.apply_special_trigger_effect(
+            UnitId(1),
+            &SpecialTriggerEffect {
+                timing: SpecialTriggerEffectTiming::OnTrigger,
+                kind: SpecialTriggerEffectKind::TimedStatDelta,
+                stat: STAT_ATTACK,
+                stat_delta: 5.0,
+                duration_seconds: 0.4,
+                interval_seconds: 0.0,
+                damage_scale: 0.0,
+                target_rule: "self".to_string(),
+            },
+            &snapshot,
+        );
+
+        let buffed_attack = world
+            .units()
+            .iter()
+            .find(|unit| unit.id == UnitId(1))
+            .expect("knight spawned")
+            .stats
+            .get(STAT_ATTACK);
+        assert_eq!(buffed_attack, 23.0);
+
+        world.tick_pending_stat_modifiers();
+        world.tick_pending_stat_modifiers();
+        world.tick_pending_stat_modifiers();
+
+        let expired_attack = world
+            .units()
+            .iter()
+            .find(|unit| unit.id == UnitId(1))
+            .expect("knight spawned")
+            .stats
+            .get(STAT_ATTACK);
+        assert_eq!(expired_attack, 18.0);
     }
 }

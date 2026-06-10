@@ -101,7 +101,8 @@
 - `special_trigger_def` now references condition/effect rows; the Moonlight trigger is represented as an interval stat-delta effect, a stat threshold condition, and an on-trigger periodic damage effect.
 - Special trigger runtime now supports condition kinds `always`, `stat_gte`, `stat_lte`, `stat_eq`, `target_exists`, and `target_in_range`.
 - `special_trigger_condition` rows now carry `target_rule` and `range`, so equipment/special-option triggers can require a nearest enemy to exist or be inside line-combat range.
-- Special trigger runtime now supports effect kinds `stat_delta`, `instant_damage`, and `periodic_damage`; `stat_delta` can run on interval or on trigger.
+- Special trigger runtime now supports effect kinds `stat_delta`, `timed_stat_delta`, `instant_damage`, and `periodic_damage`; `stat_delta` and `timed_stat_delta` can run on interval or on trigger.
+- `timed_stat_delta` applies a stat change to `self` or `nearest_enemy` through `target_rule`, then reverts it after `duration_seconds`; this is the first buff/debuff preset for equipment special options.
 
 ## Current Stable CLI Flow
 
@@ -317,7 +318,7 @@ The next production-facing step is to expose the local account state in the UI a
 
 - Account-state API endpoints in `belt_tools play` for preview/test workflows.
 - Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
-- Add cooldown/resource checks, skill-cast effects, and buff/debuff presets to the composable special trigger tables.
+- Add cooldown/resource checks, skill-cast effects, and richer buff/debuff presets to the composable special trigger tables.
 - Extend equipment special options from `on_equip` stat, granted-skill, and trigger-key application into skill mutation and conditional effects.
 - Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
 
@@ -341,7 +342,7 @@ The runtime is tick-based 1D line combat. Primary skills execute immediate and d
 - structured trigger timing runtime for conditional skill activation, including cooldown/resource checks and equipment special option triggers beyond periodic stack gain and threshold effects
 - richer behavior conditions such as ally/enemy counts, cooldown availability, distance checks, and target stat filters
 - richer resource flows around skill costs, such as mana gain effects, generated UI presets, and cost preview labels
-- authoring presets and UI hints for temporary stacks, shields, buffs, debuffs, and over-time effects
+- authoring presets and UI hints for temporary stacks, shields, richer buffs/debuffs, and over-time effects
 - persistent inventory writeback, stack merging with existing partial stacks, and overflow mail expiration state
 - account energy persistence and consumable energy restore handling
 - battle simulation states to visual state machine keys

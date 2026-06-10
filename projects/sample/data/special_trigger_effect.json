@@ -82,5 +82,47 @@
         "value": "nearest_enemy"
       }
     }
+  },
+  {
+    "id": 37003,
+    "key": "moon_wrath_attack_buff",
+    "cells": {
+      "360": {
+        "kind": "string",
+        "value": "Moon Wrath Attack Buff"
+      },
+      "361": {
+        "kind": "string",
+        "value": "on_trigger"
+      },
+      "362": {
+        "kind": "string",
+        "value": "timed_stat_delta"
+      },
+      "363": {
+        "kind": "row",
+        "value": 23003
+      },
+      "364": {
+        "kind": "f32",
+        "value": 5.0
+      },
+      "365": {
+        "kind": "f32",
+        "value": 10.0
+      },
+      "366": {
+        "kind": "f32",
+        "value": 0.0
+      },
+      "367": {
+        "kind": "f32",
+        "value": 0.0
+      },
+      "368": {
+        "kind": "string",
+        "value": "self"
+      }
+    }
   }
 ]
