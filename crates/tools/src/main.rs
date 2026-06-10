@@ -379,6 +379,8 @@ struct AccountEquipmentInstance {
     options: Vec<AccountEquipmentOption>,
     #[serde(default)]
     special_options: Vec<AccountEquipmentSpecialOption>,
+    #[serde(default)]
+    refinement_locked: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -711,6 +713,7 @@ fn equipment_instance_from_reward(
             }]
         }),
         special_options: inherited_special_options.unwrap_or_default(),
+        refinement_locked: false,
     }
 }
 
@@ -782,6 +785,7 @@ fn apply_refinement_effects(
     output_rarity: &str,
     options: &mut Vec<AccountEquipmentOption>,
     special_options: &mut Vec<AccountEquipmentSpecialOption>,
+    refinement_locked: &mut bool,
 ) -> Result<(), String> {
     for effect_id in effect_ids {
         let effect = db
@@ -809,6 +813,30 @@ fn apply_refinement_effects(
             "add_special_option" => {
                 special_options.extend(special_options_from_recipe(db, &effect.special_options)?);
             }
+            "remove_stat_option" => {
+                remove_equipment_options(options, &target_stat_key(effect), effect.remove_count)?;
+            }
+            "replace_stat_option" => {
+                remove_equipment_options(options, &target_stat_key(effect), effect.remove_count)?;
+                if effect.stat_key.is_empty() {
+                    return Err(format!(
+                        "refinement effect {} requires stat_key",
+                        effect.key
+                    ));
+                }
+                options.push(AccountEquipmentOption {
+                    stat_key: effect.stat_key.clone(),
+                    value: effect.stat_value,
+                    rarity: if effect.stat_rarity.is_empty() {
+                        output_rarity.to_string()
+                    } else {
+                        effect.stat_rarity.clone()
+                    },
+                });
+            }
+            "lock_refinement" => {
+                *refinement_locked = true;
+            }
             other => {
                 return Err(format!(
                     "unsupported refinement effect kind {other} in {}",
@@ -817,6 +845,34 @@ fn apply_refinement_effects(
             }
         }
     }
+    Ok(())
+}
+
+fn target_stat_key(effect: &generated_data::schema_types::RefinementEffect) -> String {
+    if effect.target_stat_key.is_empty() {
+        effect.stat_key.clone()
+    } else {
+        effect.target_stat_key.clone()
+    }
+}
+
+fn remove_equipment_options(
+    options: &mut Vec<AccountEquipmentOption>,
+    stat_key: &str,
+    remove_count: i32,
+) -> Result<(), String> {
+    if stat_key.is_empty() {
+        return Err("refinement option removal requires target_stat_key or stat_key".to_string());
+    }
+    let mut remaining = remove_count.max(1);
+    options.retain(|option| {
+        if remaining > 0 && option.stat_key == stat_key {
+            remaining -= 1;
+            false
+        } else {
+            true
+        }
+    });
     Ok(())
 }
 
@@ -1315,11 +1371,24 @@ fn craft_refinement_recipe(
             material.name, required_material, material_available
         ));
     }
+    if let Some(equipment) = state
+        .equipment
+        .iter()
+        .find(|equipment| equipment.item_key == input_equipment.key)
+    {
+        if equipment.refinement_locked {
+            return Err(format!(
+                "{} is locked and cannot be refined again",
+                equipment.display_name
+            ));
+        }
+    }
     let consumed_equipment = consume_equipment_instance(state, &input_equipment.key)?;
     consume_inventory_item(state, &material.key, required_material)?;
 
     let mut inherited_options = consumed_equipment.options;
     let mut inherited_special_options = consumed_equipment.special_options;
+    let mut refinement_locked = consumed_equipment.refinement_locked;
     if recipe.effects.is_empty() {
         inherited_options.push(AccountEquipmentOption {
             stat_key: recipe.effect_kind.clone(),
@@ -1335,6 +1404,7 @@ fn craft_refinement_recipe(
             &output_item.rarity,
             &mut inherited_options,
             &mut inherited_special_options,
+            &mut refinement_locked,
         )?;
     }
     let reward = RewardStack {
@@ -1361,13 +1431,15 @@ fn craft_refinement_recipe(
         });
     }
     let sequence = state.equipment.len() + 1;
-    state.equipment.push(equipment_instance_from_reward(
+    let mut output_equipment = equipment_instance_from_reward(
         &reward,
         now_unix,
         sequence,
         Some(inherited_options),
         Some(inherited_special_options),
-    ));
+    );
+    output_equipment.refinement_locked = refinement_locked;
+    state.equipment.push(output_equipment);
     Ok(AccountRewardSettlement {
         placed: vec![reward],
         overflow_mail: Vec::new(),
@@ -1868,6 +1940,7 @@ pub(crate) fn account_state_snapshot_for_api(
                 "category": "equipment",
                 "rarity": equipment.rarity,
                 "base_name": item.map(|item| item.name.as_str()).unwrap_or(equipment.display_name.as_str()),
+                "refinement_locked": equipment.refinement_locked,
                 "options": equipment.options.iter().map(|option| {
                     serde_json::json!({
                         "stat_key": option.stat_key,
@@ -2063,6 +2136,8 @@ pub(crate) fn account_state_snapshot_for_api(
                         "stat_key": effect.stat_key,
                         "stat_value": effect.stat_value,
                         "stat_rarity": effect.stat_rarity,
+                        "target_stat_key": effect.target_stat_key,
+                        "remove_count": effect.remove_count,
                         "special_options": special_options,
                     })
                 })
@@ -2748,6 +2823,7 @@ mod tests {
                     rarity: "common".to_string(),
                 }],
                 special_options: Vec::new(),
+                refinement_locked: false,
             }],
             mail: Vec::new(),
         };
@@ -2769,6 +2845,61 @@ mod tests {
             state.equipment[0].special_options[0].option_key,
             "moonless_black_night"
         );
+        assert!(!state.equipment[0].refinement_locked);
+    }
+
+    #[test]
+    fn refinement_recipe_can_replace_options_and_lock_equipment() {
+        let project = sample_project_for_test();
+        let mut state = AccountState {
+            energy: 100,
+            last_energy_update_unix: 0,
+            inventory: vec![AccountItemStack {
+                item_key: "refinement_stone".to_string(),
+                quantity: 2,
+            }],
+            heroes: Vec::new(),
+            equipment: vec![AccountEquipmentInstance {
+                instance_id: "eq_test_tempered_basic_sword".to_string(),
+                item_key: "tempered_basic_sword".to_string(),
+                display_name: "Tempered Basic Sword".to_string(),
+                rarity: "uncommon".to_string(),
+                options: vec![
+                    AccountEquipmentOption {
+                        stat_key: "strength".to_string(),
+                        value: 1,
+                        rarity: "common".to_string(),
+                    },
+                    AccountEquipmentOption {
+                        stat_key: "fixed_upgrade".to_string(),
+                        value: 1,
+                        rarity: "uncommon".to_string(),
+                    },
+                ],
+                special_options: Vec::new(),
+                refinement_locked: false,
+            }],
+            mail: Vec::new(),
+        };
+
+        craft_refinement_recipe(&project, &mut state, "seal_tempered_basic_sword", 1000)
+            .expect("craft sealing refinement");
+
+        assert_eq!(inventory_quantity(&state, "refinement_stone"), 1);
+        assert_eq!(equipment_quantity(&state, "tempered_basic_sword"), 1);
+        assert!(state.equipment[0].refinement_locked);
+        assert!(!state.equipment[0]
+            .options
+            .iter()
+            .any(|option| option.stat_key == "fixed_upgrade"));
+        assert!(state.equipment[0].options.iter().any(|option| {
+            option.stat_key == "sealed_upgrade" && option.value == 2 && option.rarity == "rare"
+        }));
+
+        let error =
+            craft_refinement_recipe(&project, &mut state, "seal_tempered_basic_sword", 1001)
+                .expect_err("locked equipment cannot be refined");
+        assert!(error.contains("locked"));
     }
 
     #[test]
@@ -2805,6 +2936,7 @@ mod tests {
                     stat_deltas: Vec::new(),
                     granted_skill_key: Some("knight_slash".to_string()),
                 }],
+                refinement_locked: false,
             }],
             mail: Vec::new(),
         };

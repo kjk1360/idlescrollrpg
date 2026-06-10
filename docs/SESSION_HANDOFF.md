@@ -114,6 +114,9 @@ Implemented:
 - Forge equipment output creates equipment instances instead of equipment item stacks
 - Refinement consumes an equipment instance, preserves existing options, applies data-authored refinement effects, and creates a new equipment instance
 - `refinement_effect` and `refinement_recipe.effects` exist; effect kind `add_stat_option` appends a stat option and `add_special_option` appends authored equipment special options
+- Refinement effects also support `remove_stat_option`, `replace_stat_option`, and `lock_refinement`
+- account equipment instances store `refinement_locked`; locked equipment cannot be refined again
+- sample `seal_tempered_basic_sword` replaces `fixed_upgrade` with `sealed_upgrade` and locks the equipment from further refinement
 - Data Studio Operation tab displays refinement recipe effect rows instead of only the legacy `effect_kind` label
 - Data Studio Operation tab shows Equipment Instances separately from stack inventory
 - `special_option_def` and `special_option_stat_delta` tables exist for named non-stat-only equipment special options
@@ -535,7 +538,7 @@ Recommended order:
 1. Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
 2. Add richer condition presets and buff/debuff authoring hints to the composable special trigger tables.
 3. Extend equipment special option mutations beyond `damage_scale_add` into effect add/remove/replace, projectile/AOE conversion, and richer conditional mutation presets.
-4. Extend refinement effect rules beyond deterministic add-stat/add-special-option into reroll pools, mutation weights, option removal/replacement, and lock/no-more-cubing outcomes.
+4. Extend refinement effect rules beyond deterministic add/remove/replace/lock into reroll pools, mutation weights, weighted random option generation, and option lock scopes.
 5. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
 6. Keep chat/guild/ranking behind auction house priority.
 7. Connect battle simulation states to visual state machine keys.

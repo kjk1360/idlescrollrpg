@@ -2292,6 +2292,24 @@
           "target_table": 32
         },
         "required": false
+      },
+      {
+        "id": 396,
+        "key": "target_stat_key",
+        "display_name": "Target Stat Key",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 397,
+        "key": "remove_count",
+        "display_name": "Remove Count",
+        "kind": {
+          "kind": "i32"
+        },
+        "required": true
       }
     ]
   }

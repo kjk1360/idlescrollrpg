@@ -452,4 +452,6 @@ pub struct RefinementEffect {
     pub stat_value: i32,
     pub stat_rarity: String,
     pub special_options: Vec<RowId>,
+    pub target_stat_key: String,
+    pub remove_count: i32,
 }

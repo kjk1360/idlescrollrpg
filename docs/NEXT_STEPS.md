@@ -83,6 +83,9 @@
 - Forge equipment output now creates equipment instances instead of equipment item stacks.
 - Refinement now consumes an equipment instance, preserves its existing options, applies data-authored refinement effects, and writes a new equipment instance.
 - Added `refinement_effect` and `refinement_recipe.effects`; effect kind `add_stat_option` appends a stat option and `add_special_option` appends authored equipment special options.
+- Refinement effects now also support `remove_stat_option`, `replace_stat_option`, and `lock_refinement`.
+- Account equipment instances now store `refinement_locked`; locked equipment cannot be refined again.
+- Added sample `seal_tempered_basic_sword`, which replaces `fixed_upgrade` with `sealed_upgrade` and locks the equipment from further refinement.
 - Data Studio Operation tab now displays refinement recipe effect rows instead of only the legacy `effect_kind` label.
 - Operation UI now shows Equipment Instances and their options separately from stack inventory.
 - Added `special_option_def` and `special_option_stat_delta` data tables for named non-stat-only equipment special options.
@@ -330,7 +333,7 @@ The next production-facing step is to expose the local account state in the UI a
 - Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
 - Add richer condition presets and buff/debuff authoring hints to the composable special trigger tables.
 - Extend equipment special option mutations beyond `damage_scale_add` into effect add/remove/replace, projectile/AOE conversion, and richer conditional mutation presets.
-- Extend refinement effect rules beyond deterministic add-stat/add-special-option into reroll pools, mutation weights, option removal/replacement, and lock/no-more-cubing outcomes.
+- Extend refinement effect rules beyond deterministic add/remove/replace/lock into reroll pools, mutation weights, weighted random option generation, and option lock scopes.
 
 ## Server Direction
 

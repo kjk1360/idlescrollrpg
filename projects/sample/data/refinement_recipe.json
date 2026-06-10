@@ -45,5 +45,50 @@
         ]
       }
     }
+  },
+  {
+    "id": 31002,
+    "key": "seal_tempered_basic_sword",
+    "cells": {
+      "290": {
+        "kind": "string",
+        "value": "Seal Tempered Basic Sword"
+      },
+      "291": {
+        "kind": "row",
+        "value": 12008
+      },
+      "292": {
+        "kind": "row",
+        "value": 12007
+      },
+      "293": {
+        "kind": "i32",
+        "value": 1
+      },
+      "294": {
+        "kind": "row",
+        "value": 12008
+      },
+      "295": {
+        "kind": "string",
+        "value": "seal_upgrade"
+      },
+      "296": {
+        "kind": "string",
+        "value": "refinement_workbench"
+      },
+      "297": {
+        "kind": "rows",
+        "value": []
+      },
+      "298": {
+        "kind": "rows",
+        "value": [
+          39003,
+          39004
+        ]
+      }
+    }
   }
 ]

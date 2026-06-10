@@ -1047,6 +1047,8 @@ fn load_refinement_effect(
             stat_value: read_i32(row, FieldId(393), "refinement_effect.stat_value")?,
             stat_rarity: read_string(row, FieldId(394), "refinement_effect.stat_rarity")?,
             special_options: read_rows(row, FieldId(395), "refinement_effect.special_options")?,
+            target_stat_key: read_string(row, FieldId(396), "refinement_effect.target_stat_key")?,
+            remove_count: read_i32(row, FieldId(397), "refinement_effect.remove_count")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());

@@ -2760,6 +2760,15 @@ const INDEX_HTML: &str = r#"<!doctype html>
                       const names = (effect.special_options || []).map(option => escapeHtml(option.name)).join(', ');
                       return `special: ${names || escapeHtml(effect.name)}`;
                     }
+                    if (effect.effect_kind === 'remove_stat_option') {
+                      return `remove: ${escapeHtml(effect.target_stat_key || effect.stat_key || '')} x${effect.remove_count || 1}`;
+                    }
+                    if (effect.effect_kind === 'replace_stat_option') {
+                      return `replace: ${escapeHtml(effect.target_stat_key || '')} -> ${escapeHtml(effect.stat_key || '')} +${effect.stat_value}`;
+                    }
+                    if (effect.effect_kind === 'lock_refinement') {
+                      return 'lock refinement';
+                    }
                     return escapeHtml(effect.name || effect.effect_kind || '');
                   }).join('<br>') || escapeHtml(recipe.effect_kind || '');
                   return `
@@ -2785,7 +2794,7 @@ const INDEX_HTML: &str = r#"<!doctype html>
               <tbody>
                 ${equipment.map(item => `
                   <tr>
-                    <td>${escapeHtml(item.name)}<br><small>${escapeHtml(item.instance_id)}</small></td>
+                    <td>${escapeHtml(item.name)}<br><small>${escapeHtml(item.instance_id)}</small>${item.refinement_locked ? '<br><small>refinement locked</small>' : ''}</td>
                     <td>${escapeHtml(item.rarity)}</td>
                     <td>${(item.options || []).map(option => `${escapeHtml(option.stat_key)} +${option.value} <small>${escapeHtml(option.rarity)}</small>`).join('<br>') || 'none'}</td>
                     <td>${(item.special_options || []).map(option => `${escapeHtml(option.name)} <small>${escapeHtml(option.rarity)}</small><br><small>${escapeHtml(option.effect_summary)}</small>`).join('<br>') || 'none'}</td>

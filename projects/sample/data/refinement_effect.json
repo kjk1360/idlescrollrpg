@@ -26,6 +26,14 @@
       "395": {
         "kind": "rows",
         "value": []
+      },
+      "396": {
+        "kind": "string",
+        "value": ""
+      },
+      "397": {
+        "kind": "i32",
+        "value": 0
       }
     }
   },
@@ -58,6 +66,90 @@
         "value": [
           32001
         ]
+      },
+      "396": {
+        "kind": "string",
+        "value": ""
+      },
+      "397": {
+        "kind": "i32",
+        "value": 0
+      }
+    }
+  },
+  {
+    "id": 39003,
+    "key": "seal_replace_fixed_upgrade",
+    "cells": {
+      "390": {
+        "kind": "string",
+        "value": "Seal Replace Fixed Upgrade"
+      },
+      "391": {
+        "kind": "string",
+        "value": "replace_stat_option"
+      },
+      "392": {
+        "kind": "string",
+        "value": "sealed_upgrade"
+      },
+      "393": {
+        "kind": "i32",
+        "value": 2
+      },
+      "394": {
+        "kind": "string",
+        "value": "rare"
+      },
+      "395": {
+        "kind": "rows",
+        "value": []
+      },
+      "396": {
+        "kind": "string",
+        "value": "fixed_upgrade"
+      },
+      "397": {
+        "kind": "i32",
+        "value": 1
+      }
+    }
+  },
+  {
+    "id": 39004,
+    "key": "seal_lock_refinement",
+    "cells": {
+      "390": {
+        "kind": "string",
+        "value": "Seal Lock Refinement"
+      },
+      "391": {
+        "kind": "string",
+        "value": "lock_refinement"
+      },
+      "392": {
+        "kind": "string",
+        "value": ""
+      },
+      "393": {
+        "kind": "i32",
+        "value": 0
+      },
+      "394": {
+        "kind": "string",
+        "value": ""
+      },
+      "395": {
+        "kind": "rows",
+        "value": []
+      },
+      "396": {
+        "kind": "string",
+        "value": ""
+      },
+      "397": {
+        "kind": "i32",
+        "value": 0
       }
     }
   }
