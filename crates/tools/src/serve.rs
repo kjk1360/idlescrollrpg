@@ -1628,6 +1628,91 @@ const INDEX_HTML: &str = r#"<!doctype html>
       gap: 12px;
       padding: 12px;
     }
+    .guild-shell {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(220px, 34%) minmax(0, 1fr);
+      min-height: 310px;
+      border: 1px solid var(--line);
+      background: #1a1512;
+      overflow: hidden;
+    }
+    .expedition-rail {
+      display: grid;
+      grid-template-rows: repeat(6, 1fr);
+      gap: 7px;
+      padding: 10px;
+      background: #111820;
+    }
+    .expedition-strip {
+      border: 1px solid #31404c;
+      background: linear-gradient(90deg, #263541, #1b252d);
+      color: #dbe7ef;
+      padding: 7px 9px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 0;
+    }
+    .expedition-strip.empty {
+      background: #1a232b;
+      color: #7f8c99;
+    }
+    .guild-scene {
+      position: relative;
+      min-height: 310px;
+      background:
+        linear-gradient(180deg, rgba(88, 58, 38, 0.88), rgba(28, 19, 14, 0.96) 58%, #4a2f20 58%),
+        repeating-linear-gradient(92deg, transparent 0 38px, rgba(255,255,255,0.04) 39px 41px);
+    }
+    .guild-title {
+      position: absolute;
+      left: 24px;
+      top: 18px;
+      color: #f2dcc2;
+      font-size: 20px;
+      font-weight: 700;
+    }
+    .guild-object {
+      position: absolute;
+      color: #d9c3a4;
+      font-size: 12px;
+      text-align: center;
+    }
+    .guild-forge {
+      left: 12%;
+      bottom: 38px;
+      width: 100px;
+      height: 82px;
+      background: radial-gradient(circle at 50% 44%, rgba(222, 74, 37, 0.88), rgba(44,37,33,1) 38%);
+      border-bottom: 16px solid #6d7780;
+    }
+    .guild-alchemy {
+      left: 34%;
+      bottom: 36px;
+      width: 112px;
+      height: 88px;
+      border: 5px solid #8bbf9b;
+      border-top: 0;
+      border-radius: 0 0 56px 56px;
+      background: linear-gradient(180deg, transparent 38%, rgba(96, 210, 146, 0.32) 39%);
+    }
+    .guild-door {
+      left: 58%;
+      bottom: 50px;
+      width: 82px;
+      height: 150px;
+      background: #15110e;
+      border: 5px solid #8d6a42;
+    }
+    .guild-bar {
+      right: 7%;
+      bottom: 54px;
+      width: 150px;
+      height: 62px;
+      background: linear-gradient(180deg, #81512e 0 24px, #5a321e 25px);
+    }
     .operation-panel {
       border: 1px solid var(--line);
       background: var(--panel);
@@ -2328,6 +2413,23 @@ const INDEX_HTML: &str = r#"<!doctype html>
       const byCategory = category => inventory.filter(item => item.category === category);
       $('grid').innerHTML = `
         <div class="operation-grid">
+          <div class="guild-shell">
+            <div class="expedition-rail">
+              <div class="expedition-strip"><span>Party 1</span><span>Endless Left Road</span></div>
+              <div class="expedition-strip empty"><span>Party 2</span><span>empty</span></div>
+              <div class="expedition-strip empty"><span>Party 3</span><span>empty</span></div>
+              <div class="expedition-strip empty"><span>Party 4</span><span>empty</span></div>
+              <div class="expedition-strip empty"><span>Party 5</span><span>empty</span></div>
+              <div class="expedition-strip empty"><span>Party 6</span><span>empty</span></div>
+            </div>
+            <div class="guild-scene">
+              <div class="guild-title">Guild House</div>
+              <div class="guild-object guild-forge">Forge</div>
+              <div class="guild-object guild-alchemy">Alchemy<br>Furnace</div>
+              <div class="guild-object guild-door">Dungeon<br>Door</div>
+              <div class="guild-object guild-bar">Tavern</div>
+            </div>
+          </div>
           <div class="operation-panel">
             <div class="operation-head"><span>Energy</span><span>${account.energy_after_recovery}/${account.max_energy}</span></div>
             <div class="operation-body">

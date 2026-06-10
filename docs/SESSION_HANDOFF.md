@@ -99,6 +99,7 @@ Implemented:
 - `/api/account-mail/claim` and `/api/account-mail/delete` mutate local overflow mail from the Operation tab
 - `/api/account-energy/recover` persists real-time account energy recovery, and dispatch applies recovery before spending energy
 - account-state load/save paths remove expired local mail automatically
+- Play Preview and Data Studio Operation tab include the first Guild House visual shell with stacked expedition strips
 - Play Preview renders impact flashes on the combat line
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -456,9 +457,9 @@ Expose the local account-state loop in the tool UI and playable preview.
 
 Recommended order:
 
-1. Add first Guild House visual shell in Play/Data Studio.
-2. Add first recipe tables and instant alchemy/forge/refinement commands.
-3. Add Operation UI sections for Alchemy Furnace, Forge, and Refinement Workbench.
+1. Add first recipe tables and instant alchemy/forge/refinement commands.
+2. Add Operation UI sections for Alchemy Furnace, Forge, and Refinement Workbench.
+3. Connect Operation actions to Guild House scene feedback states.
 4. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
 5. Keep chat/guild/ranking behind auction house priority.
 6. Connect battle simulation states to visual state machine keys.

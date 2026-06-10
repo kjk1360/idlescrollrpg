@@ -189,6 +189,7 @@ The first playable preview is available through `belt_tools play`:
 - Operation energy display now shows stored energy, recoverable energy, max energy, recovery rate, and next recovery time.
 - `/api/account-energy/recover` persists real-time account energy recovery, and dungeon dispatch applies recovery before spending energy.
 - Account-state load/save paths now remove expired local mail automatically.
+- Play Preview and Data Studio Operation tab now include the first Guild House visual shell with stacked expedition strips.
 
 ## Locked Design Direction
 
@@ -254,8 +255,8 @@ The local account-state file is intentionally small and server-portable:
 The next production-facing step is to expose the local account state in the UI and make it behave like the later server-backed account model:
 
 - Account-state API endpoints in `belt_tools play` for preview/test workflows.
-- First Guild House visual shell in Play/Data Studio so Operation actions can trigger scene feedback.
 - First recipe tables and instant alchemy/forge/refinement commands that mutate the same account-state file.
+- Connect Operation actions to Guild House scene feedback states.
 
 ## Server Direction
 

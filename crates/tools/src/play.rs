@@ -599,42 +599,123 @@ const PLAY_HTML: &str = r#"<!doctype html>
     }
 
     function drawBackground(w, h, t) {
-      const horizon = Math.floor(h * 0.24);
-      const floorTop = Math.floor(h * 0.44);
-      const grad = ctx.createLinearGradient(0, 0, 0, h);
-      grad.addColorStop(0, '#2f3e4c');
-      grad.addColorStop(0.42, '#202933');
-      grad.addColorStop(1, '#182027');
+      const expeditionW = expeditionWidth(w);
+      const floorTop = Math.floor(h * 0.58);
+      const grad = ctx.createLinearGradient(expeditionW, 0, expeditionW, h);
+      grad.addColorStop(0, '#3c2d24');
+      grad.addColorStop(0.58, '#241b16');
+      grad.addColorStop(1, '#17120f');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = '#354131';
-      ctx.fillRect(0, floorTop, w, h - floorTop);
-      ctx.strokeStyle = '#526241';
+      drawGuildHouse(w, h, t, expeditionW);
+      drawExpeditionRail(w, h, t, expeditionW);
+    }
+
+    function drawGuildHouse(w, h, t, expeditionW) {
+      const x = expeditionW;
+      const width = w - expeditionW;
+      const floorTop = Math.floor(h * 0.58);
+      ctx.fillStyle = '#4a2f20';
+      ctx.fillRect(x, floorTop, width, h - floorTop);
+      ctx.strokeStyle = 'rgba(255, 220, 170, 0.14)';
       ctx.lineWidth = 1;
-      for (let i = -2; i < 18; i++) {
-        const x = ((i * 120 + t * 80) % 120) - 120;
+      for (let i = 0; i < 8; i++) {
+        const y = floorTop + i * 34;
         ctx.beginPath();
-        ctx.moveTo(x, h);
-        ctx.lineTo(x + 180, floorTop);
+        ctx.moveTo(x + 20, y);
+        ctx.lineTo(w - 20, y + 10);
         ctx.stroke();
       }
-      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-      ctx.lineWidth = 2;
+      drawForge(x + width * 0.16, floorTop + 20, t);
+      drawAlchemy(x + width * 0.38, floorTop + 8, t);
+      drawDoor(x + width * 0.62, floorTop - 120);
+      drawTavernBar(x + width * 0.78, floorTop + 18, width * 0.18);
+      ctx.fillStyle = '#f2dcc2';
+      ctx.font = '700 18px Segoe UI';
+      ctx.fillText('Guild House', x + 28, 34);
+      ctx.font = '12px Segoe UI';
+      ctx.fillStyle = '#bfae9a';
+      ctx.fillText('warehouse / heroes / operation actions feed this scene', x + 28, 55);
+    }
+
+    function drawForge(x, y, t) {
+      ctx.fillStyle = '#2c2521';
+      ctx.fillRect(x - 38, y + 30, 76, 54);
+      ctx.fillStyle = '#ba4d2f';
+      ctx.globalAlpha = 0.72 + Math.sin(t * 5) * 0.12;
       ctx.beginPath();
-      ctx.moveTo(0, laneY(0, h) + 28);
-      ctx.lineTo(w, laneY(0, h) + 28);
+      ctx.ellipse(x, y + 48, 24, 14, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#6d7780';
+      ctx.fillRect(x - 52, y + 84, 104, 16);
+      ctx.fillStyle = '#d9c3a4';
+      ctx.font = '12px Segoe UI';
+      ctx.fillText('Forge', x - 20, y + 120);
+    }
+
+    function drawAlchemy(x, y, t) {
+      ctx.strokeStyle = '#8bbf9b';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(x, y + 68, 34, Math.PI, 0);
       ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,0.07)';
-      ctx.lineWidth = 1;
-      for (let marker = -14; marker <= 14; marker += 2) {
-        const x = gridX(marker, w);
-        ctx.beginPath();
-        ctx.moveTo(x, laneY(0, h) + 18);
-        ctx.lineTo(x, laneY(0, h) + 38);
-        ctx.stroke();
+      ctx.fillStyle = '#20261f';
+      ctx.fillRect(x - 42, y + 66, 84, 42);
+      ctx.fillStyle = `rgba(96, 210, 146, ${0.22 + Math.sin(t * 3) * 0.06})`;
+      ctx.fillRect(x - 32, y + 76, 64, 18);
+      ctx.fillStyle = '#d9c3a4';
+      ctx.font = '12px Segoe UI';
+      ctx.fillText('Alchemy Furnace', x - 48, y + 128);
+    }
+
+    function drawDoor(x, y) {
+      ctx.fillStyle = '#15110e';
+      ctx.fillRect(x - 38, y, 76, 144);
+      ctx.strokeStyle = '#8d6a42';
+      ctx.lineWidth = 5;
+      ctx.strokeRect(x - 38, y, 76, 144);
+      ctx.fillStyle = '#b58a53';
+      ctx.beginPath();
+      ctx.arc(x + 22, y + 74, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#d9c3a4';
+      ctx.font = '12px Segoe UI';
+      ctx.fillText('Dungeon Door', x - 38, y + 164);
+    }
+
+    function drawTavernBar(x, y, width) {
+      ctx.fillStyle = '#5a321e';
+      ctx.fillRect(x, y + 54, width, 34);
+      ctx.fillStyle = '#81512e';
+      ctx.fillRect(x - 12, y + 42, width + 24, 18);
+      ctx.fillStyle = '#d8b15f';
+      for (let i = 0; i < 3; i++) ctx.fillRect(x + 18 + i * 32, y + 10, 14, 30);
+      ctx.fillStyle = '#d9c3a4';
+      ctx.font = '12px Segoe UI';
+      ctx.fillText('Tavern', x + 10, y + 112);
+    }
+
+    function drawExpeditionRail(w, h, t, expeditionW) {
+      ctx.fillStyle = '#111820';
+      ctx.fillRect(0, 0, expeditionW, h);
+      const stripH = Math.max(70, Math.floor((h - 44) / 6));
+      for (let i = 0; i < 6; i++) {
+        const y = 12 + i * stripH;
+        ctx.fillStyle = i === 0 ? '#263541' : '#1a232b';
+        ctx.fillRect(12, y, expeditionW - 24, stripH - 10);
+        ctx.strokeStyle = i === 0 ? '#6e93a7' : '#33414c';
+        ctx.strokeRect(12, y, expeditionW - 24, stripH - 10);
+        ctx.fillStyle = '#aeb8c4';
+        ctx.font = '11px Segoe UI';
+        ctx.fillText(i === 0 ? 'Party 1 / Endless Left Road' : `Empty expedition slot ${i + 1}`, 22, y + 18);
       }
-      ctx.fillStyle = 'rgba(0,0,0,0.28)';
-      ctx.fillRect(0, horizon, w, 4);
+      const floorY = laneY(0, h) + 28;
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.beginPath();
+      ctx.moveTo(18, floorY);
+      ctx.lineTo(expeditionW - 18, floorY);
+      ctx.stroke();
     }
 
     function drawAreaEffects(effects, elapsed, w, h) {
@@ -751,11 +832,15 @@ const PLAY_HTML: &str = r#"<!doctype html>
 
     function laneY(lane, h) {
       const teamOffset = Number(lane || 0) * 8;
-      return h * 0.68 + teamOffset;
+      return 72 + teamOffset;
     }
 
     function gridX(x, w) {
-      return w * 0.5 - Number(x || 0) * GRID_CELL_W;
+      return expeditionWidth(w) * 0.54 - Number(x || 0) * (GRID_CELL_W * 0.62);
+    }
+
+    function expeditionWidth(w) {
+      return Math.max(280, Math.min(420, w * 0.34));
     }
 
     function visualState(visual, key) {
