@@ -183,6 +183,7 @@ pub struct SkillDef {
     pub cooldown_ticks: i32,
     pub cast_pattern: RowId,
     pub steps: Vec<RowId>,
+    pub costs: Vec<RowId>,
     pub target_rule: String,
 }
 
@@ -276,4 +277,13 @@ pub struct ConditionDef {
     pub compare_mode: String,
     pub value: f32,
     pub other_stat: RowId,
+}
+
+#[derive(Debug, Clone)]
+pub struct SkillStatCost {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub stat: RowId,
+    pub amount: f32,
 }

@@ -868,6 +868,16 @@
         "required": true
       },
       {
+        "id": 155,
+        "key": "costs",
+        "display_name": "Costs",
+        "kind": {
+          "kind": "relation_many",
+          "target_table": 26
+        },
+        "required": false
+      },
+      {
         "id": 154,
         "key": "target_rule",
         "display_name": "Target Rule",
@@ -1336,6 +1346,41 @@
         "kind": {
           "kind": "relation_one",
           "target_table": 23
+        },
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": 26,
+    "key": "skill_stat_cost",
+    "display_name": "Skill Stat Cost",
+    "fields": [
+      {
+        "id": 240,
+        "key": "name",
+        "display_name": "Name",
+        "kind": {
+          "kind": "string"
+        },
+        "required": true
+      },
+      {
+        "id": 241,
+        "key": "stat",
+        "display_name": "Stat",
+        "kind": {
+          "kind": "relation_one",
+          "target_table": 23
+        },
+        "required": true
+      },
+      {
+        "id": 242,
+        "key": "amount",
+        "display_name": "Amount",
+        "kind": {
+          "kind": "f32"
         },
         "required": true
       }

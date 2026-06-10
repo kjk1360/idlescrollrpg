@@ -30,6 +30,7 @@ pub struct GeneratedRelationCache {
     pub storage_tab_config_upgrade_currency: HashMap<RowId, RowId>,
     pub skill_def_cast_pattern: HashMap<RowId, RowId>,
     pub skill_def_steps: HashMap<RowId, Vec<RowId>>,
+    pub skill_def_costs: HashMap<RowId, Vec<RowId>>,
     pub skill_step_pattern: HashMap<RowId, RowId>,
     pub skill_step_effects: HashMap<RowId, Vec<RowId>>,
     pub skill_effect_trigger_skill: HashMap<RowId, RowId>,
@@ -41,6 +42,7 @@ pub struct GeneratedRelationCache {
     pub unit_base_stat_stat: HashMap<RowId, RowId>,
     pub condition_def_stat: HashMap<RowId, RowId>,
     pub condition_def_other_stat: HashMap<RowId, RowId>,
+    pub skill_stat_cost_stat: HashMap<RowId, RowId>,
 }
 
 impl GeneratedRelationCache {
@@ -280,6 +282,17 @@ impl GeneratedRelationCache {
             }
             cache.skill_def_steps.insert(row.id, row.steps.clone());
         }
+        for row in &db.skill_def.rows {
+            for target_id in &row.costs {
+                if db.skill_stat_cost.get_by_id(*target_id).is_none() {
+                    return Err(format!(
+                        "missing relation target for skill_def.costs from {:?} to {:?}",
+                        row.id, target_id
+                    ));
+                }
+            }
+            cache.skill_def_costs.insert(row.id, row.costs.clone());
+        }
         for row in &db.skill_step.rows {
             if db.cell_pattern.get_by_id(row.pattern).is_none() {
                 return Err(format!(
@@ -393,6 +406,15 @@ impl GeneratedRelationCache {
                 .condition_def_other_stat
                 .insert(row.id, row.other_stat);
         }
+        for row in &db.skill_stat_cost.rows {
+            if db.stat_def.get_by_id(row.stat).is_none() {
+                return Err(format!(
+                    "missing relation target for skill_stat_cost.stat from {:?} to {:?}",
+                    row.id, row.stat
+                ));
+            }
+            cache.skill_stat_cost_stat.insert(row.id, row.stat);
+        }
         Ok(cache)
     }
 
@@ -490,6 +512,10 @@ impl GeneratedRelationCache {
         self.skill_def_steps.get(&source).map(Vec::as_slice)
     }
 
+    pub fn get_skill_def_costs(&self, source: RowId) -> Option<&[RowId]> {
+        self.skill_def_costs.get(&source).map(Vec::as_slice)
+    }
+
     pub fn get_skill_step_pattern(&self, source: RowId) -> Option<RowId> {
         self.skill_step_pattern.get(&source).copied()
     }
@@ -534,5 +560,9 @@ impl GeneratedRelationCache {
 
     pub fn get_condition_def_other_stat(&self, source: RowId) -> Option<RowId> {
         self.condition_def_other_stat.get(&source).copied()
+    }
+
+    pub fn get_skill_stat_cost_stat(&self, source: RowId) -> Option<RowId> {
+        self.skill_stat_cost_stat.get(&source).copied()
     }
 }

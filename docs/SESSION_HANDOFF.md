@@ -85,6 +85,8 @@ Implemented:
 - behavior rules can evaluate structured conditions against `self` or `target` stats
 - `stat_delta` skill effects can add to `self` or `target` stats
 - sample slime tackle applies `bleed_stack +1`
+- `skill_stat_cost` and `skill_def.costs` exist for Stat-based skill resource costs
+- skill selection ignores skills the caster cannot pay for, and skill execution subtracts caster costs before effects run
 - Play Preview renders area flashes as translucent animated red grid squares
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -294,6 +296,7 @@ Implemented:
 - behavior rule skill selection by priority
 - stat-based behavior conditions using value, stat, and stat-ratio comparisons
 - stat-delta skill effects for stack/resource changes
+- stat-cost skill payment from `skill_def.costs`
 - effect cells from `CellPattern` relative `forward/side` offsets rotated by up/down/left/right facing
 - damage effects
 - `projectile_damage` effects with delayed impact damage
@@ -307,7 +310,7 @@ Not implemented yet:
 - explicit projectile authoring fields such as speed, visual type, pierce/block rules, and collision policy
 - trigger timing and conditional skill activation
 - richer behavior conditions such as ally/enemy counts, cooldown availability, lane checks, and enemies in pattern with stat filters
-- stat cost/payment rules for mana spend and other resources
+- richer resource flows around skill costs, such as mana gain effects, generated UI presets, and cost preview labels
 - stat duration/decay rules for temporary stacks, shields, buffs, and debuffs
 - skill authoring presets that generate `CellPattern` rows
 - dungeon reward settlement from `drop_table`

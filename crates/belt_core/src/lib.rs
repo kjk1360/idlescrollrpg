@@ -12,6 +12,7 @@ pub struct StatDefId(pub u32);
 pub const STAT_MAX_HP: StatDefId = StatDefId(23001);
 pub const STAT_CURRENT_HP: StatDefId = StatDefId(23002);
 pub const STAT_ATTACK: StatDefId = StatDefId(23003);
+pub const STAT_CURRENT_MANA: StatDefId = StatDefId(23004);
 pub const STAT_BLEED_STACK: StatDefId = StatDefId(23005);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -153,7 +154,14 @@ pub struct SkillDef {
     pub cooldown_ticks: u32,
     pub cast_pattern: CellPattern,
     pub steps: Vec<SkillStep>,
+    pub costs: Vec<SkillStatCost>,
     pub target_rule: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SkillStatCost {
+    pub stat: StatDefId,
+    pub amount: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -704,12 +712,16 @@ impl BattleWorld {
             let Some(skill) = self.skill_by_id(rule.skill) else {
                 continue;
             };
+            if !can_pay_skill_cost(unit, skill) {
+                continue;
+            }
             if self.behavior_rule_matches(rule, unit, target, facing, skill) {
                 return Some(skill);
             }
         }
 
         self.primary_skill_for(unit)
+            .filter(|skill| can_pay_skill_cost(unit, skill))
     }
 
     fn skill_by_id(&self, skill_id: SkillDefId) -> Option<&SkillDef> {
@@ -753,6 +765,9 @@ impl BattleWorld {
         let Some(target) = self.units.iter().find(|unit| unit.id == target_id).cloned() else {
             return;
         };
+        if !self.pay_skill_cost(caster_id, &skill) {
+            return;
+        }
         let facing = direction_toward(caster.grid, target.grid);
         let caster = EffectCaster::from(&caster);
 
@@ -948,6 +963,21 @@ impl BattleWorld {
         }
     }
 
+    fn pay_skill_cost(&mut self, caster: UnitId, skill: &SkillDef) -> bool {
+        let Some(unit) = self.units.iter_mut().find(|unit| unit.id == caster) else {
+            return false;
+        };
+        if !can_pay_skill_cost(unit, skill) {
+            return false;
+        }
+        for cost in &skill.costs {
+            let next = unit.stats.get(cost.stat) - cost.amount;
+            unit.stats.set(cost.stat, next.max(0.0));
+        }
+        sync_legacy_fields_from_stats(unit);
+        true
+    }
+
     fn knockback_unit(&mut self, target: UnitId, facing: Direction, cells: i32) {
         let Some(index) = self.units.iter().position(|unit| unit.id == target) else {
             return;
@@ -1059,6 +1089,13 @@ fn condition_matches(
             compare_values(left, condition.operator, right)
         }
     }
+}
+
+fn can_pay_skill_cost(unit: &UnitState, skill: &SkillDef) -> bool {
+    skill
+        .costs
+        .iter()
+        .all(|cost| unit.stats.get(cost.stat) + f32::EPSILON >= cost.amount)
 }
 
 fn sync_legacy_fields_from_stats(unit: &mut UnitState) {
@@ -1277,6 +1314,7 @@ pub fn sample_battle_config() -> BattleConfig {
                 }],
             },
         ],
+        costs: Vec::new(),
         target_rule: "nearest_enemy".to_string(),
     };
     let archer_skill = SkillDef {
@@ -1301,6 +1339,7 @@ pub fn sample_battle_config() -> BattleConfig {
                 trigger_timing: None,
             }],
         }],
+        costs: Vec::new(),
         target_rule: "nearest_enemy".to_string(),
     };
     let slime_skill = SkillDef {
@@ -1339,6 +1378,7 @@ pub fn sample_battle_config() -> BattleConfig {
                 },
             ],
         }],
+        costs: Vec::new(),
         target_rule: "nearest_enemy".to_string(),
     };
     let knight = UnitDef {
@@ -1694,5 +1734,53 @@ mod tests {
         }
 
         assert!(saw_bleed_stack);
+    }
+
+    #[test]
+    fn skill_stat_cost_is_paid_before_skill_executes() {
+        let mut config = sample_battle_config();
+        let knight = config
+            .unit_defs
+            .iter_mut()
+            .find(|def| def.id == UnitDefId(1))
+            .expect("knight exists");
+        knight.base_stats.set(STAT_CURRENT_MANA, 1.0);
+        let arrow = config
+            .skill_defs
+            .iter_mut()
+            .find(|skill| skill.id == SkillDefId(17002))
+            .expect("arrow exists");
+        arrow.costs = vec![SkillStatCost {
+            stat: STAT_CURRENT_MANA,
+            amount: 1.0,
+        }];
+
+        let mut world = BattleWorld::new(config);
+        world.drain_events();
+
+        world.execute_skill(UnitId(1), UnitId(3), SkillDefId(17002));
+        let first_projectiles = world
+            .drain_events()
+            .into_iter()
+            .filter(|event| matches!(event, BattleEvent::ProjectileLaunched { .. }))
+            .count();
+        let knight_mana_after_first = world
+            .units()
+            .iter()
+            .find(|unit| unit.id == UnitId(1))
+            .expect("knight spawned")
+            .stats
+            .get(STAT_CURRENT_MANA);
+
+        world.execute_skill(UnitId(1), UnitId(3), SkillDefId(17002));
+        let second_projectiles = world
+            .drain_events()
+            .into_iter()
+            .filter(|event| matches!(event, BattleEvent::ProjectileLaunched { .. }))
+            .count();
+
+        assert_eq!(first_projectiles, 1);
+        assert_eq!(knight_mana_after_first, 0.0);
+        assert_eq!(second_projectiles, 0);
     }
 }

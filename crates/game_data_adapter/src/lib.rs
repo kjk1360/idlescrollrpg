@@ -1,8 +1,8 @@
 use belt_core::{
     BattleConfig, BehaviorCondition, BehaviorRule, BeltPosition, CellOffset, CellPattern,
     CompareOperator, ConditionDef, ConditionKind, ConditionSubject, FacingMode, MapDef, SkillDef,
-    SkillDefId, SkillEffect, SkillEffectKind, SkillStep, SkillStepOrigin, StatBlock, StatCompare,
-    StatDefId, UnitDef, UnitDefId, UnitGroup, UnitSpawn, WaveDef,
+    SkillDefId, SkillEffect, SkillEffectKind, SkillStatCost, SkillStep, SkillStepOrigin, StatBlock,
+    StatCompare, StatDefId, UnitDef, UnitDefId, UnitGroup, UnitSpawn, WaveDef,
 };
 use data_studio_core::{DataProject, RowId};
 use generated_data::relation_cache::GeneratedRelationCache;
@@ -84,7 +84,26 @@ fn skill_def_from_data(
         cooldown_ticks: row.cooldown_ticks.max(1) as u32,
         cast_pattern,
         steps,
+        costs: row
+            .costs
+            .iter()
+            .map(|cost_id| skill_stat_cost_from_data(db, *cost_id))
+            .collect::<Result<Vec<_>, _>>()?,
         target_rule: row.target_rule.clone(),
+    })
+}
+
+fn skill_stat_cost_from_data(
+    db: &GeneratedDatabase,
+    row_id: RowId,
+) -> Result<SkillStatCost, String> {
+    let row = db
+        .skill_stat_cost
+        .get_by_id(row_id)
+        .ok_or_else(|| format!("missing skill stat cost {:?}", row_id))?;
+    Ok(SkillStatCost {
+        stat: StatDefId(row.stat.0 as u32),
+        amount: row.amount.max(0.0),
     })
 }
 

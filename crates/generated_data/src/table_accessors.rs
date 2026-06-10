@@ -35,6 +35,7 @@ pub struct GeneratedDatabase {
     pub stat_def: GeneratedTable<StatDef>,
     pub unit_base_stat: GeneratedTable<UnitBaseStat>,
     pub condition_def: GeneratedTable<ConditionDef>,
+    pub skill_stat_cost: GeneratedTable<SkillStatCost>,
 }
 
 #[derive(Debug, Clone)]
@@ -100,6 +101,7 @@ impl GeneratedDatabase {
             stat_def: load_stat_def(project)?,
             unit_base_stat: load_unit_base_stat(project)?,
             condition_def: load_condition_def(project)?,
+            skill_stat_cost: load_skill_stat_cost(project)?,
         })
     }
 }
@@ -458,6 +460,7 @@ fn load_skill_def(project: &DataProject) -> Result<GeneratedTable<SkillDef>, Str
             cooldown_ticks: read_i32(row, FieldId(151), "skill_def.cooldown_ticks")?,
             cast_pattern: read_row(row, FieldId(152), "skill_def.cast_pattern")?,
             steps: read_rows(row, FieldId(153), "skill_def.steps")?,
+            costs: read_rows(row, FieldId(155), "skill_def.costs")?,
             target_rule: read_string(row, FieldId(154), "skill_def.target_rule")?,
         });
         ids.push(row.id);
@@ -631,6 +634,25 @@ fn load_condition_def(project: &DataProject) -> Result<GeneratedTable<ConditionD
             compare_mode: read_string(row, FieldId(235), "condition_def.compare_mode")?,
             value: read_f32(row, FieldId(236), "condition_def.value")?,
             other_stat: read_row(row, FieldId(237), "condition_def.other_stat")?,
+        });
+        ids.push(row.id);
+        keys.push(row.key.clone());
+    }
+    Ok(GeneratedTable::new(typed_rows, ids, keys))
+}
+
+fn load_skill_stat_cost(project: &DataProject) -> Result<GeneratedTable<SkillStatCost>, String> {
+    let rows = table_rows(project, TableId(26))?;
+    let mut typed_rows = Vec::new();
+    let mut ids = Vec::new();
+    let mut keys = Vec::new();
+    for row in rows {
+        typed_rows.push(SkillStatCost {
+            id: row.id,
+            key: row.key.clone(),
+            name: read_string(row, FieldId(240), "skill_stat_cost.name")?,
+            stat: read_row(row, FieldId(241), "skill_stat_cost.stat")?,
+            amount: read_f32(row, FieldId(242), "skill_stat_cost.amount")?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());
