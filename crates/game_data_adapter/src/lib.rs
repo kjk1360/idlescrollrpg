@@ -23,12 +23,13 @@ pub fn battle_config_from_generated(
     cache: &GeneratedRelationCache,
     map_key: &str,
 ) -> Result<BattleConfig, String> {
-    let unit_defs = db
+    let mut unit_defs = db
         .unit_def
         .rows
         .iter()
         .map(|row| unit_def_from_data(db, row))
         .collect::<Result<Vec<_>, _>>()?;
+    apply_unit_special_option_loadouts(db, &mut unit_defs)?;
     let skill_defs = db
         .skill_def
         .rows
@@ -232,6 +233,71 @@ fn unit_def_from_data(
     })
 }
 
+fn apply_unit_special_option_loadouts(
+    db: &GeneratedDatabase,
+    unit_defs: &mut [UnitDef],
+) -> Result<(), String> {
+    for loadout in &db.unit_special_option_loadout.rows {
+        let unit_def = unit_defs
+            .iter_mut()
+            .find(|unit| unit.id == UnitDefId(loadout.unit.0 as u32))
+            .ok_or_else(|| {
+                format!(
+                    "missing unit {:?} for special option loadout {}",
+                    loadout.unit, loadout.key
+                )
+            })?;
+
+        for option_id in &loadout.special_options {
+            apply_special_option_to_unit(db, unit_def, *option_id)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn apply_special_option_to_unit(
+    db: &GeneratedDatabase,
+    unit_def: &mut UnitDef,
+    option_id: RowId,
+) -> Result<(), String> {
+    let option = db
+        .special_option_def
+        .get_by_id(option_id)
+        .ok_or_else(|| format!("missing special option {:?}", option_id))?;
+
+    for delta_id in &option.stat_deltas {
+        let delta = db
+            .special_option_stat_delta
+            .get_by_id(*delta_id)
+            .ok_or_else(|| format!("missing special option stat delta {:?}", delta_id))?;
+        if delta.condition == "on_equip" {
+            let stat = StatDefId(delta.stat.0 as u32);
+            let current = unit_def.base_stats.get(stat);
+            unit_def.base_stats.set(stat, current + delta.value);
+        }
+    }
+
+    if let Some(skill) = db.skill_def.get_by_id(option.granted_skill) {
+        let skill_id = SkillDefId(skill.id.0 as u32);
+        let already_available = unit_def.primary_skill == Some(skill_id)
+            || unit_def
+                .behavior_rules
+                .iter()
+                .any(|rule| rule.skill == skill_id);
+        if !already_available {
+            unit_def.behavior_rules.push(BehaviorRule {
+                priority: 50,
+                skill: skill_id,
+                condition: BehaviorCondition::NearestEnemyInCastPattern,
+                conditions: Vec::new(),
+            });
+        }
+    }
+
+    Ok(())
+}
+
 fn behavior_rule_from_data(db: &GeneratedDatabase, row_id: RowId) -> Result<BehaviorRule, String> {
     let row = db
         .behavior_rule
@@ -378,5 +444,21 @@ mod tests {
         assert_eq!(config.map.id, "endless_left_road");
         assert_eq!(config.party.spawns.len(), 2);
         assert_eq!(config.map.waves.len(), 2);
+    }
+
+    #[test]
+    fn applies_unit_special_option_loadout_to_battle_config() {
+        let project = DataProject::load_from_dir("../../projects/sample").expect("project loads");
+        let config =
+            battle_config_from_project(&project, "endless_left_road").expect("config loads");
+        let knight = config
+            .unit_defs
+            .iter()
+            .find(|unit| unit.id == UnitDefId(1001))
+            .expect("knight exists");
+
+        assert_eq!(knight.base_stats.get(StatDefId(23006)), 1.0);
+        assert_eq!(knight.primary_skill, Some(SkillDefId(17001)));
+        assert_eq!(knight.behavior_rules.len(), 1);
     }
 }

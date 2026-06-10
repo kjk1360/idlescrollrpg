@@ -87,6 +87,8 @@
 - Added sample special option `moonless_black_night`, with rarity, trigger key, effect summary, Moonlight stat delta, and granted skill reference.
 - Equipment instances now store stat options and special options as separate collections.
 - Refinement recipes can attach authored special options to the output equipment instance.
+- Added `unit_special_option_loadout` as a preview/runtime bridge table so authored special options can be applied to sample unit definitions before the hero equipment assignment model exists.
+- Battle config conversion now applies special option `on_equip` stat deltas to `UnitDef.base_stats` and can add non-duplicate granted-skill behavior rules.
 
 ## Current Stable CLI Flow
 
@@ -301,7 +303,8 @@ The local account-state file is intentionally small and server-portable:
 The next production-facing step is to expose the local account state in the UI and make it behave like the later server-backed account model:
 
 - Account-state API endpoints in `belt_tools play` for preview/test workflows.
-- Connect equipment special options to combat stat/skill/trigger runtime so options can grant stats, skills, skill mutations, and conditional effects.
+- Replace the temporary `unit_special_option_loadout` bridge with the real hero equipment assignment path once hero inventory/equipment slots are implemented.
+- Extend equipment special options from `on_equip` stat and granted-skill application into trigger runtime, skill mutation, and conditional effects.
 - Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
 
 ## Server Direction
@@ -321,7 +324,7 @@ When Supabase is introduced, keep security official and conservative:
 The runtime is tick-based 1D line combat. Primary skills execute immediate and delayed `skill_step` entries against a selected target when that target is within `skill_def.range`, costs can be paid, and cooldown is ready. Units can choose skills from priority behavior rules with stat-based conditions. Next, extend this into the full skill execution model:
 
 - explicit projectile authoring fields such as speed, visual type, pierce/block rules, and collision policy
-- trigger timing runtime for conditional skill activation
+- trigger timing runtime for conditional skill activation, including equipment special option triggers such as periodic stack gain and threshold skill activation
 - richer behavior conditions such as ally/enemy counts, cooldown availability, distance checks, and target stat filters
 - richer resource flows around skill costs, such as mana gain effects, generated UI presets, and cost preview labels
 - authoring presets and UI hints for temporary stacks, shields, buffs, debuffs, and over-time effects

@@ -369,3 +369,12 @@ pub struct SpecialOptionStatDelta {
     pub value: f32,
     pub condition: String,
 }
+
+#[derive(Debug, Clone)]
+pub struct UnitSpecialOptionLoadout {
+    pub id: RowId,
+    pub key: String,
+    pub name: String,
+    pub unit: RowId,
+    pub special_options: Vec<RowId>,
+}
