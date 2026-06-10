@@ -262,6 +262,7 @@ fn unit_def_from_data(
         primary_skill: primary_skill.map(|skill_id| SkillDefId(skill_id.0 as u32)),
         behavior_rules,
         base_stats: StatBlock::new(base_stats),
+        special_triggers: Vec::new(),
         skill_cooldown_ticks,
     })
 }
@@ -326,6 +327,15 @@ fn apply_special_option_to_unit(
                 conditions: Vec::new(),
             });
         }
+    }
+
+    if !option.trigger_key.is_empty()
+        && !unit_def
+            .special_triggers
+            .iter()
+            .any(|key| key == &option.trigger_key)
+    {
+        unit_def.special_triggers.push(option.trigger_key.clone());
     }
 
     Ok(())
@@ -528,5 +538,9 @@ mod tests {
         assert_eq!(knight.base_stats.get(StatDefId(23006)), 1.0);
         assert_eq!(knight.primary_skill, Some(SkillDefId(17001)));
         assert_eq!(knight.behavior_rules.len(), 1);
+        assert_eq!(
+            knight.special_triggers,
+            vec!["combat_tick_5s_moonlight_3".to_string()]
+        );
     }
 }

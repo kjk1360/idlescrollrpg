@@ -126,6 +126,8 @@ Implemented:
 - Operation UI can equip an equipment instance to a hero and show equipped slots
 - Play Preview and `simulate --account-state` convert equipped hero items into runtime equipment modifiers and apply their stat options and special option keys to battle config
 - equipment stat options only affect combat if their `stat_key` exists in `stat_def`; display/crafting-only option keys are ignored by combat runtime
+- `belt_core` has special trigger runtime v1 for `combat_tick_5s_moonlight_3`: gain Moonlight every 5 seconds, consume 3 stacks, emit `SpecialTriggered`, and start a 10-second periodic nearest-enemy attack at 100% attack
+- this trigger is still keyed behavior, not yet authored through structured trigger/effect tables
 - Play Preview renders impact flashes on the combat line
 - Play Preview renders projectile previews as red circular orbs with white outlines and ground shadows
 
@@ -513,10 +515,11 @@ Expose the local account-state loop in the tool UI and playable preview.
 Recommended order:
 
 1. Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
-2. Extend equipment special option runtime from `on_equip` stat/granted-skill application into trigger timing, skill mutation, and conditional effects.
-3. Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
-4. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
-5. Keep chat/guild/ranking behind auction house priority.
+2. Move special trigger behavior out of hardcoded trigger keys into structured trigger/effect data tables.
+3. Extend equipment special option runtime from `on_equip` stat/granted-skill/trigger-key application into skill mutation and conditional effects.
+4. Add refinement effect rules for reroll/mutation instead of the current fixed sample option attachment.
+5. Add Supabase design notes for auction house tables, RLS policies, and Edge Function mutation boundaries.
+6. Keep chat/guild/ranking behind auction house priority.
 5. Connect battle simulation states to visual state machine keys.
 6. Package and verify the updated `belt_tools.exe` again.
 

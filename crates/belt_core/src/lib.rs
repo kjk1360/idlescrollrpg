@@ -14,6 +14,7 @@ pub const STAT_CURRENT_HP: StatDefId = StatDefId(23002);
 pub const STAT_ATTACK: StatDefId = StatDefId(23003);
 pub const STAT_CURRENT_MANA: StatDefId = StatDefId(23004);
 pub const STAT_BLEED_STACK: StatDefId = StatDefId(23005);
+pub const STAT_MOONLIGHT: StatDefId = StatDefId(23006);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnitId(pub u64);
@@ -71,6 +72,7 @@ pub struct UnitDef {
     pub primary_skill: Option<SkillDefId>,
     pub behavior_rules: Vec<BehaviorRule>,
     pub base_stats: StatBlock,
+    pub special_triggers: Vec<String>,
     pub skill_cooldown_ticks: u32,
 }
 
@@ -270,10 +272,17 @@ pub struct UnitState {
     pub primary_skill: Option<SkillDefId>,
     pub behavior_rules: Vec<BehaviorRule>,
     pub stats: StatBlock,
+    pub special_triggers: Vec<SpecialTriggerState>,
     pub skill_cooldown_ticks: u32,
     pub position: BeltPosition,
     pub grid: GridPosition,
     pub home_grid: GridPosition,
+}
+
+#[derive(Debug, Clone)]
+pub struct SpecialTriggerState {
+    pub key: String,
+    pub ticks_until_next: u32,
 }
 
 impl UnitState {
@@ -310,6 +319,10 @@ pub enum BattleEvent {
         from: GridPosition,
         to: GridPosition,
         duration: f32,
+    },
+    SpecialTriggered {
+        unit_id: UnitId,
+        trigger_key: String,
     },
     UnitKilled {
         unit_id: UnitId,
@@ -360,6 +373,7 @@ pub struct BattleWorld {
     pending_skill_steps: Vec<PendingSkillStep>,
     pending_impacts: Vec<PendingImpact>,
     pending_stat_modifiers: Vec<PendingStatModifier>,
+    pending_special_periodics: Vec<PendingSpecialPeriodic>,
 }
 
 #[derive(Debug, Clone)]
@@ -390,6 +404,15 @@ struct PendingStatModifier {
     expire_delta: f32,
     tick_delta: f32,
     ticks_remaining: u32,
+}
+
+#[derive(Debug, Clone)]
+struct PendingSpecialPeriodic {
+    source: UnitId,
+    ticks_until_next: u32,
+    ticks_remaining: u32,
+    interval_ticks: u32,
+    damage_scale: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -426,6 +449,7 @@ impl BattleWorld {
             pending_skill_steps: Vec::new(),
             pending_impacts: Vec::new(),
             pending_stat_modifiers: Vec::new(),
+            pending_special_periodics: Vec::new(),
         };
 
         let party = world.config.party.clone();
@@ -478,6 +502,8 @@ impl BattleWorld {
         self.tick_pending_skill_steps();
         self.tick_pending_impacts();
         self.tick_pending_stat_modifiers();
+        self.tick_special_triggers();
+        self.tick_pending_special_periodics();
 
         let snapshot = self.units.clone();
         let mut actions = Vec::new();
@@ -579,6 +605,7 @@ impl BattleWorld {
             self.pending_skill_steps.clear();
             self.pending_impacts.clear();
             self.pending_stat_modifiers.clear();
+            self.pending_special_periodics.clear();
             self.reset_party_home_grids();
             for group in &wave.enemy_groups {
                 self.spawn_group(group, Team::Enemy, self.config.wave_spawn_x);
@@ -644,6 +671,17 @@ impl BattleWorld {
                 primary_skill: def.primary_skill,
                 behavior_rules: def.behavior_rules.clone(),
                 stats,
+                special_triggers: def
+                    .special_triggers
+                    .iter()
+                    .map(|key| SpecialTriggerState {
+                        key: key.clone(),
+                        ticks_until_next: special_trigger_interval_ticks(
+                            key,
+                            self.config.tick_duration,
+                        ),
+                    })
+                    .collect(),
                 skill_cooldown_ticks: def.skill_cooldown_ticks,
                 position: home_grid.to_belt(),
                 grid: home_grid,
@@ -925,6 +963,94 @@ impl BattleWorld {
         self.pending_stat_modifiers = pending;
     }
 
+    fn tick_special_triggers(&mut self) {
+        let mut started_periodics = Vec::new();
+        for index in 0..self.units.len() {
+            if !self.units[index].is_alive() {
+                continue;
+            }
+
+            for trigger_index in 0..self.units[index].special_triggers.len() {
+                let key = self.units[index].special_triggers[trigger_index]
+                    .key
+                    .clone();
+                if key != "combat_tick_5s_moonlight_3" {
+                    continue;
+                }
+
+                let trigger = &mut self.units[index].special_triggers[trigger_index];
+                trigger.ticks_until_next = trigger.ticks_until_next.saturating_sub(1);
+                if trigger.ticks_until_next > 0 {
+                    continue;
+                }
+                trigger.ticks_until_next =
+                    special_trigger_interval_ticks(&key, self.config.tick_duration);
+
+                let current = self.units[index].stats.get(STAT_MOONLIGHT) + 1.0;
+                self.units[index].stats.set(STAT_MOONLIGHT, current);
+                if current + f32::EPSILON < 3.0 {
+                    continue;
+                }
+
+                self.units[index].stats.set(STAT_MOONLIGHT, 0.0);
+                started_periodics.push((self.units[index].id, key));
+            }
+        }
+
+        for (unit_id, key) in started_periodics {
+            self.events.push(BattleEvent::SpecialTriggered {
+                unit_id,
+                trigger_key: key,
+            });
+            self.pending_special_periodics.push(PendingSpecialPeriodic {
+                source: unit_id,
+                ticks_until_next: 0,
+                ticks_remaining: seconds_to_ticks(10.0, self.config.tick_duration),
+                interval_ticks: seconds_to_ticks(0.5, self.config.tick_duration),
+                damage_scale: 1.0,
+            });
+        }
+    }
+
+    fn tick_pending_special_periodics(&mut self) {
+        let snapshot = self.units.clone();
+        let mut pending = Vec::new();
+        let mut attacks = Vec::new();
+
+        for mut periodic in self.pending_special_periodics.drain(..) {
+            let Some(source) = snapshot
+                .iter()
+                .find(|unit| unit.id == periodic.source && unit.is_alive())
+            else {
+                continue;
+            };
+            periodic.ticks_remaining = periodic.ticks_remaining.saturating_sub(1);
+            periodic.ticks_until_next = periodic.ticks_until_next.saturating_sub(1);
+
+            if periodic.ticks_until_next == 0 {
+                if let Some(target) = closest_target(&snapshot, source) {
+                    let damage = ((source.attack as f32) * periodic.damage_scale).round() as i32;
+                    attacks.push((source.id, target.id, damage));
+                }
+                periodic.ticks_until_next = periodic.interval_ticks.max(1);
+            }
+
+            if periodic.ticks_remaining > 0 {
+                pending.push(periodic);
+            }
+        }
+
+        self.pending_special_periodics = pending;
+        for (source, target, damage) in attacks {
+            if let Some(target_unit) = self.units.iter().find(|unit| unit.id == target) {
+                self.events.push(BattleEvent::SkillAreaEffect {
+                    cells: vec![target_unit.grid],
+                });
+            }
+            self.damage_unit(source, target, damage);
+        }
+    }
+
     fn damage_unit(&mut self, attacker: UnitId, target: UnitId, damage: i32) {
         if let Some(target_unit) = self.units.iter_mut().find(|unit| unit.id == target) {
             if target_unit.is_alive() {
@@ -1085,6 +1211,17 @@ fn apply_stat_delta_to_units(units: &mut [UnitState], target: UnitId, stat: Stat
         unit.stats.set(stat, value);
         sync_legacy_fields_from_stats(unit);
     }
+}
+
+fn special_trigger_interval_ticks(key: &str, tick_duration: f32) -> u32 {
+    match key {
+        "combat_tick_5s_moonlight_3" => seconds_to_ticks(5.0, tick_duration),
+        _ => 1,
+    }
+}
+
+fn seconds_to_ticks(seconds: f32, tick_duration: f32) -> u32 {
+    (seconds / tick_duration.max(0.01)).round().max(1.0) as u32
 }
 
 fn can_pay_skill_cost(unit: &UnitState, skill: &SkillDef) -> bool {
@@ -1354,6 +1491,7 @@ pub fn sample_battle_config() -> BattleConfig {
             (STAT_CURRENT_HP, 120.0),
             (STAT_ATTACK, 18.0),
         ]),
+        special_triggers: Vec::new(),
         skill_cooldown_ticks: 5,
     };
     let archer = UnitDef {
@@ -1376,6 +1514,7 @@ pub fn sample_battle_config() -> BattleConfig {
             (STAT_CURRENT_HP, 70.0),
             (STAT_ATTACK, 12.0),
         ]),
+        special_triggers: Vec::new(),
         skill_cooldown_ticks: 4,
     };
     let slime = UnitDef {
@@ -1398,6 +1537,7 @@ pub fn sample_battle_config() -> BattleConfig {
             (STAT_CURRENT_HP, 45.0),
             (STAT_ATTACK, 8.0),
         ]),
+        special_triggers: Vec::new(),
         skill_cooldown_ticks: 6,
     };
 
@@ -1819,5 +1959,58 @@ mod tests {
             .stats
             .get(STAT_CURRENT_MANA);
         assert_eq!(mana_after_ticks, 2.0);
+    }
+
+    #[test]
+    fn moonlight_special_trigger_starts_periodic_attacks_at_three_stacks() {
+        let mut config = sample_battle_config();
+        let knight = config
+            .unit_defs
+            .iter_mut()
+            .find(|def| def.id == UnitDefId(1))
+            .expect("knight exists");
+        knight.special_triggers = vec!["combat_tick_5s_moonlight_3".to_string()];
+        knight.base_stats.set(STAT_MOONLIGHT, 2.0);
+
+        let mut world = BattleWorld::new(config);
+        let knight = world
+            .units
+            .iter_mut()
+            .find(|unit| unit.id == UnitId(1))
+            .expect("knight spawned");
+        knight.special_triggers[0].ticks_until_next = 1;
+        let mut saw_trigger = false;
+        let mut saw_periodic_attack = false;
+
+        for _ in 0..35 {
+            world.tick(0.2);
+            for event in world.drain_events() {
+                match event {
+                    BattleEvent::SpecialTriggered {
+                        unit_id: UnitId(1),
+                        trigger_key,
+                    } if trigger_key == "combat_tick_5s_moonlight_3" => {
+                        saw_trigger = true;
+                    }
+                    BattleEvent::UnitAttacked {
+                        attacker: UnitId(1),
+                        damage,
+                        ..
+                    } if saw_trigger && damage == 18 => {
+                        saw_periodic_attack = true;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        let knight = world
+            .units()
+            .iter()
+            .find(|unit| unit.id == UnitId(1))
+            .expect("knight spawned");
+        assert_eq!(knight.stats.get(STAT_MOONLIGHT), 0.0);
+        assert!(saw_trigger);
+        assert!(saw_periodic_attack);
     }
 }
