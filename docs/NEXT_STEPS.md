@@ -185,6 +185,7 @@ The first playable preview is available through `belt_tools play`:
 - Account-state reward writeback fills partial inventory stacks before opening new slots and sends capacity overflow to one-day mail.
 - Data Studio Operation tab can display local account energy, warehouse slots, inventory stacks, and overflow mail.
 - Data Studio can dispatch the sample dungeon through `/api/account-dispatch` and persist the local account-state file.
+- Operation mail rows now support claim/delete actions through local account-state APIs.
 
 ## Locked Design Direction
 
@@ -240,10 +241,10 @@ The local account-state file is intentionally small and server-portable:
 
 The next production-facing step is to expose the local account state in the UI and make it behave like the later server-backed account model:
 
-- Warehouse UI claim/delete actions for local overflow mail.
 - Energy display with elapsed real-time recovery preview instead of raw unix values.
 - Account-state API endpoints in `belt_tools play` for preview/test workflows.
 - First recipe tables and instant alchemy/forge/refinement commands that mutate the same account-state file.
+- Mail expiry cleanup pass that removes expired local mail on account-state load/save.
 
 ## Server Direction
 

@@ -650,6 +650,42 @@ fn inventory_slots_by_tab(
     Ok(slots)
 }
 
+fn claim_account_mail(
+    project: &DataProject,
+    state: &mut AccountState,
+    mail_index: usize,
+    now_unix: i64,
+) -> Result<AccountRewardSettlement, String> {
+    if mail_index >= state.mail.len() {
+        return Err(format!("unknown mail index {mail_index}"));
+    }
+    let mail = state.mail.remove(mail_index);
+    if mail.expires_at_unix <= now_unix {
+        return Err(format!("mail index {mail_index} has expired"));
+    }
+    let db = GeneratedDatabase::from_project(project)?;
+    let item = db
+        .item_def
+        .get_by_key(&mail.item_key)
+        .ok_or_else(|| format!("mail references missing item {}", mail.item_key))?;
+    let reward = RewardStack {
+        item_key: item.key.clone(),
+        item_name: item.name.clone(),
+        category: item.category.clone(),
+        rarity: item.rarity.clone(),
+        stack_size: item.stack_size.max(1),
+        quantity: mail.quantity.max(0),
+    };
+    apply_rewards_to_account_state(project, state, &[reward], now_unix)
+}
+
+fn delete_account_mail(state: &mut AccountState, mail_index: usize) -> Result<AccountMail, String> {
+    if mail_index >= state.mail.len() {
+        return Err(format!("unknown mail index {mail_index}"));
+    }
+    Ok(state.mail.remove(mail_index))
+}
+
 #[derive(Debug, Clone)]
 struct DeterministicRng {
     state: u64,
@@ -994,12 +1030,17 @@ pub(crate) fn account_state_snapshot_for_api(
     let mail = state
         .mail
         .iter()
-        .map(|mail| {
+        .enumerate()
+        .map(|(index, mail)| {
             let item = db.item_def.get_by_key(&mail.item_key);
+            let remaining_seconds = (mail.expires_at_unix - current_unix_time()).clamp(0, 86_400);
             serde_json::json!({
+                "index": index,
                 "item_key": mail.item_key,
                 "quantity": mail.quantity,
                 "expires_at_unix": mail.expires_at_unix,
+                "remaining_seconds": remaining_seconds,
+                "expired": remaining_seconds <= 0,
                 "name": item.map(|item| item.name.as_str()).unwrap_or(mail.item_key.as_str()),
                 "category": item.map(|item| item.category.as_str()).unwrap_or("unknown"),
                 "rarity": item.map(|item| item.rarity.as_str()).unwrap_or("unknown"),
@@ -1056,6 +1097,40 @@ pub(crate) fn dispatch_account_for_api(
     ];
     simulate(&args)?;
     account_state_snapshot_for_api(project_path)
+}
+
+pub(crate) fn claim_mail_for_api(
+    project_path: &Path,
+    mail_index: usize,
+    now_unix: i64,
+) -> Result<serde_json::Value, String> {
+    let project = DataProject::load_from_dir(project_path).map_err(|error| error.to_string())?;
+    let path = account_state_path_for_project(project_path);
+    let mut state = load_or_create_account_state(&project, &path)?;
+    let settlement = claim_account_mail(&project, &mut state, mail_index, now_unix)?;
+    save_account_state(&path, &state)?;
+    Ok(serde_json::json!({
+        "ok": true,
+        "message": format!("claimed mail #{mail_index}"),
+        "settlement": account_settlement_lines(&settlement),
+        "account": account_state_snapshot_for_api(project_path)?,
+    }))
+}
+
+pub(crate) fn delete_mail_for_api(
+    project_path: &Path,
+    mail_index: usize,
+) -> Result<serde_json::Value, String> {
+    let project = DataProject::load_from_dir(project_path).map_err(|error| error.to_string())?;
+    let path = account_state_path_for_project(project_path);
+    let mut state = load_or_create_account_state(&project, &path)?;
+    let removed = delete_account_mail(&mut state, mail_index)?;
+    save_account_state(&path, &state)?;
+    Ok(serde_json::json!({
+        "ok": true,
+        "message": format!("deleted mail #{} ({}) x{}", mail_index, removed.item_key, removed.quantity),
+        "account": account_state_snapshot_for_api(project_path)?,
+    }))
 }
 
 fn option_value<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
@@ -1294,6 +1369,49 @@ mod tests {
         assert_eq!(state.mail[0].item_key, "slime_gel");
         assert_eq!(state.mail[0].quantity, 5);
         assert_eq!(state.mail[0].expires_at_unix, 87_400);
+    }
+
+    #[test]
+    fn account_mail_claim_moves_items_into_inventory() {
+        let project = sample_project_for_test();
+        let mut state = AccountState {
+            energy: 100,
+            last_energy_update_unix: 0,
+            inventory: Vec::new(),
+            mail: vec![AccountMail {
+                item_key: "slime_gel".to_string(),
+                quantity: 5,
+                expires_at_unix: 10_000,
+            }],
+        };
+
+        let settlement =
+            claim_account_mail(&project, &mut state, 0, 1000).expect("claim account mail");
+
+        assert_eq!(settlement.placed[0].quantity, 5);
+        assert_eq!(state.inventory[0].item_key, "slime_gel");
+        assert_eq!(state.inventory[0].quantity, 5);
+        assert!(state.mail.is_empty());
+    }
+
+    #[test]
+    fn account_mail_delete_removes_entry_without_inventory_change() {
+        let mut state = AccountState {
+            energy: 100,
+            last_energy_update_unix: 0,
+            inventory: Vec::new(),
+            mail: vec![AccountMail {
+                item_key: "energy_tonic".to_string(),
+                quantity: 1,
+                expires_at_unix: 10_000,
+            }],
+        };
+
+        let removed = delete_account_mail(&mut state, 0).expect("delete account mail");
+
+        assert_eq!(removed.item_key, "energy_tonic");
+        assert!(state.inventory.is_empty());
+        assert!(state.mail.is_empty());
     }
 }
 

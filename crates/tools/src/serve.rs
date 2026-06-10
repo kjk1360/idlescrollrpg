@@ -153,6 +153,8 @@ fn route_request(request: &Request, state: &ServerState) -> Vec<u8> {
         ("POST", "/api/data-build") => api_data_build(state),
         ("POST", "/api/simulate") => api_simulate(request, state),
         ("POST", "/api/account-dispatch") => api_account_dispatch(request, state),
+        ("POST", "/api/account-mail/claim") => api_account_mail_claim(request, state),
+        ("POST", "/api/account-mail/delete") => api_account_mail_delete(request, state),
         ("POST", "/api/import/aseprite") => api_import_aseprite(request, state),
         ("POST", "/api/visual/slice-grid") => api_slice_sprite_grid(request, state),
         _ => Err(("not found".to_string(), 404)),
@@ -682,6 +684,32 @@ fn api_account_dispatch(request: &Request, state: &ServerState) -> Result<Vec<u8
     ))
 }
 
+fn api_account_mail_claim(
+    request: &Request,
+    state: &ServerState,
+) -> Result<Vec<u8>, (String, u16)> {
+    let payload = parse_body(&request.body)?;
+    let mail_index = usize_number(&payload, "mail_index")?;
+    let now_unix = payload
+        .get("now_unix")
+        .and_then(Value::as_i64)
+        .unwrap_or_else(current_unix_time);
+    let response = crate::claim_mail_for_api(&state.project_path, mail_index, now_unix)
+        .map_err(|error| (error, 500))?;
+    Ok(json_response(200, &response))
+}
+
+fn api_account_mail_delete(
+    request: &Request,
+    state: &ServerState,
+) -> Result<Vec<u8>, (String, u16)> {
+    let payload = parse_body(&request.body)?;
+    let mail_index = usize_number(&payload, "mail_index")?;
+    let response = crate::delete_mail_for_api(&state.project_path, mail_index)
+        .map_err(|error| (error, 500))?;
+    Ok(json_response(200, &response))
+}
+
 fn api_import_aseprite(request: &Request, state: &ServerState) -> Result<Vec<u8>, (String, u16)> {
     let payload = parse_body(&request.body)?;
     let file = string_value(&payload, "file")?;
@@ -1079,6 +1107,11 @@ fn number(payload: &Value, key: &str) -> Result<u64, (String, u16)> {
         .get(key)
         .and_then(Value::as_u64)
         .ok_or_else(|| (format!("missing numeric {key}"), 400))
+}
+
+fn usize_number(payload: &Value, key: &str) -> Result<usize, (String, u16)> {
+    let value = number(payload, key)?;
+    usize::try_from(value).map_err(|_| (format!("{key} is too large"), 400))
 }
 
 fn positive_u64(payload: &Value, key: &str) -> Result<u64, (String, u16)> {
@@ -1968,6 +2001,14 @@ const INDEX_HTML: &str = r#"<!doctype html>
       return rounded === '-0' ? '0' : rounded;
     }
 
+    function formatDuration(seconds) {
+      const total = Math.max(0, Math.floor(Number(seconds) || 0));
+      const hours = Math.floor(total / 3600);
+      const minutes = Math.floor((total % 3600) / 60);
+      if (hours > 0) return `${hours}h ${minutes}m`;
+      return `${minutes}m`;
+    }
+
     function cellText(cell) {
       if (!cell || cell.kind === 'empty') return '';
       if (cell.kind === 'row') return String(cell.value);
@@ -2317,15 +2358,19 @@ const INDEX_HTML: &str = r#"<!doctype html>
           <div class="operation-panel wide">
             <div class="operation-head"><span>Mail</span><span>${mail.length}</span></div>
             <table>
-              <thead><tr><th>Item</th><th>Category</th><th>Qty</th><th>Expires At</th></tr></thead>
+              <thead><tr><th>Item</th><th>Category</th><th>Qty</th><th>Remaining</th><th>Action</th></tr></thead>
               <tbody>
                 ${mail.map(item => `
                   <tr>
                     <td>${escapeHtml(item.name)}<br><small>${escapeHtml(item.item_key)}</small></td>
                     <td>${escapeHtml(item.category)}</td>
                     <td>${item.quantity}</td>
-                    <td>${item.expires_at_unix}</td>
-                  </tr>`).join('') || '<tr><td colspan="4">empty</td></tr>'}
+                    <td>${formatDuration(item.remaining_seconds)}</td>
+                    <td>
+                      <button onclick="claimMail(${item.index})" ${item.expired ? 'disabled' : ''}>Claim</button>
+                      <button class="danger" onclick="deleteMail(${item.index})">Delete</button>
+                    </td>
+                  </tr>`).join('') || '<tr><td colspan="5">empty</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -2348,6 +2393,37 @@ const INDEX_HTML: &str = r#"<!doctype html>
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ map_key: 'endless_left_road', seed: Date.now() })
+        });
+        state.account = result.account;
+        await renderOperationDashboard();
+        log(result.message);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
+    async function claimMail(mailIndex) {
+      try {
+        const result = await api('/api/account-mail/claim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mail_index: mailIndex })
+        });
+        state.account = result.account;
+        await renderOperationDashboard();
+        log(result.message);
+      } catch (error) {
+        log(`error: ${error.message}`);
+      }
+    }
+
+    async function deleteMail(mailIndex) {
+      if (!confirm(`Delete mail #${mailIndex}?`)) return;
+      try {
+        const result = await api('/api/account-mail/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mail_index: mailIndex })
         });
         state.account = result.account;
         await renderOperationDashboard();
