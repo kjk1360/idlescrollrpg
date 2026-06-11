@@ -1,5 +1,11 @@
 # Next Steps
 
+## Unity Data Table Asset Spec
+
+- Added `docs/UNITY_DATA_TABLE_ASSET_SPEC.md` as the design specification for a reusable Unity data table asset.
+- The spec covers schema editing, sheet editing, relation fields, owned nested tables, polymorphic ViewTables, explicit code generation, and MessagePack runtime builds using integer `[Key(index)]` fields.
+- This is intentionally a general-purpose Unity tool design, not a direct port of the current game's data.
+
 ## Completed Since Initial Foundation
 
 - Added `serde`/`serde_json` support to `data_studio_core`.

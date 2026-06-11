@@ -1,0 +1,1031 @@
+# Unity Data Table Asset Spec
+
+This document defines a Unity editor/runtime asset for a general-purpose relational data sheet tool. It is not tied to the current belt-scroll RPG data. The target is a reusable Unity package similar in intent to BGDatabase, with schema editing, sheet-style row editing, relation-aware workflows, virtual view tables, code generation, and MessagePack runtime data.
+
+Reference: BGDatabase supported fields, especially primitive fields, Unity asset fields, relation fields, view relation fields, nested fields, code generation, and asset loader notes:
+https://www.bansheegz.com/BGDatabase/SupportedFields/
+
+## Goals
+
+1. Provide an in-Unity data authoring tool that feels like a spreadsheet but understands game data structure.
+2. Treat tables, fields, rows, relations, nested tables, and view tables as first-class concepts.
+3. Generate strongly typed C# runtime classes from the schema on explicit user action.
+4. Serialize runtime data with MessagePack using integer keys for compact, fast load.
+5. Allow designers to edit data visually while allowing engineers and AI agents to access the same project through stable APIs.
+6. Keep schema and row data versionable in Git and reviewable before binary build output is generated.
+7. Support broad game data workflows: rewards, item pools, skills, effects, triggers, assets, prefabs, localization keys, and polymorphic option lists.
+
+## Non-Goals
+
+1. This is not a general Unity graphics engine.
+2. This is not an ORM over a live SQL database.
+3. This is not intended to generate runtime C# classes dynamically after build.
+4. This should not depend on Unity scene state for core data correctness.
+5. This should not force all authored data into one monolithic ScriptableObject.
+
+## Package Shape
+
+Recommended package name:
+
+```text
+com.company.relation-datatables
+```
+
+Suggested Unity folders:
+
+```text
+Packages/com.company.relation-datatables/
+  Editor/
+    DataTableWindow.cs
+    SchemaEditor/
+    SheetEditor/
+    RelationPicker/
+    ViewTableEditor/
+    CodeGeneration/
+    Validation/
+  Runtime/
+    Database/
+    Generated/
+    MessagePack/
+    AssetReferences/
+  Tests/
+    Editor/
+    Runtime/
+  package.json
+```
+
+Project-authored database files should live outside the package:
+
+```text
+Assets/GameData/
+  DataTableProject.asset
+  Schema/
+  Rows/
+  Generated/
+  Built/
+```
+
+## Core Concepts
+
+### DataTableProject
+
+The root asset for one database project.
+
+Responsibilities:
+
+1. Own schema metadata.
+2. Own row storage references.
+3. Store codegen and build fingerprints.
+4. Store editor preferences such as default table, column widths, pinned views, and validation filters.
+5. Provide project-level APIs for editor tools and automated agents.
+
+Suggested fields:
+
+```csharp
+public sealed class DataTableProject : ScriptableObject
+{
+    public string ProjectId;
+    public string DisplayName;
+    public List<TableSchema> Tables;
+    public List<ViewTableSchema> ViewTables;
+    public List<EnumSchema> Enums;
+    public List<DataPartition> Partitions;
+    public CodegenSettings Codegen;
+    public BuildSettings Build;
+    public string SchemaFingerprint;
+    public string DataFingerprint;
+    public string LastCodegenSchemaFingerprint;
+    public string LastBuildDataFingerprint;
+}
+```
+
+### TableSchema
+
+A real table that owns rows.
+
+Each table has:
+
+1. Stable table id.
+2. Human display name.
+3. Stable C# type name.
+4. Ordered fields.
+5. Optional parent table if it is an owned nested table.
+6. Optional row ordering policy.
+7. Optional partition policy.
+
+Suggested fields:
+
+```csharp
+public sealed class TableSchema
+{
+    public string TableId;
+    public string Key;
+    public string DisplayName;
+    public string GeneratedTypeName;
+    public TableKind Kind; // Root, OwnedNested
+    public OwnedNestedOwner Owner;
+    public List<FieldSchema> Fields;
+    public int SchemaVersion;
+}
+```
+
+### Row
+
+A row is one authored data instance.
+
+Every row must have:
+
+1. Stable row id.
+2. Optional designer-facing key.
+3. Field values keyed by field id in editor storage.
+4. Optional row-local validation state cache.
+
+Editor storage may use GUID-like string ids for robustness. Runtime MessagePack output should convert table and row references into compact indexed ids.
+
+### FieldSchema
+
+A column in a table.
+
+Each field has:
+
+1. Stable field id.
+2. Field key.
+3. Generated property name derived from field key by rule.
+4. Field type.
+5. Required/default/nullability rules.
+6. Editor hint metadata.
+7. MessagePack index.
+
+Important rule:
+
+The editor may use stable string ids internally, but generated runtime C# must use `[Key(index)]`, not string keys.
+
+```csharp
+public sealed class FieldSchema
+{
+    public string FieldId;
+    public string Key;                 // e.g. max_hp
+    public string DisplayName;         // generated by default: Max Hp
+    public string GeneratedPropertyName; // generated by default: MaxHp
+    public FieldTypeSpec Type;
+    public bool Required;
+    public ValueSpec DefaultValue;
+    public int MessagePackKeyIndex;
+    public EditorFieldHints EditorHints;
+}
+```
+
+Field rename policy:
+
+1. Field key can be renamed.
+2. Field id must remain stable.
+3. MessagePack index must remain stable after codegen.
+4. Removing a field retires its MessagePack index; the index should not be reused by default.
+
+## Field Types
+
+The field set should be smaller than BGDatabase at first, but extensible.
+
+### Primitive
+
+Required:
+
+```text
+bool
+int
+long
+float
+double
+string
+text
+guid
+datetime
+```
+
+Recommended:
+
+```text
+byte
+short
+decimal
+```
+
+### Nullable Primitive
+
+Nullable should be a field option rather than a separate field family:
+
+```text
+int?
+float?
+bool?
+guid?
+datetime?
+```
+
+### Enum
+
+Enums should be schema-authored and code-generated.
+
+Enum values must have explicit integer values so reorder does not change stored data.
+
+```csharp
+public sealed class EnumSchema
+{
+    public string EnumId;
+    public string Key;
+    public string GeneratedTypeName;
+    public EnumUnderlyingType UnderlyingType; // byte, short, int
+    public bool Flags;
+    public List<EnumValueSchema> Values;
+}
+```
+
+### Unity Structs
+
+Phase 1:
+
+```text
+Vector2
+Vector3
+Vector4
+Color
+Rect
+Bounds
+Quaternion
+AnimationCurve
+Gradient
+```
+
+Runtime MessagePack support for Unity structs should be implemented through resolvers/formatters or DTO structs. Generated classes should avoid relying on Unity editor-only APIs.
+
+### Unity Asset Reference
+
+Asset fields should store stable references, not raw UnityEngine.Object in runtime MessagePack.
+
+Supported modes:
+
+```text
+AssetGuid
+AddressablesAddress
+AddressablesGuid
+ResourcesPath
+DirectEditorObject
+```
+
+Recommended default:
+
+```text
+AssetGuid for editor data
+AddressablesAddress or AddressablesGuid for runtime build
+```
+
+Asset field examples:
+
+```text
+Texture2DRef
+SpriteRef
+MaterialRef
+PrefabRef
+AudioClipRef
+ObjectRef<T>
+```
+
+Editor may expose object fields, but serialized project data should store GUID/address/path depending on the selected loader.
+
+### List
+
+Collections:
+
+```text
+List<TPrimitive>
+List<TEnum>
+List<TUnityStruct>
+List<Relation<T>>
+List<ViewRelation<TView>>
+```
+
+MessagePack collection values should serialize as arrays.
+
+### Dictionary
+
+Dictionary can be supported after core relation flows are stable.
+
+Initial constraints:
+
+1. Key types: int, long, string, guid, enum.
+2. Value types: primitive, enum, Unity struct, asset ref.
+3. No relation values in dictionary for Phase 1.
+
+### Relation
+
+A relation references rows.
+
+Required relation kinds:
+
+```text
+RelationOne<TTable>
+RelationMany<TTable>
+ViewRelationOne<TViewTable>
+ViewRelationMany<TViewTable>
+```
+
+Relation storage in editor:
+
+```csharp
+public readonly struct RowRef
+{
+    public string TableId;
+    public string RowId;
+}
+```
+
+Runtime storage:
+
+```csharp
+public readonly struct RuntimeRowRef
+{
+    public ushort TableIndex;
+    public int RowIndex;
+}
+```
+
+Generated access should expose both id and resolved object where useful:
+
+```csharp
+public RuntimeRowRef ItemRef { get; }
+public ItemDef Item => _db.Resolve<ItemDef>(ItemRef);
+```
+
+For performance-sensitive paths, generated caches should be prebuilt during database load.
+
+### Owned Nested Table
+
+Owned nested tables model data that belongs to a parent row.
+
+Rules:
+
+1. Owned nested table is a real table with a parent owner field.
+2. Owned nested rows cannot exist without an owner row.
+3. Deleting a parent row deletes owned nested rows.
+4. Owned nested tables are displayed under the owner field in the table tree.
+5. Ordinary relation target pickers should not show owned nested tables unless explicitly allowed.
+6. A parent field of type `OwnedNestedMany<TNested>` opens the nested table editor scoped to that parent row.
+
+Runtime representation can be either:
+
+1. Separate generated nested table plus owner index.
+2. Inline array in the parent generated class.
+
+Recommended:
+
+Use separate editor storage, but codegen an ergonomic parent property:
+
+```csharp
+[Key(7)]
+public List<EquipmentRollDef> Rolls { get; set; }
+```
+
+For very large nested datasets, provide an advanced option to serialize nested rows as separate tables.
+
+## ViewTable
+
+ViewTable is a virtual table made from multiple unrelated real tables. It does not own rows. It owns a set of allowed source tables and optionally a display projection.
+
+The main purpose is to let other fields reference a polymorphic set of rows while keeping type boundaries explicit.
+
+Examples:
+
+1. `RewardItemView` includes `EquipmentDef`, `RecipeDef`, `ConsumableDef`, `MaterialDef`.
+2. `SpecialOptionComponentView` includes `StatModifierDef`, `GrantedSkillDef`, `SkillTransformDef`, `ConditionalEffectDef`, `TriggerDef`.
+3. `DungeonDropTargetView` includes `MaterialDef`, `MapDef`, `RecipeDef`, `NamedEquipmentDef`.
+
+### ViewTableSchema
+
+```csharp
+public sealed class ViewTableSchema
+{
+    public string ViewTableId;
+    public string Key;
+    public string DisplayName;
+    public string GeneratedTypeName;
+    public List<ViewTableSource> Sources;
+    public List<ViewColumnSchema> DisplayColumns;
+    public ViewTablePolicy Policy;
+}
+
+public sealed class ViewTableSource
+{
+    public string SourceTableId;
+    public string Alias;
+    public ViewSourceFilter Filter;
+}
+```
+
+### ViewTable Reference
+
+A `ViewRelationOne<TView>` stores one `RowRef` where `TableId` must be one of the view's source table ids.
+
+A `ViewRelationMany<TView>` stores a list of such refs.
+
+Generated API:
+
+```csharp
+public IReadOnlyList<RewardItemRef> Rewards { get; }
+
+public readonly struct RewardItemRef
+{
+    public RewardItemKind Kind { get; }
+    public RuntimeRowRef Ref { get; }
+    public object ResolveUntyped(GameDatabase db);
+    public T ResolveAs<T>(GameDatabase db) where T : class, IDataRow;
+}
+```
+
+Optionally codegen a tagged union facade:
+
+```csharp
+public enum RewardItemKind
+{
+    Equipment,
+    Recipe,
+    Consumable,
+    Material,
+}
+```
+
+Generated switch helper:
+
+```csharp
+reward.Match(
+    equipment => ...,
+    recipe => ...,
+    consumable => ...,
+    material => ...
+);
+```
+
+### ViewTable Display Projection
+
+A ViewTable may define display columns to make polymorphic data readable.
+
+Example:
+
+```text
+RewardItemView
+  Source: equipment
+    Display: id, name, rarity, icon
+  Source: recipe
+    Display: id, result_item, recipe_grade, icon
+  Source: consumable
+    Display: id, name, consumable_type, icon
+  Source: material
+    Display: id, name, material_family, icon
+```
+
+Display columns are editor-only unless explicitly generated.
+
+### ViewTable Filters
+
+Sources may be filtered:
+
+```text
+all rows
+field equals enum value
+field not empty
+tag contains
+custom editor predicate
+```
+
+Filters should be validated at build time. Runtime should not evaluate editor-only custom predicates unless generated explicitly.
+
+## Schema Editing UX
+
+The Unity editor window should have top-level tabs:
+
+```text
+Schema
+Data
+Views
+Validation
+Build
+Settings
+```
+
+### Schema Tab
+
+Purpose:
+
+1. Add/remove tables.
+2. Add/remove fields.
+3. Create owned nested tables from a parent field.
+4. Create view tables.
+5. Edit enum schemas.
+6. Inspect MessagePack key index layout.
+
+Important UX rules:
+
+1. Field rename is allowed, but field id and MessagePack index remain stable.
+2. Field type migration should be explicit and limited.
+3. Field deletion should move the field into a retired field list until a cleanup action is confirmed.
+4. Code Generate button should visually indicate dirty schema state.
+
+Code Generate button states:
+
+```text
+Gray: generated code matches current schema.
+Red: schema changed and generated code is stale.
+Yellow: schema has warnings but codegen can run.
+Disabled: schema has blocking errors.
+```
+
+### Data Tab
+
+Purpose:
+
+1. Spreadsheet-like row editing.
+2. Row add/delete/duplicate.
+3. Relation pickers.
+4. Nested row scoped editing.
+5. Search/filter/sort.
+
+Relation picker for `RelationMany<T>`:
+
+```text
+Left: available rows from target table/view.
+Right: selected rows.
+Actions: add, remove, reorder, search, filter by source table for ViewTable.
+Back: returns to previous table view.
+```
+
+For `ViewRelationMany<TView>`, the left side should show grouped source tables:
+
+```text
+Equipment
+  sword_001
+  shield_001
+Recipe
+  potion_recipe_001
+Material
+  iron_ore
+```
+
+### Views Tab
+
+Purpose:
+
+1. Define ViewTables.
+2. Add/remove source tables.
+3. Configure source aliases and filters.
+4. Configure display projection columns.
+5. Preview all view rows in one virtual sheet.
+6. Validate references from real tables into ViewTables.
+
+### Validation Tab
+
+Validation must include:
+
+1. Missing relation target table.
+2. Missing relation target row.
+3. Relation points to a table outside its ViewTable.
+4. Duplicate row key within table.
+5. Duplicate generated C# type/property names.
+6. MessagePack key collision.
+7. Retired key index reuse warning.
+8. Required field empty.
+9. Asset reference missing or asset loader mismatch.
+10. Owned nested row without valid owner.
+11. Parent row deletion would orphan nested rows.
+12. ViewTable has no source tables.
+13. ViewTable source filter references missing field.
+14. Enum stored value missing from enum schema.
+
+### Build Tab
+
+Buttons:
+
+```text
+Validate
+Code Generate
+Build Data
+Build Addressable Catalog Data
+Open Generated Folder
+Open Built Data Folder
+```
+
+Status indicators:
+
+```text
+Schema: Fresh / Codegen Required / Invalid
+Data: Fresh / Build Required / Invalid
+Assets: Fresh / Addressables Rebuild Recommended
+```
+
+## Code Generation
+
+Codegen is explicit. It should never silently rewrite runtime classes while the user edits a sheet.
+
+Generated output:
+
+```text
+Assets/GameData/Generated/
+  Database/
+    GameDatabase.Generated.cs
+    GameDatabase.Tables.Generated.cs
+    GameDatabase.Relations.Generated.cs
+  Rows/
+    UnitDef.Generated.cs
+    SkillDef.Generated.cs
+    RewardDef.Generated.cs
+  Views/
+    RewardItemView.Generated.cs
+    SpecialOptionComponentView.Generated.cs
+  Enums/
+    ItemRarity.Generated.cs
+```
+
+Generated classes should be `partial`:
+
+```csharp
+[MessagePackObject]
+public sealed partial class UnitDef : IDataRow
+{
+    [Key(0)]
+    public string Id { get; set; }
+
+    [Key(1)]
+    public string Name { get; set; }
+
+    [Key(2)]
+    public int MaxHp { get; set; }
+
+    [Key(3)]
+    public RuntimeRowRef VisualRef { get; set; }
+}
+```
+
+Recommended generated interfaces:
+
+```csharp
+public interface IDataRow
+{
+    string Id { get; }
+    int RuntimeIndex { get; }
+}
+
+public interface IDataTable<out T> where T : IDataRow
+{
+    IReadOnlyList<T> Rows { get; }
+    T GetById(string id);
+    T GetByIndex(int index);
+}
+```
+
+### MessagePack Key Policy
+
+Every generated MessagePack class must use integer keys:
+
+```csharp
+[MessagePackObject]
+public sealed partial class SkillDef
+{
+    [Key(0)] public string Id { get; set; }
+    [Key(1)] public string Name { get; set; }
+    [Key(2)] public float CooldownSeconds { get; set; }
+}
+```
+
+Rules:
+
+1. `Key(0)` should be reserved for row id unless project setting says otherwise.
+2. Key indices are assigned by the schema and stored permanently.
+3. Deleted fields retire their key index.
+4. Reusing retired key indices should require a dangerous-action confirmation.
+5. Codegen must fail on duplicate indices.
+6. Runtime DTO classes and editor schema classes should be separate.
+
+### Version Tolerance
+
+Use MessagePack C# version-tolerant patterns:
+
+1. Keep old key indices.
+2. Add new fields with new indices.
+3. Make newly added fields nullable or provide defaults.
+4. Avoid changing field meaning while keeping the same index.
+
+If MessagePack cannot safely deserialize old data after schema changes, data build should require a migration step.
+
+## Runtime Database Loading
+
+Build output:
+
+```text
+Assets/GameData/Built/
+  database.bytes
+  database.manifest.json
+```
+
+`database.bytes` stores MessagePack data:
+
+```csharp
+[MessagePackObject]
+public sealed class DatabaseBlob
+{
+    [Key(0)] public DatabaseManifest Manifest { get; set; }
+    [Key(1)] public UnitDef[] Units { get; set; }
+    [Key(2)] public SkillDef[] Skills { get; set; }
+    [Key(3)] public RewardDef[] Rewards { get; set; }
+}
+```
+
+`database.manifest.json` remains human-readable:
+
+```json
+{
+  "schemaFingerprint": "...",
+  "dataFingerprint": "...",
+  "generatedAt": "2026-06-11T00:00:00Z",
+  "tables": [
+    { "tableId": "unit", "name": "Unit", "runtimeTableIndex": 1, "rowCount": 120 }
+  ]
+}
+```
+
+Load flow:
+
+```text
+Read bytes
+-> MessagePack deserialize DatabaseBlob
+-> assign runtime row indices
+-> build table id -> table index map
+-> build row id -> row index maps
+-> validate relation refs in development builds
+-> expose generated GameDatabase API
+```
+
+## Relation Cache
+
+Runtime should support zero-allocation relation lookup in hot paths.
+
+Recommended:
+
+1. Store relation values as compact `RuntimeRowRef`.
+2. Resolve via generated table arrays.
+3. Build id maps only for tooling/debug/load validation.
+4. Keep resolved relation lists cached where the field is frequently used and immutable.
+
+Example:
+
+```csharp
+public sealed partial class GameDatabase
+{
+    public EquipmentDef ResolveEquipment(RuntimeRowRef rowRef)
+    {
+        return _equipmentRows[rowRef.RowIndex];
+    }
+
+    public object ResolveUntyped(RuntimeRowRef rowRef)
+    {
+        return _tables[rowRef.TableIndex].GetUntyped(rowRef.RowIndex);
+    }
+}
+```
+
+For `ViewRelationMany<TView>`, generated helper can return typed refs without allocating:
+
+```csharp
+public ReadOnlySpan<RewardItemRef> RewardItems => _rewardItems;
+```
+
+If Unity target/runtime cannot use `ReadOnlySpan<T>`, use arrays or `IReadOnlyList<T>` and avoid per-access conversion.
+
+## Editor Storage Format
+
+Editor data should remain Git-friendly.
+
+Recommended:
+
+```text
+Assets/GameData/Schema/project.schema.json
+Assets/GameData/Rows/unit.rows.json
+Assets/GameData/Rows/skill.rows.json
+Assets/GameData/Rows/reward.rows.json
+```
+
+Unity `DataTableProject.asset` can point to these files and cache UI state. The source of truth should be text unless the team explicitly chooses binary assets.
+
+Reasons:
+
+1. Easier review.
+2. Easier merge.
+3. Easier AI/API modification.
+4. Clear separation from built MessagePack runtime output.
+
+## Automation API
+
+The package should expose editor APIs callable from Unity menu items, command line, and AI tooling.
+
+```csharp
+public static class DataTableAutomation
+{
+    public static ValidationReport Validate(string projectAssetPath);
+    public static CodegenReport GenerateCode(string projectAssetPath);
+    public static BuildReport BuildData(string projectAssetPath);
+    public static TableEditReport AddTable(string projectAssetPath, AddTableRequest request);
+    public static FieldEditReport AddField(string projectAssetPath, AddFieldRequest request);
+    public static RowEditReport UpsertRow(string projectAssetPath, UpsertRowRequest request);
+}
+```
+
+Unity batch mode examples:
+
+```powershell
+Unity.exe -batchmode -quit -projectPath . -executeMethod DataTableCli.Validate
+Unity.exe -batchmode -quit -projectPath . -executeMethod DataTableCli.GenerateCode
+Unity.exe -batchmode -quit -projectPath . -executeMethod DataTableCli.BuildData
+```
+
+## Example: Reward ViewTable
+
+Schema:
+
+```text
+Table: Equipment
+  id: string
+  name: string
+  rarity: enum ItemRarity
+
+Table: Recipe
+  id: string
+  result: ViewRelationOne<RewardItemView>
+
+Table: Consumable
+  id: string
+  name: string
+
+Table: Material
+  id: string
+  stack_limit: int
+
+ViewTable: RewardItemView
+  sources:
+    Equipment
+    Recipe
+    Consumable
+    Material
+
+Table: Reward
+  id: string
+  entries: OwnedNestedMany<RewardEntry>
+
+OwnedNested Table: RewardEntry
+  item: ViewRelationOne<RewardItemView>
+  amount: int
+  weight: int
+```
+
+Generated usage:
+
+```csharp
+foreach (var entry in reward.Entries)
+{
+    var item = entry.Item.ResolveUntyped(db);
+    Grant(item, entry.Amount);
+}
+```
+
+Editor UX:
+
+1. Click `Reward.entries`.
+2. Open scoped nested `RewardEntry` table.
+3. Click `item`.
+4. Open `RewardItemView` picker.
+5. Left pane shows Equipment, Recipe, Consumable, Material groups.
+6. Selecting a row stores `{ tableId, rowId }`.
+
+## Example: Equipment Special Options
+
+Schema:
+
+```text
+Table: StatModifier
+  id: string
+  stat: RelationOne<Stat>
+  operation: enum ModifierOperation
+  value: float
+
+Table: GrantedSkill
+  id: string
+  skill: RelationOne<Skill>
+
+Table: SkillTransform
+  id: string
+  source_skill: RelationOne<Skill>
+  transform_rule: RelationOne<SkillTransformRule>
+
+Table: ConditionalEffect
+  id: string
+  trigger: RelationOne<Trigger>
+  effect: ViewRelationOne<SpecialOptionComponentView>
+
+ViewTable: SpecialOptionComponentView
+  sources:
+    StatModifier
+    GrantedSkill
+    SkillTransform
+    ConditionalEffect
+
+Table: SpecialOption
+  id: string
+  name: string
+  grade: enum SpecialOptionGrade
+  components: ViewRelationMany<SpecialOptionComponentView>
+```
+
+This allows one named special option to contain stat changes, granted skills, skill transforms, conditional effects, or combinations of those without collapsing all option behavior into one huge table.
+
+## Suggested Implementation Phases
+
+### Phase 1: Core Schema And Sheet Editor
+
+Deliver:
+
+1. `DataTableProject` asset.
+2. Table/field/row schema model.
+3. Primitive, enum, list, relation-one, relation-many.
+4. Sheet editor with row add/delete/edit.
+5. Validation report.
+6. Text editor storage.
+
+### Phase 2: Codegen And MessagePack Build
+
+Deliver:
+
+1. Generated C# row classes.
+2. Generated database class.
+3. Integer MessagePack keys.
+4. Data build to `database.bytes`.
+5. Runtime loader.
+6. Relation cache and generated resolve helpers.
+
+### Phase 3: Nested Tables
+
+Deliver:
+
+1. Owned nested table schema.
+2. Scoped nested row editor.
+3. Parent deletion cascade.
+4. Nested generated properties.
+5. Validation for owner consistency.
+
+### Phase 4: ViewTables
+
+Deliver:
+
+1. ViewTable schema editor.
+2. ViewTable preview.
+3. ViewRelationOne and ViewRelationMany fields.
+4. Polymorphic picker grouped by source table.
+5. Generated view ref structs and tagged kind enums.
+
+### Phase 5: Unity Asset Fields
+
+Deliver:
+
+1. Asset GUID storage.
+2. Addressables runtime mode.
+3. Object picker UI.
+4. Sprite/Texture/Prefab/Audio type constraints.
+5. Optional asset cache.
+
+### Phase 6: Production Hardening
+
+Deliver:
+
+1. Migrations.
+2. Import/export CSV.
+3. Merge conflict helper.
+4. Large table pagination.
+5. Search index.
+6. Batch mode CI validation.
+7. UPM package distribution.
+8. Documentation and sample project.
+
+## Open Design Decisions
+
+1. Whether editor row data should be stored as JSON files, ScriptableObjects, or both.
+2. Whether generated runtime relations should expose object references eagerly or resolve lazily.
+3. Whether ViewTable generated APIs should use tagged union structs, object resolution, or both.
+4. Whether nested rows should be serialized inline by default or as separate runtime tables.
+5. Whether Addressables should be a required dependency or an optional integration assembly.
+
+## Recommended Defaults
+
+1. Editor source of truth: JSON schema and JSON rows.
+2. Runtime source of truth: MessagePack `database.bytes`.
+3. Codegen: explicit button or batch command only.
+4. MessagePack keys: integer indices, stable and never auto-reused.
+5. Relations: compact runtime refs plus generated resolve helpers.
+6. ViewTables: first-class schema object, used by polymorphic relation fields.
+7. Asset refs: Asset GUID in editor, Addressables in runtime when available.
+8. Nested tables: editor as scoped child tables, runtime inline for small child collections.
+

@@ -2,6 +2,12 @@
 
 Read this first in future sessions.
 
+## Unity Data Table Asset Spec
+
+- `docs/UNITY_DATA_TABLE_ASSET_SPEC.md` defines a reusable Unity package design for a BGDatabase-like data table tool.
+- It is a general Unity editor/runtime asset spec, not a direct migration of this game's current Rust data.
+- Key requirements covered: sheet-like schema/data editing, relation fields, owned nested tables, polymorphic ViewTables, explicit code generation, MessagePack runtime output, and integer `[Key(index)]` MessagePack codegen.
+
 ## User Goal
 
 Build a Rust-first belt-scroll Idle RPG production platform, not just a single prototype game.
