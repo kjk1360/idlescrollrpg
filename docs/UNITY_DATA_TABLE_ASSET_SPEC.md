@@ -1029,3 +1029,410 @@ Deliver:
 7. Asset refs: Asset GUID in editor, Addressables in runtime when available.
 8. Nested tables: editor as scoped child tables, runtime inline for small child collections.
 
+## Lightweight Optimization Plan
+
+The reason to build this instead of using BGDatabase is not to out-feature it. The goal is to keep the authoring and runtime paths much lighter by avoiding expensive general-purpose behaviors such as automatic merge systems, overly dynamic runtime reflection, broad field-type abstraction at runtime, and always-loaded editor UI state.
+
+### Optimization Principles
+
+1. Generated runtime code should be simple C# arrays and indexed lookups, not reflection-heavy table abstractions.
+2. Editor schema flexibility should not leak into runtime data access.
+3. Runtime data should be immutable after load.
+4. Relation resolution should use integer indices, not string ids.
+5. Editor UI should virtualize rows and columns instead of instantiating visual controls for the whole sheet.
+6. ViewTables should compile into compact source-table filters and tagged refs, not materialized duplicate rows unless explicitly requested.
+7. Merge support should be delegated to Git/text workflows and validation tools, not a complex in-editor merge layer.
+
+### Runtime Hot Path
+
+Runtime should load one compact MessagePack blob and convert it into generated typed arrays:
+
+```text
+database.bytes
+-> MessagePack deserialize
+-> assign table arrays
+-> build optional debug id maps
+-> validate only in development builds
+-> expose generated direct accessors
+```
+
+Generated access should look like this in hot code:
+
+```csharp
+var skill = db.Skills[skillIndex];
+var target = db.Units[skill.Target.RowIndex];
+```
+
+Avoid this in runtime hot paths:
+
+```csharp
+db.GetTable("skill").GetRow("fireball").GetField("damage")
+```
+
+Dynamic string-based APIs may exist for editor/debug tools, but generated game code should not depend on them.
+
+### Runtime Data Layout
+
+Recommended runtime layout:
+
+```csharp
+public sealed partial class GameDatabase
+{
+    public UnitDef[] Units;
+    public SkillDef[] Skills;
+    public EquipmentDef[] Equipment;
+    public SpecialOptionDef[] SpecialOptions;
+}
+```
+
+Each generated row should be a sealed class by default:
+
+```csharp
+[MessagePackObject]
+public sealed partial class SkillDef : IDataRow
+{
+    [IgnoreMember] public int RuntimeIndex { get; internal set; }
+    [Key(0)] public string Id { get; set; }
+    [Key(1)] public int CooldownTicks { get; set; }
+    [Key(2)] public RuntimeRowRef[] Effects { get; set; }
+}
+```
+
+Use structs only for very small value types such as refs, ranges, ids, and numeric options. Large row structs can increase copy cost and make code less predictable.
+
+### Relation Optimization
+
+Editor relation values:
+
+```text
+{ tableId: "skill", rowId: "fireball" }
+```
+
+Built runtime relation values:
+
+```text
+{ tableIndex: 3, rowIndex: 15 }
+```
+
+For direct table relations, codegen can remove tableIndex entirely:
+
+```csharp
+public readonly struct SkillRef
+{
+    public readonly int RowIndex;
+}
+```
+
+For ViewTable relations, keep compact tagged refs:
+
+```csharp
+public readonly struct RewardItemRef
+{
+    public readonly byte SourceKind;
+    public readonly int RowIndex;
+}
+```
+
+This is lighter than storing object references in serialized data and lighter than resolving by string id every time.
+
+### ViewTable Optimization
+
+ViewTables should stay virtual.
+
+Do not duplicate source rows into a new runtime table by default. A ViewTable is a schema-level allowed-source definition plus generated tagged refs.
+
+Good:
+
+```text
+RewardItemView
+  source kind 0 -> Equipment[]
+  source kind 1 -> Recipe[]
+  source kind 2 -> Consumable[]
+  source kind 3 -> Material[]
+```
+
+Runtime ref:
+
+```text
+{ sourceKind: 2, rowIndex: 41 }
+```
+
+Bad default:
+
+```text
+RewardItemViewRows[]
+  duplicated equipment row projection
+  duplicated recipe row projection
+  duplicated consumable row projection
+```
+
+Materialized view rows should be optional and editor-only by default. Runtime materialization is allowed only when a specific game system benefits from cache locality more than memory size.
+
+### MessagePack Build Optimization
+
+Use integer `[Key(index)]` everywhere in generated runtime DTOs.
+
+Build output should support two modes:
+
+```text
+development:
+  database.bytes
+  database.manifest.json
+  id maps
+  validation metadata
+
+release:
+  database.bytes
+  minimal manifest
+  no editor validation metadata
+  optional compressed bundle
+```
+
+Recommended release blob contents:
+
+```text
+schema version
+data fingerprint
+table arrays
+compact relation refs
+asset runtime addresses
+```
+
+Avoid storing:
+
+```text
+field names
+display names
+editor column widths
+validation messages
+source json paths
+unused table ids
+```
+
+Those belong in editor files or development manifests.
+
+### Editor Sheet Optimization
+
+The editor can be slow even if runtime is fast. Large sheets should use UI virtualization.
+
+Rules:
+
+1. Render only visible rows.
+2. Render only visible columns.
+3. Reuse cell visual elements.
+4. Avoid per-cell reflection.
+5. Cache parsed cell values.
+6. Debounce validation while typing.
+7. Validate dirty rows first, full project only on explicit action or save.
+8. Use paged relation pickers for large target tables.
+9. Search should use a lightweight per-table index, not scan every cell on each keypress.
+
+Unity UI recommendation:
+
+```text
+EditorWindow + UI Toolkit ListView/MultiColumnListView
+```
+
+Do not create one `VisualElement` per cell for the entire table. Use bind/unbind callbacks with row and column virtualization.
+
+### Editor Storage Optimization
+
+Keep source files split by table:
+
+```text
+Schema/project.schema.json
+Rows/unit.rows.json
+Rows/skill.rows.json
+Rows/equipment.rows.json
+```
+
+Reasons:
+
+1. Opening one table does not require parsing every row in the project.
+2. Git diffs stay smaller.
+3. AI/API edits can touch one table at a time.
+4. Failed edits are easier to isolate.
+
+Optional lazy loading:
+
+```text
+load schema at project open
+load row file when table is opened
+unload inactive large table row caches after delay
+keep dirty loaded tables pinned
+```
+
+### Validation Optimization
+
+Validation should be incremental.
+
+Maintain indices:
+
+```text
+tableId -> table schema
+tableId + rowId -> row handle
+fieldId -> field schema
+relation target -> reverse reference list
+asset guid -> referencing cells
+```
+
+On row edit:
+
+1. Validate edited cell.
+2. Validate edited row.
+3. Validate relations from edited row.
+4. Validate reverse references only if row id/table id changed.
+
+On schema edit:
+
+1. Validate affected table.
+2. Validate generated name collisions.
+3. Validate fields referencing changed table/field.
+4. Mark codegen dirty.
+
+Full validation remains available but should not run on every keystroke.
+
+### Codegen Optimization
+
+Codegen should produce direct code with no runtime schema walk for normal gameplay.
+
+Generated database should include:
+
+```text
+typed arrays
+typed table accessors
+typed relation resolve methods
+view relation switch helpers
+optional id lookup dictionaries in development builds
+```
+
+Generated database should avoid:
+
+```text
+runtime field descriptor lookup for every get
+reflection-based property access
+boxing primitive field values
+allocating wrapper objects for every relation access
+```
+
+### Asset Reference Optimization
+
+Editor:
+
+```text
+UnityEngine.Object picker -> Asset GUID
+```
+
+Runtime:
+
+```text
+Asset GUID -> Addressables key or generated asset index
+```
+
+For games with many repeated asset refs, build an asset table:
+
+```text
+AssetRefTable[]
+  0: "sprites/units/knight"
+  1: "sprites/icons/potion"
+
+Rows store:
+  ushort assetIndex
+```
+
+This prevents repeated long strings in MessagePack rows.
+
+### Memory Profiles
+
+Provide project settings:
+
+```text
+Editor Full:
+  schema + loaded rows + validation metadata + UI state
+
+Editor Lazy:
+  schema + active table rows + on-demand validation
+
+Runtime Development:
+  typed arrays + id maps + validation metadata
+
+Runtime Release:
+  typed arrays + compact refs + minimal manifest
+```
+
+The default Unity player build should use Runtime Release.
+
+### Merge Strategy
+
+This tool intentionally should not implement a heavy custom merge system at first.
+
+Instead:
+
+1. Store schema and rows as deterministic JSON.
+2. Sort fields by stable order.
+3. Sort rows by explicit row order or row id.
+4. Keep one table per row file.
+5. Provide `Validate After Merge`.
+6. Provide `Repair Missing References`.
+7. Provide `Regenerate MessagePack Keys Report`.
+
+This keeps the package lighter while still making Git merge conflicts manageable.
+
+### Performance Budgets
+
+Initial targets for a mid-size mobile/PC game database:
+
+```text
+Tables: 100-300
+Rows: 10,000-200,000
+Fields per table: 5-80
+Relations: 50,000-500,000
+Editor active sheet open: under 300ms for 10,000 visible-row table metadata
+Editor scroll: no full-table visual rebuild
+Runtime database load: under 500ms for common production DB on desktop
+Runtime relation resolve: O(1)
+Runtime hot-path allocation: zero for normal row/relation reads
+```
+
+These are design targets, not guaranteed numbers. The package should include benchmarks before claiming them.
+
+### Benchmark Suite
+
+Add benchmark data projects:
+
+```text
+Small: 20 tables, 2,000 rows
+Medium: 100 tables, 50,000 rows
+Large: 250 tables, 200,000 rows
+ViewHeavy: 50 ViewTables, 300,000 ViewRelation refs
+AssetHeavy: 30,000 asset refs
+```
+
+Measure:
+
+```text
+schema load time
+active table open time
+scroll frame cost
+relation picker search time
+validation time
+codegen time
+MessagePack build time
+runtime deserialize time
+runtime relation resolve throughput
+runtime memory usage
+```
+
+### Practical Tradeoff
+
+To stay lighter than BGDatabase, the first version should deliberately avoid:
+
+1. Automatic complex merge UI.
+2. Runtime schema reflection as the main access path.
+3. Every possible Unity field type.
+4. Always-materialized view tables.
+5. Per-cell Unity object references in runtime data.
+6. Full-project validation on every edit.
+7. One giant ScriptableObject containing all rows.
+
+The tool should win by doing fewer things in the runtime path and by compiling flexible editor data into compact generated code plus compact MessagePack data.
