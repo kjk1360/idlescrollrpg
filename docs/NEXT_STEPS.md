@@ -46,6 +46,7 @@
 - Added visual data tables: `texture_asset`, `sprite_animation`, `visual_state`, `visual_state_machine`, and `unit_visual`.
 - Added `unit_def.visual`.
 - Added `belt_tools play`, a local playable canvas preview backed by Rust battle simulation frames.
+- Added `belt_tools game`, a local game-client view that opens on Guild House and exposes Warehouse, Hero, Operation, and Dungeon Dispatch flows separately from the combat preview.
 - Added a Data Studio Visual tab for unit visual and sprite animation preview.
 - Added `sprite_frame` data with texture rect, pivot, and duration fields.
 - Added project asset serving through `/asset?path=...`.
@@ -158,6 +159,8 @@ Packaging output:
 
 ```text
 dist/tools/belt_tools.exe
+dist/game/idle_scroll_rpg.exe
+dist/game/Run Idle Scroll RPG.bat
 dist/projects/sample/
 ```
 
@@ -170,6 +173,13 @@ dist\tools\belt_tools.exe view --project dist\projects\sample --view map_wave_pr
 dist\tools\belt_tools.exe simulate --project dist\projects\sample --map endless_left_road
 dist\tools\belt_tools.exe serve --project dist\projects\sample --addr 127.0.0.1:7878
 dist\tools\belt_tools.exe play --project dist\projects\sample --map endless_left_road --addr 127.0.0.1:7879
+dist\game\idle_scroll_rpg.exe game --project ..\projects\sample --addr 127.0.0.1:7880
+```
+
+For the game-client view, double-click:
+
+```text
+dist\game\Run Idle Scroll RPG.bat
 ```
 
 ## Completed Milestone: Minimal Data Studio UI

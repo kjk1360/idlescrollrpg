@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 mod aseprite;
+mod game;
 mod play;
 mod serve;
 
@@ -31,6 +32,7 @@ fn main() {
         "import-aseprite" => import_aseprite(&args[1..]),
         "serve" => serve::serve(&args[1..]),
         "play" => play::play(&args[1..]),
+        "game" => game::game(&args[1..]),
         _ => {
             help();
             Ok(())
@@ -57,6 +59,7 @@ fn help() {
     println!("  import-aseprite  Import an Aseprite file or exported JSON into visual data");
     println!("  serve            Start the local Data Studio web UI");
     println!("  play             Start the playable belt-scroll preview");
+    println!("  game             Start the local game client");
     println!();
     println!("Common options:");
     println!("  --project <dir>  Load a file-based data project");

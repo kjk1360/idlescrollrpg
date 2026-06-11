@@ -57,6 +57,7 @@ Implemented:
 - `scripts/package_tools.ps1`: release packaging for `belt_tools.exe` and `projects/sample`
 - `belt_tools serve`: local Data Studio web UI and JSON API
 - `belt_tools play`: local playable canvas preview backed by Rust simulation frames
+- `belt_tools game`: local game-client view that opens on Guild House and exposes Warehouse, Hero, Operation, and Dungeon Dispatch flows separately from the combat preview
 - `projects/sample`: file-based sample data project
 - `crates/generated_data`: generated Rust crate from sample schema
 - explicit `unit_group_member` data with `unit`, `x`, and `lane`
@@ -258,6 +259,13 @@ dist\tools\belt_tools.exe view --project dist\projects\sample --view map_wave_pr
 dist\tools\belt_tools.exe simulate --project dist\projects\sample --map endless_left_road
 dist\tools\belt_tools.exe serve --project dist\projects\sample --addr 127.0.0.1:7878
 dist\tools\belt_tools.exe play --project dist\projects\sample --map endless_left_road --addr 127.0.0.1:7879
+dist\game\idle_scroll_rpg.exe game --project ..\projects\sample --addr 127.0.0.1:7880
+```
+
+Game client package:
+
+```powershell
+dist\game\Run Idle Scroll RPG.bat
 ```
 
 Expected sample status:
