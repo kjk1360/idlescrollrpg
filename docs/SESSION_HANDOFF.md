@@ -61,6 +61,7 @@ Implemented:
 - `crates/generated_data`: generated Rust crate from sample schema
 - explicit `unit_group_member` data with `unit`, `x`, and `lane`
 - visual data tables for texture assets, sprite animations, visual states, state machines, and unit visuals
+- visual resource flow is data-authored as `texture_asset.path` -> `sprite_frame` rect/pivot -> `sprite_animation.frames` -> `visual_state.animation` -> `visual_state_machine.states` -> `unit_visual.state_machine` -> `unit_def.visual`
 - Aseprite import through CLI/API into texture, sprite frame, and sprite animation data
 - Visual tab sprite sheet grid slicer for bulk `sprite_frame` creation from texture assets
 - Visual tab animation frame list editor for active state `sprite_animation` rows
@@ -125,8 +126,8 @@ Implemented:
 - sample special option `moonless_black_night` exists with rarity, trigger key, effect summary, Moonlight stat delta, and granted skill reference
 - equipment instances store stat options and special options as separate collections
 - Refinement recipes can attach authored special options to the output equipment instance
-- `unit_special_option_loadout` exists as a temporary preview/runtime bridge until the real hero equipment assignment model is implemented
-- `game_data_adapter` applies special option `on_equip` stat deltas into `UnitDef.base_stats` and adds non-duplicate granted-skill behavior rules while building `BattleConfig`
+- `game_data_adapter` applies special option `on_equip` stat deltas into `UnitDef.base_stats` and adds non-duplicate granted-skill behavior rules while building `BattleConfig` from runtime hero equipment modifiers
+- the temporary `unit_special_option_loadout` preview/runtime bridge has been removed; authored equipment special options now reach combat only through the account hero equipment path
 - account state now has `heroes`; new or migrated account states default heroes from the sample map party
 - heroes have equipment slots keyed by slot name, currently exercised through `main_hand`
 - `/api/account-hero/equip` and `/api/account-hero/unequip` mutate hero equipment slots
@@ -538,7 +539,7 @@ Expose the local account-state loop in the tool UI and playable preview.
 
 Recommended order:
 
-1. Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
+1. Add a starter account-state/sample save path for a first playable build, including a default equipped item for visual combat verification.
 2. Add richer condition presets and buff/debuff authoring hints to the composable special trigger tables.
 3. Extend equipment special option mutations beyond `damage_scale_add` into effect add/remove/replace, projectile/AOE conversion, and richer conditional mutation presets.
 4. Extend refinement effect rules beyond add/remove/replace/lock/random-add into explicit reroll pools, mutation weights across special options, option lock scopes, and replacement constraints.
@@ -549,7 +550,7 @@ Recommended order:
 
 ## Caveats
 
-- Renderer is currently a browser canvas playable preview with placeholder sprite bodies; real texture loading/slicing is not implemented yet.
+- Renderer is currently a browser canvas playable preview with placeholder sprite bodies unless real `texture_asset`/`sprite_frame`/`sprite_animation` data is supplied.
 - Visual Data Studio UI is implemented only as a first local web UI; owned nested tables are created and displayed with ownership, but inline editing still opens a selection/detail workflow rather than a polished embedded child editor.
 - Data Build currently writes a JSON snapshot only.
 - Generated relation cache validates and stores row ids, but does not yet expose typed target row helpers.

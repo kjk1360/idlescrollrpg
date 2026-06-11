@@ -1830,42 +1830,6 @@
     ]
   },
   {
-    "id": 34,
-    "key": "unit_special_option_loadout",
-    "display_name": "Unit Special Option Loadout",
-    "fields": [
-      {
-        "id": 320,
-        "key": "name",
-        "display_name": "Name",
-        "kind": {
-          "kind": "string"
-        },
-        "required": true
-      },
-      {
-        "id": 321,
-        "key": "unit",
-        "display_name": "Unit",
-        "kind": {
-          "kind": "relation_one",
-          "target_table": 1
-        },
-        "required": true
-      },
-      {
-        "id": 322,
-        "key": "special_options",
-        "display_name": "Special Options",
-        "kind": {
-          "kind": "relation_many",
-          "target_table": 32
-        },
-        "required": false
-      }
-    ]
-  },
-  {
     "id": 35,
     "key": "special_trigger_def",
     "display_name": "Special Trigger Def",

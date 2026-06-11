@@ -43,7 +43,6 @@ pub struct GeneratedDatabase {
     pub refinement_recipe: GeneratedTable<RefinementRecipe>,
     pub special_option_def: GeneratedTable<SpecialOptionDef>,
     pub special_option_stat_delta: GeneratedTable<SpecialOptionStatDelta>,
-    pub unit_special_option_loadout: GeneratedTable<UnitSpecialOptionLoadout>,
     pub special_trigger_def: GeneratedTable<SpecialTriggerDef>,
     pub special_trigger_condition: GeneratedTable<SpecialTriggerCondition>,
     pub special_trigger_effect: GeneratedTable<SpecialTriggerEffect>,
@@ -123,7 +122,6 @@ impl GeneratedDatabase {
             refinement_recipe: load_refinement_recipe(project)?,
             special_option_def: load_special_option_def(project)?,
             special_option_stat_delta: load_special_option_stat_delta(project)?,
-            unit_special_option_loadout: load_unit_special_option_loadout(project)?,
             special_trigger_def: load_special_trigger_def(project)?,
             special_trigger_condition: load_special_trigger_condition(project)?,
             special_trigger_effect: load_special_trigger_effect(project)?,
@@ -843,31 +841,6 @@ fn load_special_option_stat_delta(
             stat: read_row(row, FieldId(311), "special_option_stat_delta.stat")?,
             value: read_f32(row, FieldId(312), "special_option_stat_delta.value")?,
             condition: read_string(row, FieldId(313), "special_option_stat_delta.condition")?,
-        });
-        ids.push(row.id);
-        keys.push(row.key.clone());
-    }
-    Ok(GeneratedTable::new(typed_rows, ids, keys))
-}
-
-fn load_unit_special_option_loadout(
-    project: &DataProject,
-) -> Result<GeneratedTable<UnitSpecialOptionLoadout>, String> {
-    let rows = table_rows(project, TableId(34))?;
-    let mut typed_rows = Vec::new();
-    let mut ids = Vec::new();
-    let mut keys = Vec::new();
-    for row in rows {
-        typed_rows.push(UnitSpecialOptionLoadout {
-            id: row.id,
-            key: row.key.clone(),
-            name: read_string(row, FieldId(320), "unit_special_option_loadout.name")?,
-            unit: read_row(row, FieldId(321), "unit_special_option_loadout.unit")?,
-            special_options: read_rows(
-                row,
-                FieldId(322),
-                "unit_special_option_loadout.special_options",
-            )?,
         });
         ids.push(row.id);
         keys.push(row.key.clone());

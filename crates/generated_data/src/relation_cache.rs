@@ -59,8 +59,6 @@ pub struct GeneratedRelationCache {
     pub special_option_def_granted_skill: HashMap<RowId, RowId>,
     pub special_option_def_skill_mutations: HashMap<RowId, Vec<RowId>>,
     pub special_option_stat_delta_stat: HashMap<RowId, RowId>,
-    pub unit_special_option_loadout_unit: HashMap<RowId, RowId>,
-    pub unit_special_option_loadout_special_options: HashMap<RowId, Vec<RowId>>,
     pub special_trigger_def_stack_stat: HashMap<RowId, RowId>,
     pub special_trigger_def_conditions: HashMap<RowId, Vec<RowId>>,
     pub special_trigger_def_effects: HashMap<RowId, Vec<RowId>>,
@@ -615,24 +613,6 @@ impl GeneratedRelationCache {
                 .special_option_stat_delta_stat
                 .insert(row.id, row.stat);
         }
-        for row in &db.unit_special_option_loadout.rows {
-            if db.unit_def.get_by_id(row.unit).is_none() {
-                return Err(format!("missing relation target for unit_special_option_loadout.unit from {:?} to {:?}", row.id, row.unit));
-            }
-            cache
-                .unit_special_option_loadout_unit
-                .insert(row.id, row.unit);
-        }
-        for row in &db.unit_special_option_loadout.rows {
-            for target_id in &row.special_options {
-                if db.special_option_def.get_by_id(*target_id).is_none() {
-                    return Err(format!("missing relation target for unit_special_option_loadout.special_options from {:?} to {:?}", row.id, target_id));
-                }
-            }
-            cache
-                .unit_special_option_loadout_special_options
-                .insert(row.id, row.special_options.clone());
-        }
         for row in &db.special_trigger_def.rows {
             if db.stat_def.get_by_id(row.stack_stat).is_none() {
                 return Err(format!(
@@ -952,19 +932,6 @@ impl GeneratedRelationCache {
 
     pub fn get_special_option_stat_delta_stat(&self, source: RowId) -> Option<RowId> {
         self.special_option_stat_delta_stat.get(&source).copied()
-    }
-
-    pub fn get_unit_special_option_loadout_unit(&self, source: RowId) -> Option<RowId> {
-        self.unit_special_option_loadout_unit.get(&source).copied()
-    }
-
-    pub fn get_unit_special_option_loadout_special_options(
-        &self,
-        source: RowId,
-    ) -> Option<&[RowId]> {
-        self.unit_special_option_loadout_special_options
-            .get(&source)
-            .map(Vec::as_slice)
     }
 
     pub fn get_special_trigger_def_stack_stat(&self, source: RowId) -> Option<RowId> {

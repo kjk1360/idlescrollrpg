@@ -373,15 +373,6 @@ pub struct SpecialOptionStatDelta {
 }
 
 #[derive(Debug, Clone)]
-pub struct UnitSpecialOptionLoadout {
-    pub id: RowId,
-    pub key: String,
-    pub name: String,
-    pub unit: RowId,
-    pub special_options: Vec<RowId>,
-}
-
-#[derive(Debug, Clone)]
 pub struct SpecialTriggerDef {
     pub id: RowId,
     pub key: String,

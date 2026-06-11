@@ -69,7 +69,6 @@ pub fn battle_config_from_generated_with_runtime_equipment(
         .iter()
         .map(|row| skill_def_from_data(db, row))
         .collect::<Result<Vec<_>, _>>()?;
-    apply_unit_special_option_loadouts(db, &mut unit_defs, &mut skill_defs)?;
     apply_runtime_unit_equipment(db, &mut unit_defs, &mut skill_defs, equipment)?;
 
     let map = db
@@ -267,30 +266,6 @@ fn unit_def_from_data(
         special_triggers: Vec::new(),
         skill_cooldown_ticks,
     })
-}
-
-fn apply_unit_special_option_loadouts(
-    db: &GeneratedDatabase,
-    unit_defs: &mut [UnitDef],
-    skill_defs: &mut Vec<SkillDef>,
-) -> Result<(), String> {
-    for loadout in &db.unit_special_option_loadout.rows {
-        let unit_def = unit_defs
-            .iter_mut()
-            .find(|unit| unit.id == UnitDefId(loadout.unit.0 as u32))
-            .ok_or_else(|| {
-                format!(
-                    "missing unit {:?} for special option loadout {}",
-                    loadout.unit, loadout.key
-                )
-            })?;
-
-        for option_id in &loadout.special_options {
-            apply_special_option_to_unit(db, unit_def, skill_defs, *option_id)?;
-        }
-    }
-
-    Ok(())
 }
 
 fn apply_special_option_to_unit(
@@ -703,10 +678,19 @@ mod tests {
     }
 
     #[test]
-    fn applies_unit_special_option_loadout_to_battle_config() {
+    fn applies_runtime_equipment_special_option_to_battle_config() {
         let project = DataProject::load_from_dir("../../projects/sample").expect("project loads");
-        let config =
-            battle_config_from_project(&project, "endless_left_road").expect("config loads");
+        let runtime_equipment = vec![RuntimeUnitEquipment {
+            unit_key: "knight".to_string(),
+            stat_options: Vec::new(),
+            special_option_keys: vec!["moonless_black_night".to_string()],
+        }];
+        let config = battle_config_from_project_with_runtime_equipment(
+            &project,
+            "endless_left_road",
+            &runtime_equipment,
+        )
+        .expect("config loads");
         let knight = config
             .unit_defs
             .iter()

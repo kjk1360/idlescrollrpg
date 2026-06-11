@@ -57,6 +57,7 @@
 - Added Visual tab animation frame list editor for active state animations.
 - Added Visual tab state machine editor for state add/delete, default state, and animation assignment.
 - Added `/api/assets` project asset browser and Visual tab texture asset create/update UI.
+- Visual resource flow is data-authored as `texture_asset.path` -> `sprite_frame` rect/pivot -> `sprite_animation.frames` -> `visual_state.animation` -> `visual_state_machine.states` -> `unit_visual.state_machine` -> `unit_def.visual`.
 - Converted `belt_core` battle runtime to tick-based wave combat.
 - Changed maps to clear after their final wave instead of looping indefinitely.
 - Removed the operation harvesting/production premise from the locked design direction.
@@ -94,11 +95,11 @@
 - Added sample special option `moonless_black_night`, with rarity, trigger key, effect summary, Moonlight stat delta, and granted skill reference.
 - Equipment instances now store stat options and special options as separate collections.
 - Refinement recipes can attach authored special options to the output equipment instance.
-- Added `unit_special_option_loadout` as a preview/runtime bridge table so authored special options can be applied to sample unit definitions before the hero equipment assignment model exists.
-- Battle config conversion now applies special option `on_equip` stat deltas to `UnitDef.base_stats` and can add non-duplicate granted-skill behavior rules.
+- Battle config conversion applies special option `on_equip` stat deltas to `UnitDef.base_stats` and can add non-duplicate granted-skill behavior rules through runtime hero equipment modifiers.
 - Added account heroes with equipment slots, defaulting from the sample map party when an account state is created or migrated.
 - Added hero equip/unequip API and Operation UI controls for assigning equipment instances to a hero `main_hand` slot.
 - Play Preview and `simulate --account-state` can now convert equipped hero items into runtime equipment modifiers and apply stat options plus special option keys to battle config.
+- Removed the temporary `unit_special_option_loadout` preview/runtime bridge; authored equipment special options now reach combat only through the account hero equipment path.
 - Equipment stat options affect combat only when their `stat_key` exists in `stat_def`; display/crafting-only option keys are ignored by combat runtime.
 - Added combat special trigger runtime v1 for `combat_tick_5s_moonlight_3`: every 5 seconds it gains Moonlight, consumes 3 stacks, starts a 10-second periodic attack state, and hits the nearest enemy for 100% attack roughly every 0.5 seconds.
 - Battle events now include `SpecialTriggered` so preview/UI layers can react to equipment special option triggers.
@@ -332,7 +333,7 @@ The local account-state file is intentionally small and server-portable:
 The next production-facing step is to expose the local account state in the UI and make it behave like the later server-backed account model:
 
 - Account-state API endpoints in `belt_tools play` for preview/test workflows.
-- Retire the temporary `unit_special_option_loadout` bridge once the account hero equipment path fully covers editor/preview sample needs.
+- Add a starter account-state/sample save path for a first playable build, including a default equipped item for visual combat verification.
 - Add richer condition presets and buff/debuff authoring hints to the composable special trigger tables.
 - Extend equipment special option mutations beyond `damage_scale_add` into effect add/remove/replace, projectile/AOE conversion, and richer conditional mutation presets.
 - Extend refinement effect rules beyond add/remove/replace/lock/random-add into explicit reroll pools, mutation weights across special options, option lock scopes, and replacement constraints.
